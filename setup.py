@@ -13,6 +13,12 @@
 import distutils
 from distutils.core import setup
 
+install_requires = [
+   'numpy>=1.4.1', 
+   'scipy>=0.7.2', 
+   'matplotlib>=0.99.1.1',
+]
+
 setup(
     name = 'python-dtxrd',
     version = '1.0',
@@ -21,6 +27,7 @@ setup(
     maintainer_email = 'sstoupin@gmail.com',
     license = 'UChicago Argonne, LLC OPEN SOURCE LICENSE',
     description = 'Tools for X-ray diffraction evaluation of single crystals',
+    install_requires = install_requires,
         package_dir = {'': 'lib'},
         packages = ['dtxrd', 'dtxrd.myio'],
 	package_data = {'dtxrd': ['asf/*.asf', 'data/*.dat']},

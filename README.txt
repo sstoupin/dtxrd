@@ -20,7 +20,7 @@ specscan - a tool to view and extract a particular scan from a SPEC file
   
 REQUIREMENTS
 ------------
-* hdf (hdf4)
+* hdf (hdf4, includes *hdp* command-line tool)
 * python-numpy
 * python-scipy
 * python-matplotlib
