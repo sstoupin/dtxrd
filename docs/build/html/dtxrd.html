@@ -1,0 +1,241 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dtxrd &mdash; dtxrd 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dtxrd 1.0 documentation" href="index.html" />
+    <link rel="next" title="rcpeak" href="rcpeak.html" />
+    <link rel="prev" title="dtxrd package" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="rcpeak.html" title="rcpeak"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="dtxrd package"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">dtxrd 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">dtxrd</a><ul>
+<li><a class="reference internal" href="#synopsis">SYNOPSIS</a></li>
+<li><a class="reference internal" href="#description">DESCRIPTION</a></li>
+<li><a class="reference internal" href="#parameters">PARAMETERS</a></li>
+<li><a class="reference internal" href="#options">OPTIONS</a></li>
+<li><a class="reference internal" href="#see-also">SEE ALSO</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">dtxrd package</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="rcpeak.html"
+                        title="next chapter">rcpeak</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/dtxrd.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="dtxrd">
+<span id="id1"></span><h1>dtxrd<a class="headerlink" href="#dtxrd" title="Permalink to this headline">¶</a></h1>
+<p>x-ray diffraction calculator
+(dynamical theory of x-ray diffraction for perfect crystals)</p>
+<div class="section" id="synopsis">
+<h2>SYNOPSIS<a class="headerlink" href="#synopsis" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><pre>dtxrd [options] crystal h k l eta phi T d ["a" | "e"] [theta | Ex]</pre>
+</div>
+<p>For example, a Si (111) rocking curve at 8 keV:</p>
+<div class="highlight-python"><pre>dtxrd Si 1 1 1 0 0 300 1 e 8</pre>
+</div>
+</div>
+<div class="section" id="description">
+<h2>DESCRIPTION<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h2>
+<p>A  program to calculate parameters of a single Bragg reflection for
+a monochromatic incident wave using dynamical theory of x-ray diffraction for perfect crystals
+For a brief summary run:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">dtxrd</span> <span class="o">-</span><span class="n">h</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="parameters">
+<h2>PARAMETERS<a class="headerlink" href="#parameters" title="Permalink to this headline">¶</a></h2>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">crystal:</th><td class="field-body"><p class="first">crystal type: C (diamond), Si (silicon), Ge (germanium) or Al2O3 (sapphire)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">h k l:</th><td class="field-body"><p class="first">Miller indicies of a chosen Bragg reflection</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">eta:</th><td class="field-body"><p class="first">asymmetry angle</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">phi:</th><td class="field-body"><p class="first">asimuthal angle of incidence</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">T:</th><td class="field-body"><p class="first">crystal temperature [K]</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">d:</th><td class="field-body"><p class="first">crystal thickness [mm]</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">flag:</th><td class="field-body"><table border="1" class="first docutils">
+<colgroup>
+<col width="7%" />
+<col width="93%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">flag</th>
+<th class="head">description</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>a</td>
+<td>perform calculation at a given glancing angle of incidence theta</td>
+</tr>
+<tr class="row-odd"><td>e</td>
+<td>perform calculation at a given photon energy Ex</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">theta:</th><td class="field-body"><p class="first">glancing angle of incidence, theta (<span class="math">\(\theta\)</span>)</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Ex:</th><td class="field-body"><p class="first last">photon energy, Ex (<span class="math">\(E_x\)</span>)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="options">
+<h2>OPTIONS<a class="headerlink" href="#options" title="Permalink to this headline">¶</a></h2>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">-v, &#8211;version:</th><td class="field-body">show version of program.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">-h, &#8211;help:</th><td class="field-body">show summary of options.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name" colspan="2">-o F, &#8211;output=F:</th></tr>
+<tr class="field-odd field"><td>&nbsp;</td><td class="field-body">write results to file F (default to stdout)</td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">-w D, &#8211;write=D:</th></tr>
+<tr class="field-even field"><td>&nbsp;</td><td class="field-body">write data to file D (default - no action)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">-p, &#8211;pi:</th><td class="field-body"><span class="math">\(\pi\)</span> polarization for incident wave (default - <span class="math">\(\sigma\)</span> polarization)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">-c, &#8211;conv:</th><td class="field-body">convolve data with a virtual instrumental resolution function having FWHM of 1/10 of  the  Darwin  width
+and report the resulting FWHM of the reflectivity curve</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="see-also">
+<h2>SEE ALSO<a class="headerlink" href="#see-also" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><a class="reference internal" href="throughput.html#throughput"><em>throughput</em></a></li>
+<li><a class="reference internal" href="rcpeak.html#rcpeak"><em>rcpeak</em></a></li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">author:</th><td class="field-body">Stanislav Stoupin</td>
+</tr>
+<tr class="field-even field"><th class="field-name">email:</th><td class="field-body">&lt;<a class="reference external" href="mailto:sstoupin&#37;&#52;&#48;gmail&#46;com">sstoupin<span>&#64;</span>gmail<span>&#46;</span>com</a>&gt;</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">date:</th><td class="field-body">March 07, 2014</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="rcpeak.html" title="rcpeak"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="dtxrd package"
+             >previous</a> |</li>
+        <li><a href="index.html">dtxrd 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,93 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" (C) Copyright 2014 Stanislav Stoupin <sstoupin@gmail.com>,
+.\"
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH RCPEAK 1 "February 13, 2014"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+RCPEAK \- plot and calculate parameters of a reflectivity curve 
+.SH SYNOPSIS
+.B rcpeak
+.RI [ options ] \ filename1 \ filename2 \ ... \ filenameN 
+.\".br
+.\".B bar
+.\".RI [ options ] "files" ...
+.\"
+.SH DESCRIPTION
+A program to plot and calculate parameters of a reflectivity curve or any kind 
+of distribution with a single peak
+.PP
+.\" TeX users may be more comfortable with the \fB<whatever>\fP and
+.\" \fI<whatever>\fP escape sequences to invode bold face and italics,
+.\" respectively.
+.\" \fBpython-dtxrd-1.0\fP is a program that...
+.SH OPTIONS
+For a brief summary run "rcpeak -h".
+.TP
+.B \-v, \-\-version
+show version of program.
+.TP
+.B \-h, \-\-help
+show summary of options.
+.TP
+.B \-o F, \-\-output=F 
+write results to file F (default to stdout)
+.TP
+.B \-p, \-\-plot 
+plot fitted model distributions (Gaussian and Lorentzian)
+.TP
+.B \-c, \-\-contrast
+calculate spectral contrast at 1.578*FWHM 
+.TP
+.B \-u unit, \-\-unit=unit
+conversion factor for x-axis 
+.TP
+.B \-m mult, \-\-mult=mult
+multiplication factor for y-axis
+.TP
+.B \-x Nx, \-\-name_x=Nx
+x-axis label/unit
+.TP
+.B \-y Ny, \-\-name_y=Ny
+y-axis label/unit
+.TP
+.B \-b bkg, \-\-bkg=bkg
+user defined background for calculation of FWHM 
+.br
+(by default determined from the peak tails)
+.TP
+.B \-t n_th, \-\-th=n_th
+x-values (e.g., rocking curve angle th) are in column number n_th (default n_th=1)
+.TP
+.B \-r n_r, \-\-r=n_r
+y-values (e.g., reflectivity values r) are in column number n_r (default n_r=2)
+.TP
+.B \-d nder, \-\-deriv=nder
+perform interpolation with number of points, calculate and plot
+.br
+numerical derivative of data (e.g., for beam size estimation in a knife-edge scan)
+.TP
+.B \-n, \-\-normalize
+normalize data for plotting (e.g., userful for visual comparision of FWHM 
+.br
+of peaks with different maximum intensity)
+.\".TP
+.SH SEE ALSO
+.BR dtxrd (1),
+.BR throughput (1).
+.TP
+.SH AUTHOR
+Stanislav Stoupin <sstoupin@gmail.com>

@@ -1,0 +1,21 @@
+# Stanislav Stoupin <sstoupin@aps.anl.gov> 2014
+
+This folder contains an example set of hdf images for evaluation with
+"dctopo" to perform rocking curve imaging.
+
+in this particular case images are collected on the rocking curve of a
+type IIa diamond single crystal.
+
+to perform quick evaluation run:
+rctopo -t 1.1 -s -u deg *hdf
+
+to obtain smooth image perform Gaussian fitting for each pixel:
+rctopo -t 1.1 -g -s -u deg *hdf
+
+to assign sample name to the image title on the results figure run:
+rctopo -t 1.1 -g -s -u deg -n diamond1 *hdf
+
+to perform statistical analysis and visualization over a specified region
+run:
+rctopo -r '1.5 3.5 4 6' -t 1.1 -g -s -u deg -n diamond1 *hdf
+

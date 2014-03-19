@@ -1,0 +1,6 @@
+include README.txt LICENSE ChangeLog MANIFEST.in
+include dtxrd
+include throughput
+include rctopo
+include seehdf
+include rcpeak
