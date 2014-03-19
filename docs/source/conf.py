@@ -14,7 +14,7 @@
 
 import sys
 import os
-from matplotlib.cm import spec
+#from matplotlib.cm import spec
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
