@@ -82,16 +82,16 @@ to calculate a rocking curve of a 1-mm-thick Si (111) crystal at 8 keV (111 refl
 
        dtxrd Si 1 1 1 0 0 300 1 e 8
 
-.. figure:: ../../examples/snapshots/Si111_8keV.png
-            :figwidth: 90 %
+.. image:: ../../examples/snapshots/Si111_8keV.png
+            :width: 90 %
 	    :alt: Si111 at 8keV
 
 to calculate a rocking curve of a 0.1-mm-thick C (001) crystal at 12 keV (220 reflection, Laue case) run::
 
        dtxrd C 2 2 0 45 0 300 0.1 e 12 
 
-.. figure:: ../../examples/snapshots/C220_Laue.png
-            :figwidth: 90 %
+.. image:: ../../examples/snapshots/C220_Laue.png
+            :width: 90 %
 	    :alt: C220 Laue at 12keV
 
 

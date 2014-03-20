@@ -82,32 +82,32 @@ to perform quick evaluation run::
 
     rctopo -s -u deg *hdf
 
-.. figure:: ../../examples/snapshots/rctopo00.png
-            :figwidth: 40 %
+.. image:: ../../examples/snapshots/rctopo00.png
+            :width: 50 %
 	    :alt: diamond SA1 	    	    
 
 to better define crystal boundary (threshold for analysis) and to obtain a smooth image (Gaussian fitting for each pixel) run::
 
     rctopo -t 1.1 -g -s -u deg *hdf
 
-.. figure:: ../../examples/snapshots/rctopo0.png
-            :figwidth: 40 %
+.. image:: ../../examples/snapshots/rctopo0.png
+            :width: 50 %
 	    :alt: diamond SA1 fitting/threshold
 
 to display the name of the sample in the figure title run::
 
     rctopo -t 1.1 -g -s -u deg -n diamond1 *hdf
 
-.. figure:: ../../examples/snapshots/rctopo1.png
-            :figwidth: 40 %
+.. image:: ../../examples/snapshots/rctopo1.png
+            :width: 50 %
 	    :alt: diamond SA1 name	    	    
 
 to perform statistical analysis and visualization over a specified region run::
 
     rctopo -r '1.5 3.5 4 6' -t 1.1 -g -s -u deg -n diamond1 *hdf
 
-.. figure:: ../../examples/snapshots/rctopo2.png
-            :figwidth: 40 %
+.. image:: ../../examples/snapshots/rctopo2.png
+            :width: 50 %
 	    :alt: diamond SA1 working region	    	    
 
 
