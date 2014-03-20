@@ -1,13 +1,18 @@
 #!/usr/bin/env python
-# program to read hdf4 file
-#
+
+
+''' program to read hdf4 file'''
+
 
 import os
 from numpy import *
 
+# TODO: find a Python package to read HDF4 (PyHDF?)
+# TODO: optimize handling the input into Python arrays
+
 def read_hdf4(fileName):
- 
- m=os.popen('hdp dumpsds -n rotation_motor '+fileName)
+
+ m = os.popen('hdp dumpsds -n rotation_motor '+fileName)
  stuff0=m.readlines()
  th=float(stuff0[len(stuff0)-2])
       
