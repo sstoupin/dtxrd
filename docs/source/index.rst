@@ -6,7 +6,7 @@ dtxrd package
 :author: Stanislav Stoupin
 :email:  <sstoupin@gmail.com>
 
-Programs to support X-ray diffraction calculations
+Tools for X-ray diffraction evaluation of single crystals
 
 Provides
 ########
@@ -21,7 +21,7 @@ Provides
 
 Requires
 ########
-
+:hdf:        http://hdfgroup.org
 :Numpy:      http://numpy.org
 :Scipy:      http://scipy.org
 :Matplotlib: http://matplotlib.org

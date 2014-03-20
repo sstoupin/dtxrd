@@ -15,9 +15,6 @@ SYNOPSIS
 
        dtxrd [options] crystal h k l eta phi T d ["a" | "e"] [theta | Ex]
 
-For example, a Si (111) rocking curve at 8 keV::
-
-       dtxrd Si 1 1 1 0 0 300 1 e 8
 
 DESCRIPTION
 ============
@@ -38,7 +35,7 @@ PARAMETERS
 
 :eta:    asymmetry angle
 
-:phi:    asimuthal angle of incidence
+:phi:    azimuthal angle of incidence
 
 :T:      crystal temperature [K]
 
@@ -53,7 +50,7 @@ PARAMETERS
 
 :theta: glancing angle of incidence, theta (:math:`\theta`)
 
-:Ex: photon energy, Ex (:math:`E_x`)
+:Ex: photon energy, Ex (:math:`E_{\mathrm X}`)
 
 
 OPTIONS
@@ -77,6 +74,24 @@ OPTIONS
 :-c, --conv:
        convolve data with a virtual instrumental resolution function having FWHM of 1/10 of  the  Darwin  width
        and report the resulting FWHM of the reflectivity curve
+
+EXAMPLES
+===========
+
+to calculate a rocking curve of a 1-mm-thick Si (111) crystal at 8 keV (111 reflection, Bragg case) run::
+
+       dtxrd Si 1 1 1 0 0 300 1 e 8
+
+.. figure:: ../../examples/snapshots/Si111_8keV.png
+	    :alt: Si111 at 8keV
+
+to calculate a rocking curve of a 0.1-mm-thick C (001) crystal at 12 keV (220 reflection, Laue case) run::
+
+       dtxrd C 2 2 0 45 0 300 0.1 e 12 
+
+.. figure:: ../../examples/snapshots/C220_Laue.png
+	    :alt: C220 Laue at 12keV
+
 
 SEE ALSO
 ============

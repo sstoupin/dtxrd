@@ -81,6 +81,26 @@ OPTIONS
        9       energy distribution from file source_e.dat
        ====    ===============================================
 
+EXAMPLES
+===========
+
+This is an example input file for calculation of throughput of a multicrystal configuration
+
+:download:`thru_hhlmC.in <../../examples/throughput/thru_hhlmC.in>`
+
+.. literalinclude:: ../../examples/throughput/thru_hhlmC.in
+   :language: guess
+   :linenos:
+
+This is an example input file for calculation of a rocking curve in a multicrystal configuration
+
+:download:`c2rc_hhlmC.in <../../examples/throughput/c2rc_hhlmC.in>`
+
+.. literalinclude:: ../../examples/throughput/c2rc_hhlmC.in
+   :language: guess
+   :linenos:
+
+
 SEE ALSO
 ============
 
