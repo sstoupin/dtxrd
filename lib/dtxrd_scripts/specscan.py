@@ -80,8 +80,10 @@ def ParseArguments(args):
 ##################################################################################################
 ## Main stuff
 ##################################################################################################
-        
-def main(opts, args):
+
+
+def main():
+        options, args = ParseArguments(sys.argv[1:])
         
         #--------------------------------------------------------                
         # initialize variables :
@@ -136,9 +138,8 @@ def main(opts, args):
              outFile.write(header)
              outFile.write(data)
              outFile.close()
-             raw.close()                                
-                                          
+             raw.close()  
+
+
 if __name__ == '__main__':
-        options, args = ParseArguments(sys.argv[1:])
-        main(options, args)                      
-        
+    main()

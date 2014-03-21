@@ -14,6 +14,12 @@ import sys
 import numpy
 import operator
 from pylab import *
+
+import os
+if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
+    '''when running this script from the source directory'''
+    sys.path.insert(0, os.path.abspath('..'))
+
 from dtxrd.pyhdf4 import *
 from dtxrd.curvestat import *
 from dtxrd.fit1d import *
@@ -188,9 +194,11 @@ def ParseArguments(args):
                 parser.print_usage()
                 sys.exit(1)
         return opts, args                
-###############################################################################                                
-                                
-def main(opts, args):
+###############################################################################  
+
+
+def main():
+  opts, args = ParseArguments(sys.argv[1:])
   if opts.output is not None:
      try:
         outFile = open(opts.output, 'w')
@@ -666,6 +674,6 @@ def main(opts, args):
 #    
 #  plt.show()
 
+
 if __name__ == '__main__':
-        options, args = ParseArguments(sys.argv[1:])
-        main(options, args)                      
+    main()

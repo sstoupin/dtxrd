@@ -16,7 +16,12 @@ from pylab import *
 #from scipy import *
 from scipy.optimize import *
 from scipy.interpolate import interp1d
-#
+
+import os
+if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
+    '''when running this script from the source directory'''
+    sys.path.insert(0, os.path.abspath('..'))
+
 from dtxrd.myio import *
 from dtxrd.curvestat import *
 from dtxrd.deriv import *
@@ -186,8 +191,10 @@ def ParseArguments(args):
 ##################################################################################################
 ## Main stuff
 ##################################################################################################
-        
-def main(opts, args):
+
+
+def main():
+        opts, args = ParseArguments(sys.argv[1:])
         
         if opts.output is not None:
                try:
@@ -420,8 +427,8 @@ def main(opts, args):
         
                                  
         show()
-                             
+
+
 if __name__ == '__main__':
-        options, args = ParseArguments(sys.argv[1:])
-        main(options, args)                      
+    main()
         

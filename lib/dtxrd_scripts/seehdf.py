@@ -13,6 +13,12 @@ a simple hdf4 image viewer
 import sys
 from numpy import *
 from pylab import *
+
+import os
+if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
+    '''when running this script from the source directory'''
+    sys.path.insert(0, os.path.abspath('..'))
+
 from dtxrd.pyhdf4 import *
 from matplotlib.patches import Patch
 ############################################################
@@ -60,10 +66,11 @@ def ParseArguments(args):
         if len(args) < 1:
                 parser.print_usage()
                 sys.exit(1)
-        return opts, args                
+        return opts, args  
 
 
-def main(opts, args):
+def main():
+  opts, args = ParseArguments(sys.argv[1:])
   if opts.output is not None:
      try:
         outFile = open(opts.output, 'w')
@@ -91,8 +98,8 @@ def main(opts, args):
   outFile.write('# seehdf '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n')
   outFile.write('# image: '+str(nx)+' x '+str(ny)+'\n')
   outFile.close  
-  plt.show()     
-    
+  plt.show()  
+
+
 if __name__ == '__main__':
-        options, args = ParseArguments(sys.argv[1:])
-        main(options, args)                      
+    main()

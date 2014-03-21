@@ -10,17 +10,22 @@ x-ray diffraction calculator (2-beam case, perfect crystals)
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
 
-import sys
+import sys									#@UnusedImport
 #from numpy import *
 #from scipy import *
-from pylab import *
+from pylab import *							#@UnusedWildImport
 
-from dtxrd.myio import coljoin, writeFile
-from dtxrd.curvestat import *
-from dtxrd.thfind import *
-from dtxrd.dtxrd0 import *
-from dtxrd.constants import *
-from dtxrd.chi import *
+import os
+if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
+    '''when running this script from the source directory'''
+    sys.path.insert(0, os.path.abspath('..'))
+
+from dtxrd.myio import coljoin, writeFile	#@UnusedImport
+from dtxrd.curvestat import *				#@UnusedWildImport
+from dtxrd.thfind import *					#@UnusedWildImport
+from dtxrd.dtxrd0 import *					#@UnusedWildImport
+from dtxrd.constants import *				#@UnusedWildImport
+from dtxrd.chi import *						#@UnusedWildImport
 
 __version__ = '0.29'
 #-------------------------------------------------------------------------------------------
@@ -58,15 +63,15 @@ __version__ = '0.29'
 # 1. draw a figure of crystal and waves
 
 def fatalError(msg):
-	sys.stderr.write('Error: ')
-	sys.stderr.write(str(msg))
-	sys.stderr.write('\n')
-	sys.exit(1)
+    sys.stderr.write('Error: ')
+    sys.stderr.write(str(msg))
+    sys.stderr.write('\n')
+    sys.exit(1)
 
 def fatalIOError(err):
-	if issubclass(err.__class__, IOError) and err.strerror and err.filename:
-		err = '%s: %s' % (err.strerror, err.filename)
-	fatalError(err)
+    if issubclass(err.__class__, IOError) and err.strerror and err.filename:
+        err = '%s: %s' % (err.strerror, err.filename)
+    fatalError(err)
 
 def ParseArguments(args):
 	try:
@@ -76,13 +81,13 @@ def ParseArguments(args):
 			from optparse import OptionParser
 		except ImportError:
 			fatalError(
-'This program requires Optik, availible from http://optik.sourceforge.net/\n')
+'This program requires Optik, available from http://optik.sourceforge.net/\n')
 
 	USAGE = '%prog [OPTIONS...] element h k l eta phi T d flag theta(or Ex) \n'+'where:\n' \
 	+'crystal - C (diamond), Si (silicon), Ge (germanium) or Al2O3 (sapphire)\n' \
-	+'h k l - miller indicies\n' \
+	+'h k l - miller indices\n' \
 	+'eta  - asymmetry angle \n' \
-	+'phi  - asimuthal angle of incidence\n' \
+	+'phi  - azimuthal angle of incidence\n' \
 	+'T -temperature [K] \n' \
 	+'d - crystal thickness [mm] \n'\
 	+'flag = a - calculate at given angle of incidence\n' \
@@ -129,7 +134,10 @@ def ParseArguments(args):
 		
 	return opts, args
 #-----------------------------------------------------------------------------------------------
-def main(opts,args):
+
+
+def main():
+        opts, args = ParseArguments(sys.argv[1:])
 
         if opts.output is not None:
                try:
@@ -396,6 +404,7 @@ def main(opts,args):
                     fatalIOError(e)
                                                         
         plt.show()
+
+
 if __name__ == '__main__':
-	options, args = ParseArguments(sys.argv[1:])
-	main(options,args)
+    main()
