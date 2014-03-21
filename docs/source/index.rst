@@ -11,7 +11,7 @@ Tools for X-ray diffraction evaluation of single crystals
 Provides
 ########
 
-* :ref:`dtxrd`	      : calculations of reflectivity/transmissivity using the dynamical theory of x-ray diffraction 
+* :ref:`dtxrd`        : calculations of reflectivity/transmissivity using the dynamical theory of x-ray diffraction 
 * :ref:`rcpeak`       : plotting and calculations of parameters of a reflectivity curve
 * :ref:`rctopo`       : calculations of x-ray rocking curve images (for a series of hdf4 CCD snapshots)
 * :ref:`seehdf`       : hdf4 image data viewer
