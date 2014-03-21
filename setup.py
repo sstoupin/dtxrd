@@ -31,5 +31,17 @@ setup(
     #packages = ['dtxrd', 'dtxrd.myio'],
     packages = find_packages('lib'),
     package_data = {'dtxrd': ['asf/*.asf', 'data/*.dat']},
-    scripts = ['dtxrd', 'throughput', 'rctopo', 'seehdf', 'rcpeak', 'specscan']	
+    #scripts = ['dtxrd', 'throughput', 'rctopo', 'seehdf', 'rcpeak', 'specscan'],
+    entry_points={
+         # create & install scripts in <python>/bin
+         'console_scripts': [
+             'dtxrd=dtxrd:main',
+             'throughput=throughput:main',
+             'rctopo=rctopo:main',
+             'seehdf=seehdf:main',
+             'rcpeak=rcpeak:main',
+             'specscan=specscan:main',
+         ],
+         #'gui_scripts': [],
+    },
 )
