@@ -119,7 +119,7 @@ def ParseArguments(args):
 
 
 def main():
-        options, args = ParseArguments(sys.argv[1:])
+        opts, args = ParseArguments(sys.argv[1:])
 
         if opts.output is not None:
                try:
