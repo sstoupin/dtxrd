@@ -42,7 +42,7 @@ def fatalIOError(err):
     fatalError(err)
 
 def ParseArguments():
-    import argparse
+    import argparse     # requires Python 2.7 or higher
     prog = os.path.basename(sys.argv[0])
     msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()
     parser = argparse.ArgumentParser(prog=prog, 
