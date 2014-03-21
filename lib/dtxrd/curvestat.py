@@ -13,39 +13,39 @@ from numpy import *
 #from pylab import *
 
 def curvestat(th,r,bkg):
-      # th - argument
-      # r - data
-      # bkg -background
-      
-      N1=len(th); N2=len(r)
-      if N1 !=N2:
+    # th - argument
+    # r - data
+    # bkg -background
+
+    N1=len(th); N2=len(r)
+    if N1 !=N2:
         print 'Error: length of data vector does not match that of the argument!'
-      else: 
+    else:
         th_l=list(th); r_l=list(r)
-        i_max=r_l.index(max(r))                                              
+        i_max=r_l.index(max(r))
         th_max=th[i_max]
         r_max=max(r)
 
         half=0.5*(r_max-bkg)+bkg
         x0=r[0]
-        for x in r:                
-                if x>half:
-                    if x0<half:
-                      i_1=r_l.index(x0); i_2=r_l.index(x)
-                      r1=r[i_1]; r2=r[i_2]
-                      th1=th[i_1]; th2=th[i_2]
-                      der1=(r2-r1)/(th2-th1) # linear interpolation: r=der1*(th-th1)+r1                      
-                      th_neg=th1+(half-r1)/der1
-                      
-                elif x<half:
-                    if x0>half:
-                      i_1=r_l.index(x0); i_2=r_l.index(x)
-                      r1=r[i_1]; r2=r[i_2]
-                      th1=th[i_1]; th2=th[i_2]
-                      der2=(r2-r1)/(th2-th1) # linear interpolation: r=der2*(th-th1)+r1        
-                      th_pos=th1+(half-r1)/der2
-                x0=x                                                       
-                        
+        for x in r:
+            if x>half:
+                if x0<half:
+                    i_1=r_l.index(x0); i_2=r_l.index(x)
+                    r1=r[i_1]; r2=r[i_2]
+                    th1=th[i_1]; th2=th[i_2]
+                    der1=(r2-r1)/(th2-th1) # linear interpolation: r=der1*(th-th1)+r1
+                    th_neg=th1+(half-r1)/der1
+
+            elif x<half:
+                if x0>half:
+                    i_1=r_l.index(x0); i_2=r_l.index(x)
+                    r1=r[i_1]; r2=r[i_2]
+                    th1=th[i_1]; th2=th[i_2]
+                    der2=(r2-r1)/(th2-th1) # linear interpolation: r=der2*(th-th1)+r1
+                    th_pos=th1+(half-r1)/der2
+            x0=x
+
         th_mid=0.5*(th_neg+th_pos)
         fwhm=abs(th_pos-th_neg)
         com=sum(th*(r-bkg))/sum(r-bkg)

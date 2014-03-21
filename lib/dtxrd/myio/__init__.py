@@ -83,4 +83,3 @@ def writeFile(fileName,header,*args):
          line=line+' '+"%1.8e"%y
       dataFile.write(line[1:]+'\n')
     dataFile.close
-
