@@ -16,26 +16,30 @@ The main module for DTXRD.
 
 @contact: sstoupin@aps.anl.gov
 
-@copyright: Copyright (c) 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
+@copyright: 2014
 
-@license: UChicago Argonne, LLC OPEN SOURCE LICENSE
+@license: MIT X11/XFree86 style (see the file C{LICENSE} for more information)
 """
 
 __version__ = '1.0.0'
 
 from numpy import *
 from scipy import *
-#from scipy.special import legendre
+from scipy.special import legendre
 from pylab import *
 
 from myio import *
 from curvestat import *
 from thfind import *
-from dtxrd0 import *
+from dtxrd import *
 from constants import *
 from chi import *
 from rotation import *
 from dtxrd2_k import *
+
 from pyhdf4 import *
 from fit1d import *
 from matplotlib.patches import Patch
+
+#import dtxrd.pyhdf4 as pyhdf4
+#import dtxrd.myio as myio

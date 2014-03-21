@@ -1,27 +1,62 @@
 # Name: myio/__init__.py
+# Purpose: Simple I/O procedure
+# Author: Stanislav Stoupin <sstoupin@aps.anl.gov>
+#
+# Copyright 2012 Argonne National Laboratory
+#
+# See the file "LICENSE" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-'''
-simple I/O procedure
+"""Read and write text files and header.
 
-:author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+"""
 
-:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
-:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
-'''
 
-#import os
-#import re
+import os
+import re
 from numpy import *
 
-#import sys
-#import commands
-#cmdout=commands.getstatusoutput('echo $HOME')
-#libpath0=cmdout[1]+'/bin/'
-#sys.path.append(libpath0)
-#libpath1=cmdout[1]+'/bin/DTXRD/'
-#sys.path.append(libpath1)
+# import sys
+# import commands
+# cmdout=commands.getstatusoutput('echo $HOME')
+# libpath0=cmdout[1]+'/bin/'
+# sys.path.append(libpath0)
+# libpath1=cmdout[1]+'/bin/DTXRD/'
+# sys.path.append(libpath1)
+
+#__all__ = ['SffFieldError', 'Sff', 'readSffFile', 'Xafs', 'readXafsFile',
+#    'Text', 'readTextFile', 'readFile', 'writeFile']
+
+#class Data(ndarray):
+#    """
+#    Store columns of data and their associated names.
+#
+#    These columns can be maniplulated by the get(), ?add()?, and ?set()?
+#    methods or by accessing the columns as though they are attributes of the
+#    object.
+#
+#    """
+#    def __init__(self, name):
+#        """
+#        Create an empty dataset.
+#        """
+#        self.name = name
+#        self.__columns = {}
+#        self.__columnNames = []
+                
+#    def get(self, arg):
+#        """
+#        Retrieve a column's data.        
+#        """
+#        try: 
+#            index=int(arg)-1
+#        except ValueError:
+#            return None
+#        else: 
+#            matrix=self.data
+#            return matrix[:,index]
         
+
 def readFile(fileName):
     """Read experiment data and metadata from a file.
 

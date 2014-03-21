@@ -1,17 +1,9 @@
-#!/usr/bin/env python
-
-'''
-a subroutine to calculate susceptibility(Chi) for a Bragg reflection
-
-:author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
-
-:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
-:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
-'''
+#!/usr/bin/python
 
 ################################################################
+## subroutine to calculate susceptibility of hkl reflection
 # v 0.02 #######################################################
+# Stanislav Stoupin ## sstoupin@aps.anl.gov ####################
 ################################################################
 
 #from numpy import *
@@ -20,7 +12,10 @@ from stoupin_c import *
 from carr_ge import *
 from lucht_sph import *
 from fh import *
+#from dtxrd import *
+#from dtxrd_k import *
 from constants import *
+#from curvestat import *
 ######################################################################################
 def chi(element,h,k,l,T,Ex):
   epsFh=1.0e-6
