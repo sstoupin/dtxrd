@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+import os, sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'lib')))
+import dtxrd.start_rctopo as script
+script.main()

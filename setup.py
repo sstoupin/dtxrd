@@ -35,12 +35,12 @@ setup(
     entry_points={
          # create & install scripts in <python>/bin
          'console_scripts': [
-             'dtxrd=dtxrd_scripts.dtxrd:main',
-             'throughput=dtxrd_scripts.throughput:main',
-             'rctopo=dtxrd_scripts.rctopo:main',
-             'seehdf=dtxrd_scripts.seehdf:main',
-             'rcpeak=dtxrd_scripts.rcpeak:main',
-             'specscan=dtxrd_scripts.specscan:main',
+             'dtxrd=dtxrd.start_dtxrd:main',
+             'throughput=dtxrd.start_throughput:main',
+             'rctopo=dtxrd.start_rctopo:main',
+             'seehdf=dtxrd.start_seehdf:main',
+             'rcpeak=dtxrd.start_rcpeak:main',
+             'specscan=dtxrd.start_specscan:main',
          ],
          #'gui_scripts': [],
     },
