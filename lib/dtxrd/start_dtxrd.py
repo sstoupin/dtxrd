@@ -10,22 +10,17 @@ x-ray diffraction calculator (2-beam case, perfect crystals)
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
 
-import sys                                                                      #@UnusedImport
+import sys                                #@UnusedImport
 #from numpy import *
 #from scipy import *
-from pylab import *                                                     #@UnusedWildImport
+from pylab import *                       #@UnusedWildImport
 
-import os
-if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
-    '''when running this script from the source directory'''
-    sys.path.insert(0, os.path.abspath('..'))
-
-from dtxrd.myio import coljoin, writeFile       #@UnusedImport
-from dtxrd.curvestat import *                           #@UnusedWildImport
-from dtxrd.thfind import *                                      #@UnusedWildImport
-from dtxrd.dtxrd0 import *                                      #@UnusedWildImport
-from dtxrd.constants import *                           #@UnusedWildImport
-from dtxrd.chi import *                                         #@UnusedWildImport
+from myio import coljoin, writeFile       #@UnusedImport
+from curvestat import *                   #@UnusedWildImport
+from thfind import *                      #@UnusedWildImport
+from dtxrd0 import *                      #@UnusedWildImport
+from constants import *                   #@UnusedWildImport
+from chi import *                         #@UnusedWildImport
 
 __version__ = '0.29'
 #-------------------------------------------------------------------------------------------

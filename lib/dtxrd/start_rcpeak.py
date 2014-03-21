@@ -17,14 +17,9 @@ from pylab import *
 from scipy.optimize import *
 from scipy.interpolate import interp1d
 
-import os
-if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
-    '''when running this script from the source directory'''
-    sys.path.insert(0, os.path.abspath('..'))
-
-from dtxrd.myio import *
-from dtxrd.curvestat import *
-from dtxrd.deriv import *
+from myio import *
+from curvestat import *
+from deriv import *
 
 __version__='0.27'
 proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'

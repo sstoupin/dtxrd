@@ -14,12 +14,7 @@ import sys
 from numpy import *
 from pylab import *
 
-import os
-if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
-    '''when running this script from the source directory'''
-    sys.path.insert(0, os.path.abspath('..'))
-
-from dtxrd.pyhdf4 import *
+from pyhdf4 import *
 from matplotlib.patches import Patch
 ############################################################
 dx, dy = 0.06, 0.06  # CCD camera pixel size [mm]

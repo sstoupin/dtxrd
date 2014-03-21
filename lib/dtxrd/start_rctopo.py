@@ -15,15 +15,10 @@ import numpy
 import operator
 from pylab import *
 
-import os
-if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
-    '''when running this script from the source directory'''
-    sys.path.insert(0, os.path.abspath('..'))
-
-from dtxrd.pyhdf4 import *
-from dtxrd.curvestat import *
-from dtxrd.fit1d import *
-from dtxrd.myio import *
+from pyhdf4 import *
+from curvestat import *
+from fit1d import *
+from myio import *
 
 #from __future__ import division
 from matplotlib.patches import Patch

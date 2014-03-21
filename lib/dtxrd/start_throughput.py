@@ -14,18 +14,13 @@ import sys
 from scipy.special import legendre
 from pylab import *
 
-import os
-if os.path.abspath(os.path.dirname(__file__)).split(os.sep)[-2] == 'lib':
-    '''when running this script from the source directory'''
-    sys.path.insert(0, os.path.abspath('..'))
-
-from dtxrd.myio import *
-from dtxrd.rotation import *
-from dtxrd.curvestat import *
-from dtxrd.chi import *
-from dtxrd.thfind import *
-from dtxrd.dtxrd2_k import *
-from dtxrd.constants import *
+from myio import *
+from rotation import *
+from curvestat import *
+from chi import *
+from thfind import *
+from dtxrd2_k import *
+from constants import *
 
 __version__ = '0.16'
 #-------------------------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+'''convenience script to start **rcpeak** locally (keep this out of the MANIFEST)'''
+
 import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'lib')))
 import dtxrd.start_rcpeak as script
