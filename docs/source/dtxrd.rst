@@ -25,17 +25,17 @@ For a brief summary run::
 
     dtxrd -h
 
-PARAMETERS
-============
+INPUT PARAMETERS
+=================
 
 :crystal:
        crystal type: C (diamond), Si (silicon), Ge (germanium) or Al2O3 (sapphire)
 
-:h k l:  Miller indicies of a chosen Bragg reflection
+:h k l:  Miller indicies of a chosen reflection
 
-:eta:    asymmetry angle
+:eta:    asymmetry angle (:math:`\eta` [degrees])
 
-:phi:    azimuthal angle of incidence
+:phi:    azimuthal angle of incidence (:math:`\phi` [degrees])
 
 :T:      crystal temperature [K]
 
@@ -74,6 +74,83 @@ OPTIONS
 :-c, --conv:
        convolve data with a virtual instrumental resolution function having FWHM of 1/10 of  the  Darwin  width
        and report the resulting FWHM of the reflectivity curve
+
+
+OUTPUT PARAMETERS
+======================
+Basic parameters of the chosen h k l reflection: 
+
+:d[A]:     :math:`d` [Angstrom] interplanar distance (d-spacing) of the chosen h k l reflection
+       
+:Eb[keV]:  :math:`E_B = \frac{hc}{2d}` [keV] Bragg energy
+
+:thr[deg]: :math:`\theta_R` [degrees] incident glancing angle for the exact backscattering
+	   (a wave with photon energy :math:`E_R` incident at this angle is reflected exactly backwards)
+
+:Er[keV]:  :math:`E_R` [keV] photon energy for the exact backscattering
+
+:bh:       :math:`b_{H}` asymmetry factor in the chosen scattering geometry 
+           for symmetric reflection :math:`\eta = 0` and :math:`b_{H} = - 1`
+..
+           b_H = \frac{\cos{\theta}\sin{\eta}cos{\phi} + \sin{\theta}cos{\eta}}
+           {\cos{\theta}\sin{\eta}cos{\phi} - \sin{\theta}cos{\eta}}
+
+Susceptibilities and refraction corrections:
+
+:chi_{0}:  :math:`\chi_0` susceptibility 
+
+:chi_{h}:  :math:`\chi_{H}` susceptibility 
+
+:chi_{-h}: :math:`\chi_{\bar{H}}` susceptibility 
+
+:wh(s):    :math:`\omega_{H}^s` refraction correction for symmetric reflection  
+
+:wh:       :math:`\omega_{H} = \omega_{H}^s \frac{b_{H}-1}{2b_{H}}` refraction correction for the chosen reflectoin  
+
+Central energy and angle:
+
+:Ec[keV]:  :math:`E_c` [keV] central energy of the chosen reflection
+
+:thc[deg]: :math:`\theta_c` [deg] central glancing angle of incidence of the chosen reflection 
+
+Energy intrinsic (Darwin) widths (thick non-absorbing crystal) at fixed glancing angle of incidence :math:`\theta_c`:
+
+:eps_s:   :math:`\varepsilon^s` relative energy width of symmetric h k l reflection (same for entrance and exit)
+ 
+:eps:     :math:`\varepsilon` relative entrance energy width of the chosen h k l reflection  
+
+:eps_pr:  :math:`\varepsilon'` relative exit energy width of the chosen h k l reflection 
+
+:Delta_E_s[meV]:   :math:`\Delta E^s` [meV] absolute energy width of symmetric h k l reflection (same for entrance and exit)
+
+:Delta_E[meV]:     :math:`\Delta E` [meV] absolute entrance energy width of the chosen h k l reflection 
+
+:DeltaE_pr[meV]:  :math:`\Delta E'` [meV] absolute exit energy width of symmetric reflection 
+
+Angular intrinsic (Darwin) widths (thick non-absorbing crystal) at fixed photon energy :math:`E_c`:
+
+:dth_s[urad]:      :math:`\Delta \theta^s` [microradian] angular width of the symmetric h k l reflection  (same for entrance and exit)
+
+:dth[urad]:        :math:`\Delta \theta` [microradian] angular entrance width of the chosen h k l reflection  
+
+:dth_s[urad]:      :math:`\Delta \theta'` [microradian] angular exit width of the chosen h k l reflection 
+
+Additional characteristics of the chosen h k l reflection:
+
+:dE/dth[meV/urad]:   
+                     :math:`\frac{dE}{d\theta}` [meV/microradian] tangent of the Bragg's Law
+
+:Dr[urad/meV]:       
+                     :math:`D_r` [microradian/meV] intrinsic angular dispersion rate of the chosen h k l reflection 
+
+:de[um]:             
+                     :math:`d_e` [micrometer] extinction length of the chosen h k l reflection
+
+Reflectivity and Transmissivity:
+
+:Rc[%]:                 :math:`R_c` [%] reflectivity at center
+:Tc[%]:                 :math:`T_c` [%] transmissivity at center
+
 
 EXAMPLES
 ===========
