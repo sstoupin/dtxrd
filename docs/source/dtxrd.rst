@@ -75,9 +75,11 @@ OPTIONS
        convolve data with a virtual instrumental resolution function having FWHM of 1/10 of  the  Darwin  width
        and report the resulting FWHM of the reflectivity curve
 
+.. 
 
 OUTPUT PARAMETERS
 ======================
+
 Basic parameters of the chosen h k l reflection: 
 
 :d[A]:     :math:`d` [Angstrom] interplanar distance (d-spacing) of the chosen h k l reflection
