@@ -91,6 +91,7 @@ Basic parameters of the chosen h k l reflection:
 
 :bh:       :math:`b_{H}` asymmetry factor in the chosen scattering geometry 
            for symmetric reflection :math:`\eta = 0` and :math:`b_{H} = - 1`
+
 ..
            b_H = \frac{\cos{\theta}\sin{\eta}cos{\phi} + \sin{\theta}cos{\eta}}
            {\cos{\theta}\sin{\eta}cos{\phi} - \sin{\theta}cos{\eta}}
