@@ -122,7 +122,7 @@ Energy intrinsic (Darwin) widths (thick non-absorbing crystal) at fixed glancing
 
 :Delta_E[meV]:     :math:`\Delta E` [meV] absolute entrance energy width of the chosen h k l reflection 
 
-:DeltaE_pr[meV]:  :math:`\Delta E'` [meV] absolute exit energy width of symmetric reflection 
+:DeltaE_pr[meV]:   :math:`\Delta E'` [meV] absolute exit energy width of symmetric reflection 
 
 Angular intrinsic (Darwin) widths (thick non-absorbing crystal) at fixed photon energy :math:`E_c`:
 
@@ -134,19 +134,17 @@ Angular intrinsic (Darwin) widths (thick non-absorbing crystal) at fixed photon 
 
 Additional characteristics of the chosen h k l reflection:
 
-:dE/dth[meV/urad]:   
-                     :math:`\frac{dE}{d\theta}` [meV/microradian] tangent of the Bragg's Law
+:dE/dth[meV/urad]: :math:`\frac{dE}{d\theta}` [meV/microradian] tangent of the Bragg's Law
 
-:Dr[urad/meV]:       
-                     :math:`D_r` [microradian/meV] intrinsic angular dispersion rate of the chosen h k l reflection 
+:Dr[urad/meV]:     :math:`D_r` [microradian/meV] intrinsic angular dispersion rate of the chosen h k l reflection 
 
-:de[um]:             
-                     :math:`d_e` [micrometer] extinction length of the chosen h k l reflection
+:de[um]:           :math:`d_e` [micrometer] extinction length of the chosen h k l reflection
 
 Reflectivity and Transmissivity:
 
-:Rc[%]:                 :math:`R_c` [%] reflectivity at center
-:Tc[%]:                 :math:`T_c` [%] transmissivity at center
+:Rc[%]:            :math:`R_c` [%] reflectivity at center
+
+:Tc[%]:            :math:`T_c` [%] transmissivity at center
 
 
 EXAMPLES
