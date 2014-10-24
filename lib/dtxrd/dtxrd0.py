@@ -10,21 +10,17 @@ a subroutine to calculate a set of parameters for transmitted/reflected a monoch
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
 
-#from numpy import *
+from numpy import *
 from fh import *
 from constants import *
-#----------------------------------------------------------------------
-# Constants
-#----------------------------------------------------------------------
-#r2d=180.0/pi	     # radians to degrees conversion
-#----------------------------------------------------------------------
-#hpl=4.13566733e-15     # [eV*s] Planck constant
-#hpl_bar=1.05457266e-34 # [J*s] Planck constant
-#qe=1.60217653e-19     # [C] Electron charge
-#me=9.0193897e-31     # [kg] mass of electron
-#cl=299792458.0e10      # [Angstrom/s] speed of light 
-#re=2.8179402894e-5  #[A] classical radius of electron
-#----------------------------------------------------------------------
+from deriv import *
+#-----------------------------------------------------------------------------------------------
+# v 0.20
+#-----------------------------------------------------------------------------------------------
+# v 0.2 added a subroutine dtxtd1_D0Dh to calculate radiation field inside the crystal 
+#       rename this main subroutine to dtxrd0.py to avoid stuff like dtxrd.dtxrd
+#-----------------------------------------------------------------------------------------------
+#
 
 def dtxrd(element,h,k,l,thb,eta,phi,a,dh,T,dc,Ex,P):
 
@@ -341,13 +337,24 @@ def dtxrd1(thb,eta,phi,dc,Ex,P,crystalx):
         bth=abs(0.5*pi-thb) #; print "bth", bth
         
         if average(bth) < average(omeg0):   #backscattering
-             eps_b=(Ex-Eb)/Eb               # (2.128-2.129)
+             # calculate Er: ##########################################################################################################################
+#             eta=eta+1.0e-6
+#             denr=1.0+sqrt(1.0+4.0*wh_s*(tan(eta))**2.0)
+#             bthr=abs(arctan(2.0*wh_s*tan(eta)/denr))
+#             lamr=2.0*dh*cos(bthr)*(1.0-tan(bthr)/tan(eta))
+#             Er=hpl*cl/lamr
+             eps_b=(Ex-Eb)/Eb         # (2.128-2.129)                                      
+#             eps_b=(Ex-Er)/Er         # better approximation  (Ex-Er)/Er - attempted - actually gives different values!!!
+                                       # the RuntimeWarning is due to calculation of eps_b at different energies beyond the Darwin table
+                                       # this message will be suppressed by taking the abs. value |bthc2+eps_s| - does not affect data within 
+                                       # the Darwin table
+             ########################################################################################################################################## 
              bthc2=2.0*(eps_b-wh_s)
              if bthc2 > eps_s:
                 dth_s=sqrt(bthc2+eps_s)-sqrt(bthc2-eps_s)
-             else:
-                dth_s=2.0*sqrt(bthc2+eps_s)             
-             #
+             else:             
+                dth_s=2.0*sqrt(abs(bthc2+eps_s))
+             ###########################################################################################################################################
 #             dth_s=omeg0               #simplified (2.130)
              dth=dth_s
         else:             		    #non-backscattering
@@ -368,4 +375,253 @@ def dtxrd1(thb,eta,phi,dc,Ex,P,crystalx):
                               
 #        return [wh_s,wh,eps_s,eps,dth_s,dth,de,Tplot,Rplot,dth_pr,eps_pr]
         return [wh_s,wh,ep,dt,de,Tplot,Rplot] 
+#
+###############################################################################
+# RETURNS FIELD inside the crystal along z
+# from z=0 to z=d in ns+1 steps
+###############################################################################
+def dtxrd1_D0Dh(thb,eta,phi,dc,Ex,P,crystalx,zv):
+        [[Chi0,Chih,Chih_],dh]=crystalx 
+###############################################################################
+##  GEOMETRY
+############################################################################### 
+        Eb=0.5*hpl*cl/dh
+        lamx=hpl*cl/Ex
+        K0=2.0*pi/lamx   # ; print "K0 = ", K0
+        H0=2.0*pi/dh     # ; print "H0 = ", H0
+        G0=cos(thb)*sin(eta)*cos(phi)+sin(thb)*cos(eta) #; print "G0 = ", G0
+        Gh=G0-H0/K0*cos(eta)			        #; print "Gh = ", Gh
+#        Gh=G0-2.0*sin(thb)*cos(eta)                    #; print "Gh = ", Gh # same actually
+        bh=G0/Gh
+##########################################################################################
+####### FOR DYNAMICAL BRAGGs LAW
+##########################################################################################        
+        wh_s=-2.0*real(Chi0)*(dh/lamx)**2.0  #; print "wh(s) = ", wh_s #wh_s=average(wh_s)        
+        wh=0.5*wh_s*(bh-1.0)/bh              #; print "wh    = ", wh                
+        # energy width for thick non-absorbing crystal (2.119)
+        eps_s=4.0*dh**2.0/(lamx)**2.0*abs(P*Chih)
+        eps=eps_s/sqrt(abs(bh))                        
+
+        K0_v=2.0*pi/(hpl*cl/Ex)
+        alphah=H0/K0_v*(H0/K0_v-2.0*sin(thb))                                
+        alpha_pr=0.5*(alphah*bh+Chi0*(1.0-bh))
+                
+        #now !!!important!!! need to choose the sign of coren so that imag(eps1-eps2)>0
+        coren=sqrt(alpha_pr**2.0+P**2.0*bh*Chih*Chih_) #; print "imag(coren) ", imag(coren)        
+
+        if imag(coren)<=0: 
+            coren=-coren
+                                                    
+        eps1=Chi0-alpha_pr+coren #; print eps1
+        eps2=Chi0-alpha_pr-coren #; print eps2        
+        kap1=0.5*eps1*K0/G0    #; print kap1
+        kap2=0.5*eps2*K0/G0    #; print kap2
+        R1=(eps1-Chi0)/(P*Chih_) #; print R1
+        R2=(eps2-Chi0)/(P*Chih_) #; print R2
+        
+        if Gh<0:
+#          print "Bragg case"
+          Delta=(kap1-kap2)*dc                         #; print dkap
+          den0=R2-R1*exp(1.0j*Delta)                   #; print den0
+          t00=exp(1.0j*kap1*dc)*(R2-R1)/den0           #; print t00        
+          r0h=R1*R2*(1.0-exp(1.0j*Delta))/den0         #; print r0h                   
+          de=1.0/(imag(kap1-kap2))                     # extinction length ("precise")
+          #-------------------------------------------------------------------------------- 
+          # Radiation fields inside the crystal:
+          #--------------------------------------------------------------------------------
+          denD = R1*exp(-1.0j*kap2*dc)-R2*exp(-1.0j*kap1*dc)
+          D0 = (R1*exp(1.0j*kap2*(zv-dc))-R2*exp(1.0j*kap1*(zv-dc)))/denD
+          Dh = R1*R2*(exp(1.0j*kap2*(zv-dc))-exp(1.0j*kap1*(zv-dc)))/denD
+          #
+        elif Gh>0:
+#          print "Laue case"
+          den0=R1-R2
+          t00=(R1*exp(1.0j*kap2*dc)-R2*exp(1.0j*kap1*dc))/den0
+          r0h=R1*R2*(exp(1.0j*kap2*dc)-exp(1.0j*kap1*dc))/den0
+          de=1.0/(abs(real(kap1-kap2)))              # extinction length ("precise")
+          #-------------------------------------------------------------------------------- 
+          # Radiation fields inside the crystal:
+          #--------------------------------------------------------------------------------
+          denD = R1-R2
+          D0 = (R1*exp(1.0j*kap2*zv)-R2*exp(1.0j*kap1*zv))/denD
+          Dh = R1*R2*(exp(1.0j*kap2*zv)-exp(1.0j*kap1*zv))/denD
+          #
+        else:
+          print "Gh = 0, check input parameters"   
+        
+        Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
+        Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
+        #
+        # angular width for thick non-absorbing crystal (far from bc) (2.125-2.126)
+        omeg0=2.0*sqrt(eps_s)
+        bth=abs(0.5*pi-thb) #; print "bth", bth
+        
+        if average(bth) < average(omeg0):   #backscattering
+             # calculate Er: ##########################################################################################################################
+#             eta=eta+1.0e-6
+#             denr=1.0+sqrt(1.0+4.0*wh_s*(tan(eta))**2.0)
+#             bthr=abs(arctan(2.0*wh_s*tan(eta)/denr))
+#             lamr=2.0*dh*cos(bthr)*(1.0-tan(bthr)/tan(eta))
+#             Er=hpl*cl/lamr
+             eps_b=(Ex-Eb)/Eb          # (2.128-2.129)                                      
+#             eps_b=(Ex-Er)/Er          # better approximation 
+             ##########################################################################################################################################
+             bthc2=2.0*(eps_b-wh_s)
+             if bthc2 > eps_s:
+                dth_s=sqrt(bthc2+eps_s)-sqrt(bthc2-eps_s)
+             else:
+                dth_s=2.0*sqrt(abs(bthc2+eps_s)) # abs to suppress the RuntimeWarning at Ex outside the Darwin table             
+             #
+              #dth_s=omeg0                  #simplified (2.130)
+             dth=dth_s
+        else:             		    #non-backscattering
+             dth_s=eps_s*tan(thb)
+             dth=dth_s/sqrt(abs(bh))
+
+        dth_pr=sqrt(abs(bh))*dth_s
+        eps_pr=eps_s*sqrt(abs(bh))
+             
+        #de=sqrt(G0*abs(Gh))/(K0*abs(P*Chih)) # extinction length (2.90)
+                
+        #if rank(thb)==1 or rank(Ex)==1:         # check if vectors         
+           #de=de*imag(1.0/sqrt(y**2.0-1.0))     # extinction length (2.89)
+           #de=1.0/(imag(kap1-kap2))              # extinction length ("precise")                                                       
+        ep=[eps_s,eps,eps_pr]
+        dt=[dth_s,dth,dth_pr]
+        GG=[G0,Gh]
+        DD=[D0,Dh]
+        #                                                      
+        return [[wh_s,wh,ep,dt,de,Tplot,Rplot],[GG,DD]]
+
+###############################################################################
+# Calculates normalized electron yield by integrating along z
+###############################################################################
+def dtxrd1_sy(thb,eta,phi,dc,Ex,P,crystalx,Ls):
+        [[Chi0,Chih,Chih_],dh]=crystalx 
+        #######################################################################
+        # Z vector for numerical calculation of the secondary yield
+        ####################################################################### 
+        if Ls < dc/3.0:
+            zran=3.0*Ls 
+        else: 
+            zran=dc
+        zstep=zran/float(100)
+        zv = arange(0.0,zran,zstep) 
+###############################################################################
+##  GEOMETRY
+############################################################################### 
+        Eb=0.5*hpl*cl/dh
+        lamx=hpl*cl/Ex
+        K0=2.0*pi/lamx   # ; print "K0 = ", K0
+        H0=2.0*pi/dh     # ; print "H0 = ", H0
+        G0=cos(thb)*sin(eta)*cos(phi)+sin(thb)*cos(eta) #; print "G0 = ", G0
+        Gh=G0-H0/K0*cos(eta)			        #; print "Gh = ", Gh
+#        Gh=G0-2.0*sin(thb)*cos(eta)                    #; print "Gh = ", Gh # same actually
+        bh=G0/Gh
+##########################################################################################
+####### FOR DYNAMICAL BRAGGs LAW
+##########################################################################################        
+        wh_s=-2.0*real(Chi0)*(dh/lamx)**2.0  #; print "wh(s) = ", wh_s #wh_s=average(wh_s)        
+        wh=0.5*wh_s*(bh-1.0)/bh              #; print "wh    = ", wh                
+        # energy width for thick non-absorbing crystal (2.119)
+        eps_s=4.0*dh**2.0/(lamx)**2.0*abs(P*Chih)
+        eps=eps_s/sqrt(abs(bh))                        
+
+        K0_v=2.0*pi/(hpl*cl/Ex)
+        alphah=H0/K0_v*(H0/K0_v-2.0*sin(thb))                                
+        alpha_pr=0.5*(alphah*bh+Chi0*(1.0-bh))
+                
+        #now !!!important!!! need to choose the sign of coren so that imag(eps1-eps2)>0
+        coren=sqrt(alpha_pr**2.0+P**2.0*bh*Chih*Chih_) #; print "imag(coren) ", imag(coren)        
+
+        if imag(coren)<=0: 
+            coren=-coren
+                                                    
+        eps1=Chi0-alpha_pr+coren #; print eps1
+        eps2=Chi0-alpha_pr-coren #; print eps2        
+        kap1=0.5*eps1*K0/G0    #; print kap1
+        kap2=0.5*eps2*K0/G0    #; print kap2
+        R1=(eps1-Chi0)/(P*Chih_) #; print R1
+        R2=(eps2-Chi0)/(P*Chih_) #; print R2
+        
+        if Gh<0:
+#          print "Bragg case"
+          Delta=(kap1-kap2)*dc                         #; print dkap
+          den0=R2-R1*exp(1.0j*Delta)                   #; print den0
+          t00=exp(1.0j*kap1*dc)*(R2-R1)/den0           #; print t00        
+          r0h=R1*R2*(1.0-exp(1.0j*Delta))/den0         #; print r0h                   
+          de=1.0/(imag(kap1-kap2))                     # extinction length ("precise")
+          #-------------------------------------------------------------------------------- 
+          # Radiation fields inside the crystal:
+          #--------------------------------------------------------------------------------
+          denD = R1*exp(-1.0j*kap2*dc)-R2*exp(-1.0j*kap1*dc)
+          D0 = (R1*exp(1.0j*kap2*(zv-dc))-R2*exp(1.0j*kap1*(zv-dc)))/denD
+          Dh = R1*R2*(exp(1.0j*kap2*(zv-dc))-exp(1.0j*kap1*(zv-dc)))/denD          
+          #
+          #----------------------------------------------------------------------------------
+        elif Gh>0:
+#          print "Laue case"
+          den0=R1-R2
+          t00=(R1*exp(1.0j*kap2*dc)-R2*exp(1.0j*kap1*dc))/den0
+          r0h=R1*R2*(exp(1.0j*kap2*dc)-exp(1.0j*kap1*dc))/den0
+          de=1.0/(abs(real(kap1-kap2)))              # extinction length ("precise")
+          #-------------------------------------------------------------------------------- 
+          # Radiation fields inside the crystal:
+          #--------------------------------------------------------------------------------
+          denD = R1-R2
+          D0 = (R1*exp(1.0j*kap2*zv)-R2*exp(1.0j*kap1*zv))/denD
+          Dh = R1*R2*(exp(1.0j*kap2*zv)-exp(1.0j*kap1*zv))/denD
+          #
+        else:
+          print "Gh = 0, check input parameters"   
+        ##################################################################################
+        # REFLECTIVITY AND TRANSMISSIVITY
+        ##################################################################################
+        Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
+        Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
+        ##################################################################################
+        # SECONDARY YIELD
+        ##################################################################################        
+        #
+        D02=abs(D0)**2.0; [zz,dD02]=deriv(zv,D02)
+        Dh2=abs(Dh)**2.0; [zz,dDh2]=deriv(zv,Dh2)
+        kappaz=-G0*dD02-Gh*dDh2   # -Gh gets positive when Gh<0 (Bragg) and negative when Gh>0 (Laue)
+        Pz=1.0*exp(-zz/Ls)        # for simplicity assume gain factor = 1.0
+        syieldz=array(kappaz)*array(Pz)
+        SYplot=zstep*sum(syieldz)                                                                
+        #################################################################################
+        # ANGULAR AND ENERGY ENTRANCE AND EXIT 
+        #################################################################################
+        # angular width for thick non-absorbing crystal (far from bc) (2.125-2.126)
+        omeg0=2.0*sqrt(eps_s)
+        bth=abs(0.5*pi-thb) #; print "bth", bth
+        #        
+        if average(bth) < average(omeg0):   #backscattering
+             eps_b=(Ex-Eb)/Eb               # (2.128-2.129)             
+             bthc2=2.0*(eps_b-wh_s)
+             if bthc2 > eps_s:
+                dth_s=sqrt(bthc2+eps_s)-sqrt(bthc2-eps_s)
+             else:
+                dth_s=2.0*sqrt(abs(bthc2+eps_s))  # abs - to suppress the RuntimeWarning at Ex outside of the Darwin table
+             #
+              #dth_s=omeg0                  #simplified (2.130)
+             dth=dth_s
+        else:             		    #non-backscattering
+             dth_s=eps_s*tan(thb)
+             dth=dth_s/sqrt(abs(bh))
+
+        dth_pr=sqrt(abs(bh))*dth_s
+        eps_pr=eps_s*sqrt(abs(bh))
+             
+        #de=sqrt(G0*abs(Gh))/(K0*abs(P*Chih)) # extinction length (2.90)
+                
+        #if rank(thb)==1 or rank(Ex)==1:         # check if vectors         
+           #de=de*imag(1.0/sqrt(y**2.0-1.0))     # extinction length (2.89)
+           #de=1.0/(imag(kap1-kap2))              # extinction length ("precise")                                                       
+        ep=[eps_s,eps,eps_pr]
+        dt=[dth_s,dth,dth_pr]
+        GG=[G0,Gh]
+        DD=[D0,Dh]
+        #                                                      
+        return [wh_s,wh,ep,dt,de,Tplot,Rplot,SYplot]
                                                         

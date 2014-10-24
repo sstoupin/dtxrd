@@ -1,20 +1,13 @@
-#!/usr/bin/env python
-
-'''
-a subroutine to calculate a set of parameters for transmitted/reflected a monochromatic wave
-
-:author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
-
-:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
-:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
-'''
+#!/usr/bin/python
 
 ################################################################
+## subroutine for 2-beam dynamical theory of x-ray diffraciton 
 # v 0.24 #######################################################
+# Stanislav Stoupin ## sstoupin@aps.anl.gov ####################
 ######################################################################################################################
 # history:
 # v0.24 02/21/2013  - implement 1beam case for energies above Eb
+#
 ######################################################################################################################
 from numpy import *
 from fh import *
@@ -381,4 +374,5 @@ def dtxrd1_k(k,eta,dc,Ex,P,crystalx,Chi):
         kz_pr=kz+H0/K0-cos(eta)*delh/K0                       
 
     return [[kx_pr,ky_pr,kz_pr],Tplot,Rplot]
+
                   

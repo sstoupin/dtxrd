@@ -9,20 +9,37 @@ x-ray diffraction calculator (2-beam case, perfect crystals)
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
-
+import os
 import sys
-#from numpy import *
-#from scipy import *
+from numpy import *
+from scipy import *
 from pylab import *
 
+#TO RUN GLOBALLY
 from dtxrd.myio import coljoin, writeFile
 from dtxrd.curvestat import *
 from dtxrd.thfind import *
 from dtxrd.dtxrd0 import *
 from dtxrd.constants import *
 from dtxrd.chi import *
+from dtxrd.deriv import *
 
-__version__ = '0.29'
+# TO RUN LOCALLY:
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/DTXRD/'
+#sys.path.append(libpath)
+
+#from myio import coljoin, writeFile
+#from curvestat import *
+#from thfind import *
+#from dtxrd0 import *
+#from constants import *
+#from chi import *
+#from deriv import *
+
+prog = os.path.basename(sys.argv[0])
+__version__ = '0.33'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -53,6 +70,10 @@ __version__ = '0.29'
 # v 0.28 included warning when expF is small. convolution with res. function is now an option -c
 # v 0.29 better understood intrinsic angular dispersion rate - use (2.138) to calculate
 #        more precise formula for the angular width in backscattering
+# v 0.30 begin to implement calculation of secondary radiation
+# v 0.31 secondary electron yield implemented + write SYplot data if -s option is used
+# v 0.32 replaced optik with argparse and got rid of "division by zero" in the calculation of Dr
+# v 0.33 minor rearrangements of "prog", deleted some obsolete comments
 #-------------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. draw a figure of crystal and waves
@@ -68,102 +89,105 @@ def fatalIOError(err):
 		err = '%s: %s' % (err.strerror, err.filename)
 	fatalError(err)
 
-def ParseArguments(args):
-	try:
-		from optik import OptionParser
-	except ImportError:
-		try:
-			from optparse import OptionParser
-		except ImportError:
-			fatalError(
-'This program requires Optik, availible from http://optik.sourceforge.net/\n')
-
-	USAGE = '%prog [OPTIONS...] element h k l eta phi T d flag theta(or Ex) \n'+'where:\n' \
-	+'crystal - C (diamond), Si (silicon), Ge (germanium) or Al2O3 (sapphire)\n' \
-	+'h k l - miller indicies\n' \
-	+'eta  - asymmetry angle \n' \
-	+'phi  - asimuthal angle of incidence\n' \
-	+'T -temperature [K] \n' \
-	+'d - crystal thickness [mm] \n'\
-	+'flag = a - calculate at given angle of incidence\n' \
-	+'flag = e - calculate at given x-ray energy\n' \
-	+'theta - glancing angle of incidence (flag = a) or Ex - x-ray energy [keV] (flag = e)'
-	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
-	+'the program calculates Bragg angle, input: material, reflection, temperature, energy'
-	parser = OptionParser(usage=USAGE, version=VERSION)
+def ParseArguments():
+        import argparse   # requires Python 2.7 or higher
+        msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
+#        msg0 =  prog +' [OPTIONS...] crystal h k l eta phi T d flag Ex(or theta) \n'+'where:\n'
+	msg1 = 'available crystal models: C (diamond), Si, Ge, FeS2, SiC-4H, SiC-6H, Al2O3 \n' 
+	msg2 = 'Miller index\n' 
+	msg3 = 'asymmetry angle [deg] \n' 
+	msg4 = 'azimuthal angle of incidence [deg]\n' 
+	msg5 = 'T -temperature [K] \n' 
+	msg6 = 'crystal thickness [mm] \n'
+	msg7 = 'flag = a  ### calculate at a fixed angle of incidence\n' \
+             + 'flag = e  ### calculate at a fixed x-ray photon energy\n' 
+	msg8 = 'th - angle of incidence [deg] (if flag = a)  ########### \n' \
+	     + 'Ex - x-ray photon energy [keV] (if flag = e) ###########'	
+        #        	
+        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
+#------------------------------------------------------------------------------------------------------------------------------
+        parser.add_argument('-v', '--version', action='version', version=__version__)
 #----------------------------------------------------------------------------------------------
-        parser.add_option('-o', '--output',
+        parser.add_argument('-o', '--output',
                 action='store',
                 dest='output',
                 default=None,
-                help='write results to file F (defaults to stdout)',
+                help='write calculated parameters to file F (defaults to stdout)',
                 metavar='F')
-        parser.add_option('-w', '--write',
+        parser.add_argument('-w', '--write',
                 action='store',
                 dest='write',
                 default=None,
-                help='write data to file (default do not write)',
+                help='write data to file D (default: do not write)',
                 metavar='D')
-        parser.add_option('-p', '--pi',
+        parser.add_argument('-p', '--pi',
                 action='store_const',
                 const=1,
                 dest='polarization', 
                 default=0,  
-                help='-p - pi polarization ')	
-        parser.add_option('-c', '--conv',
+                help='pi polarization of the incident wave (default: s-polarization)')	
+        parser.add_argument('-c', '--conv',
                 action='store_const',
                 const=1,
                 dest='conv', 
                 default=0,  
-                help='-c - convolve with instrumental res. function')	                                
+                help='convolve with an "ideal" 1/10 instrumental resolution function and plot')	                                
+        parser.add_argument('-s', '--syield',
+                action='store',
+                dest='syield', 
+                default=-1,  
+                metavar='Ls',
+                help='calculate secondary radiation yield with escape length Ls [Angstrom]')
 #-----------------------------------------------------------------------------------------------
-	opts, args = parser.parse_args(args)
-	if len(args) != 10:
-		parser.print_usage()
-		sys.exit(1)
-
-	try:
-		args[9] = float(args[9])
-	except ValueError:
-		fatalError('Ex(keV) or theta_b (deg.)  must be a valid number')
-		
-	return opts, args
+        parser.add_argument('crystal', action='store', nargs=1, help=msg1)
+        parser.add_argument('h', action='store', type=float, nargs=1, help=msg2)
+        parser.add_argument('k', action='store', type=float, nargs=1, help=msg2)
+        parser.add_argument('l', action='store', type=float, nargs=1, help=msg2)
+#
+        parser.add_argument('eta', action='store', type=float, nargs=1, help=msg3)
+        parser.add_argument('phi', action='store', type=float, nargs=1, help=msg4)
+        parser.add_argument('T', action='store', type=float, nargs=1, help=msg5)
+        parser.add_argument('d', action='store', type=float, nargs=1, help=msg6)
+        parser.add_argument('flag', action='store', nargs=1, help=msg7)
+        parser.add_argument('th_Ex', action='store', type=float, nargs=1, help=msg8)        
+        #
+        return parser.parse_args()
 #-----------------------------------------------------------------------------------------------
-def main(opts,args):
-
-        if opts.output is not None:
+def main():
+        cmd_opts = ParseArguments()
+                
+        if cmd_opts.output is not None:
                try:
-                        outFile = open(opts.output, 'w')
+                        outFile = open(cmd_opts.output, 'w')
                except IOError, e:
                         fatalIOError(e)
         else:
                 outFile = sys.stdout
-
 ########
-        h=float(args[1])
-        k=float(args[2])
-        l=float(args[3])
-        eta=float(args[4])/r2d  #; print "cos(eta) =", cos(eta)
-        phi=float(args[5])/r2d
-        T=float(args[6])
-        dc=1.0e7*float(args[7]) # [A] crystal thickness
-        flag=args[8]
-######## polarization factor 
+        h = cmd_opts.h[0]          #float(args[1])
+        k = cmd_opts.k[0]          #float(args[2])
+        l = cmd_opts.l[0]          #float(args[3])
+        eta = cmd_opts.eta[0]/r2d    #float(args[4])/r2d  #; print "cos(eta) =", cos(eta)
+        phi = cmd_opts.phi[0]/r2d    #float(args[5])/r2d
+        T = cmd_opts.T[0]          #float(args[6])
+        dc = 1.0e7*cmd_opts.d[0]   #1.0e7*float(args[7]) # [A] crystal thickness
+        flag = cmd_opts.flag[0]    #args[8]
+######## polarization factor ############################################################################
         P=1.0   # default value (sigma) - if pi - controlled by option -p
 ######################################################################################################### 
 ## LATTICE PARAMETER AND BRAGG ENERGY
 #########################################################################################################  
-        crystal,flagFh=chi(args[0],h,k,l,T,5.0e4)        
+        crystal,flagFh=chi(cmd_opts.crystal[0],h,k,l,T,5.0e4)        
         # break if structure amplitude is too small:
         if flagFh==0: 
            fatalError('forbidden reflection: structure amplitude |exp(iHr)| for the chosen set of Miller indicies is too small (< 1e-6)')
         #------------------------------------------------------------------------------------                                                          
         dh=crystal[1]
         Eb=0.5*hpl*cl/dh
-        thr,Er=thr_find(args[0],h,k,l,eta+1.0e-14,phi,T,dc,Eb) 
+        thr,Er=thr_find(cmd_opts.crystal[0],h,k,l,eta,phi,T,dc,Eb) 
 ######  BEGIN OUTPUT ###############################################################################
         outFile.write('##############################################################\n')
-        outFile.write('##### 2BEAM v'+__version__+' ############################################\n')
+        outFile.write('##### ' + prog + ' v'+__version__+' ############################################\n')
         outFile.write('##### Author: Stanislav Stoupin ## sstoupin@aps.anl.gov ######\n')
         outFile.write('##############################################################\n')
         outFile.write('PARAMETERS OF THE H K L REFLECTION :\n')
@@ -173,31 +197,69 @@ def main(opts,args):
         outFile.write('thr [deg] = '+str(thr*r2d)+' Angle of the exact backscattering\n')
         outFile.write('Er [keV] = '+str(1.0e-3*Er)+' Energy of the exact backscattering\n')
         outFile.write('--------------------------------------------------------------\n')        
-####################################################################################################                        
-        f1=plt.figure()
+####################################################################################################         
+        # VECTOR Z (depth) for calculations of the field inside the crystal
+        # performed together with secondary yield calculations
+        ############################################################################################
+        if cmd_opts.syield!=-1:
+            Ls=float(cmd_opts.syield)
+            if Ls < dc/3.0:
+                zran=3.0*Ls
+            else:
+                zran=dc
+            zstep=zran/float(200)
+            #zv = arange(0.0,zran,zstep)            
+            zv = arange(0.0,zran+zstep,zstep) #; print "zv = ", zv
+        #############################################################################################
+        # CALCULATIONS AT FIXED GLANCING ANGLE OF INCIDENCE
+        #############################################################################################
         if flag=='a':
-             thb=float(args[9])/r2d
+             thb=cmd_opts.th_Ex[0]/r2d
              thc=thb        # assume input angle as true central angle
              Ex=Eb/sin(thb) # approximate energy from kinematic Braggs Law
-             
-             if opts.polarization==1:
-                P=cos(2.0*thc)
-             
+             # take polarization into account:                          
+             if cmd_opts.polarization==1:
+                P=cos(2.0*thc)             
 #             print "Ex = ", Ex
-             crystal,flagFh=chi(args[0],h,k,l,T,Ex)
+             crystal,flagFh=chi(cmd_opts.crystal[0],h,k,l,T,Ex)
              result0=dtxrd1(thc,eta,phi,dc,Ex,P,crystal) # first iteration to find wh
              wh=result0[1]
              Ec=Eb*(1.0+wh)/sin(thc) # found center energy Ec            
 #             print "Ec = ", Ec
-             crystal,flagFh=chi(args[0],h,k,l,T,Ec)
+             crystal,flagFh=chi(cmd_opts.crystal[0],h,k,l,T,Ec)
              result0=dtxrd1(thc,eta,phi,dc,Ec,P,crystal) # second iteration to find wh
              wh=result0[1]
              Ec=Eb*(1.0+wh)/sin(thc) # found center energy Ec            
 #             print "Ec = ", Ec
              # now determine constants at Ec, thc
-             crystal,flagFh=chi(args[0],h,k,l,T,Ec)
+             crystal,flagFh=chi(cmd_opts.crystal[0],h,k,l,T,Ec)
              [[Chi0,Chih,Chih_],dh]=crystal             
-             [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)                                       
+             #
+             if cmd_opts.syield ==-1:
+                 [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)                                       
+             else:
+                 # display distribution of field intensity in the crystal along z
+                 f2=plt.figure()
+                 [[wh_s,wh,ep,dt,de,Tc,Rc],[GG,DD]] = dtxrd1_D0Dh(thc,eta,phi,dc,Ec,P,crystal,zv)
+                 G0=GG[0]; Gh=GG[1]
+                 D0=DD[0]; Dh=DD[1]             #; print "Dh = ", Dh     
+                 D02=abs(D0)**2.0; [zz,dD02]=deriv(zv,D02)
+                 Dh2=abs(Dh)**2.0; [zz,dDh2]=deriv(zv,Dh2) #; print "dDh2 = ", dDh2
+                 kappaz=-G0*dD02+abs(Gh)*dDh2   #; print "kappaz = ", kappaz # total x-ray absorption in dz
+                 Pz=exp(-zz/Ls)                 # probability of secondary emission from dz
+                 syieldz=array(kappaz)*array(Pz)  #; print "syieldz = ", syieldz
+                 syield_tot=zstep*sum(syieldz)    #; print "syield_tot = ", syield_tot
+                 plt.plot(zv, D02, label='abs(D0)^2')
+                 plt.plot(zv, Dh2, label='abs(Dh)^2')                 
+#                 plt.plot(1.0e-7*zz, dD02, label='d abs(D0)^2/dz')
+#                 plt.plot(1.0e-7*zz, dDh2, label='d abs(Dh)^2/dz')
+#                 plt.plot(1.0e-7*zz, kappaz, label='kappaz')
+#                 plt.plot(1.0e-7*zz, Pz, label='Pz')
+#                 plt.plot(1.0e-7*zz, syieldz, label='syieldz')                 
+                 plt.ylabel('Field intensity inside the crystal [n.u.]')
+                 plt.xlabel('z [Angstrom]')
+                 plt.legend(loc='lower right')
+             #
              [eps_s,eps,eps_pr]=ep
              [dth_s,dth,dth_pr]=dt
              ################################################             
@@ -207,13 +269,20 @@ def main(opts,args):
              ################################################             
              Ex_v=Ec+arange(E1,E2,Estep)  # create energy vector
              
-             Tplot=[]; Rplot=[]
-             for Ex in Ex_v:
-                  result2=dtxrd1(thc,eta,phi,dc,Ex,P,crystal) # now calculate transmissivity/reflectivity                  
-                  Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]]
-
+             Tplot=[]; Rplot=[]; SYplot=[]
+             if cmd_opts.syield == -1:  
+                 for Ex in Ex_v:
+                     result2=dtxrd1(thc,eta,phi,dc,Ex,P,crystal) # now calculate transmissivity/reflectivity                  
+                     Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]]
+             else:
+                 for Ex in Ex_v:                     
+                     result2=dtxrd1_sy(thc,eta,phi,dc,Ex,P,crystal,Ls)
+                     Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]]
+                     SYplot=SYplot+[result2[7]]
+             ######################################################################################  
              # convolution to calculate FWHM for the refl. curve
-             if opts.conv!=0:
+             ######################################################################################
+             if cmd_opts.conv != 0:
                 fwhm0=0.1*eps*Ec # FWHM estimate for instrument resolution function
                 #bw=0.5*fwhm0; b=[0.0,1.0,Ec,bw]; rf=lorentz(b,Ex_v)               # Lorentzian
                 bw=0.5*fwhm0/sqrt(log(2.0)); b=[0.0,1.0,Ec,bw]; rf=gauss(b,Ex_v)   # Gaussian
@@ -223,27 +292,47 @@ def main(opts,args):
                 fwhm_ex=stat0[5]
              else: 
                 rc0=zeros(len(Rplot))
-             #
-             # plot all                               
+             ######################################################################################
+             # PLOT RESULTS                               
+             ######################################################################################
              Eplot=1.0e3*(Ex_v-Ec) # meV             
              outx0=1.0e-3*Ex_v     # keV
              outx1=Eplot           # meV  
              outh0='E[keV] '       # header_col0
              outh1='E-Ec[meV] '    # header_col1
-                                                   
-             plt.subplot(212)
-             plt.plot(Eplot,Tplot,'b-')
-             plt.ylabel('Transmissivity')
-             plt.xlabel('E-E0 [meV]')
-             #
-             plt.subplot(211)
-             plt.plot(Eplot,Rplot,'r-')
-             if opts.conv!=0: plt.plot(Eplot,rc0,'k-')
-             plt.ylabel('Reflectivity')
              
-########   
+             f2 = plt.figure()                                      
+             if cmd_opts.syield != -1:
+                 plt.subplot(311)
+                 plt.plot(Eplot,Rplot,'r-')
+                 if cmd_opts.conv !=0: plt.plot(Eplot,rc0,'k-')
+                 plt.ylabel('Reflectivity')
+                 #
+                 plt.subplot(312)
+                 plt.plot(Eplot,Tplot,'b-')
+                 plt.ylabel('Transmissivity')
+                 plt.xlabel('E-E0 [meV]')
+                 #
+                 plt.subplot(313)
+                 plt.plot(Eplot,SYplot/max(SYplot),'g-')
+                 plt.ylabel('Secondary yield [n.u.]')
+                 plt.xlabel('E-E0 [meV]')
+             else:
+                 SYplot=zeros(len(Rplot))
+                 plt.subplot(211)
+                 plt.plot(Eplot,Rplot,'r-')
+                 if cmd_opts.conv != 0: plt.plot(Eplot,rc0,'k-')
+                 plt.ylabel('Reflectivity')
+                 #
+                 plt.subplot(212)
+                 plt.plot(Eplot,Tplot,'b-')
+                 plt.ylabel('Transmissivity')
+                 plt.xlabel('E-E0 [meV]')
+        ###########################################################################################
+        # CALCULATIONS AT FIXED PHOTON ENERGY
+        ###########################################################################################
         elif flag=='e':
-             Ex=1.0e3*float(args[9])         
+             Ex=1.0e3*cmd_opts.th_Ex[0]
              Ec=Ex       # assume input energy as true central energy
              if Ex<Eb:
                   fatalError('Ex must be greater than Eb')
@@ -251,24 +340,48 @@ def main(opts,args):
                   thb=arcsin(Eb/Ex)  # approximate angle from kinematic Braggs Law
                   outFile.write('thb [deg] = '+str(r2d*thb)+' Bragg angle\n') 
      
-             if opts.polarization==1:
+             if cmd_opts.polarization==1:
                 P=cos(2.0*thb)                               
-             crystal,flagFh=chi(args[0],h,k,l,T,Ec)
+             crystal,flagFh=chi(cmd_opts.crystal[0],h,k,l,T,Ec)
              result0=dtxrd1(thb,eta,phi,dc,Ec,P,crystal) # first iteration to find wh
              wh=result0[1]                                                    
              thc=arcsin((Eb/Ec)*(1.0+wh))        # determine central angle
 
-             if opts.polarization==1:
+             if cmd_opts.polarization==1:
                 P=cos(2.0*thc)
              result0=dtxrd1(thc,eta,phi,dc,Ec,P,crystal) # second iteration to find wh
              wh=result0[1]                     
              thc=arcsin((Eb/Ec)*(1.0+wh))        # determine central angle
-
-             if opts.polarization==1:
+             #
+             if cmd_opts.polarization==1:
                 P=cos(2.0*thc)
              # calculate constants at thc,Ec
              [[Chi0,Chih,Chih_],dh]=crystal
-             [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)
+             if cmd_opts.syield ==-1:
+                 [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)
+             else:
+                 # display distribution of field intensity in the crystal along z
+                 f2=plt.figure()
+                 [[wh_s,wh,ep,dt,de,Tc,Rc],[GG,DD]] = dtxrd1_D0Dh(thc,eta,phi,dc,Ec,P,crystal,zv)
+                 G0=GG[0]; Gh=GG[1]
+                 D0=DD[0]; Dh=DD[1]  #;print "Dh = ", Dh     
+                 D02=abs(D0)**2.0; [zz,dD02]=deriv(zv,D02)
+                 Dh2=abs(Dh)**2.0; [zz,dDh2]=deriv(zv,Dh2) #; print "dDh2 = ", dDh2
+                 kappaz=-G0*dD02+abs(Gh)*dDh2   #; print "kappaz = ", kappaz # total x-ray absorption in dz
+                 Pz=exp(-zz/Ls)                 # probability of secondary emission from dz
+                 syieldz=array(kappaz)*array(Pz)  #; print "syieldz = ", syieldz
+                 syield_tot=zstep*sum(syieldz)    #; print "syield_tot = ", syield_tot
+                 plt.plot(zv, D02, label='abs(D0)^2')
+                 plt.plot(zv, Dh2, label='abs(Dh)^2')                 
+#                 plt.plot(1.0e-7*zz, dD02, label='d abs(D0)^2/dz')
+#                 plt.plot(1.0e-7*zz, dDh2, label='d abs(Dh)^2/dz')
+#                 plt.plot(1.0e-7*zz, kappaz, label='kappaz')
+#                 plt.plot(1.0e-7*zz, Pz, label='Pz')
+#                 plt.plot(1.0e-7*zz, syieldz, label='syieldz')                 
+                 plt.ylabel('Field intensity inside the crystal [n.u.]')
+                 plt.xlabel('z [Angstrom]')
+                 plt.legend(loc='upper right')
+             #################################################                                                               
              [eps_s,eps,eps_pr]=ep
              [dth_s,dth,dth_pr]=dt
              # thc - final iteration
@@ -276,19 +389,25 @@ def main(opts,args):
              #################################################
              th1=-5.0*dth  # rad
              th2=5.0*dth   # rad
-             thstep= (th2-th1)/1000.0 # rad
+             thstep= (th2-th1)/10000.0 # rad
              #################################################
              thb_v=thc+arange(th1,th2,thstep)  # create vector of angles
              
-             Tplot=[]; Rplot=[]             
+             Tplot=[]; Rplot=[]; SYplot=[]             
              for thx in thb_v:
-                 if opts.polarization==1:
-                    P=cos(2.0*thx)                                 
-                 result2=dtxrd1(thx,eta,phi,dc,Ec,P,crystal)  # now calculate transmissivity/reflectivity                 
-                 Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]]                              
-                                                                                     
+                 if cmd_opts.polarization == 1:
+                    P=cos(2.0*thx)                           
+                 if cmd_opts.syield == -1:
+                     result2=dtxrd1(thx,eta,phi,dc,Ec,P,crystal)  # now calculate transmissivity/reflectivity  
+                     Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]]
+                 else: 
+                     result2=dtxrd1_sy(thx,eta,phi,dc,Ec,P,crystal,Ls) 
+                     Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]] 
+                     SYplot=SYplot+[result2[7]] 
+             ###########################################################################################
              # convolution to calculate FWHM
-             if opts.conv!=0:
+             ###########################################################################################
+             if cmd_opts.conv != 0:
                 fwhm0=0.1*dth  # FWHM estimate for instrument resolution function
                 #bw=0.5*fwhm0; b=[0.0,1.0,thc,bw]; rf=lorentz(b,thb_v) 		# Lorentzian
                 bw=0.5*fwhm0/sqrt(log(2.0)); b=[0.0,1.0,thc,bw]; rf=gauss(b,thb_v)   # Gaussian
@@ -297,25 +416,43 @@ def main(opts,args):
                 stat0=curvestat(thb_v,rc0,0.0)
                 fwhm_th=stat0[5]
              else: rc0=zeros(len(Rplot))                          
-             # plot results ##################################################
+             ###########################################################################################
+             # PLOT RESULTS
+             ########################################################################################### 
              thplot=1.0e6*(thb_v-thc) # urad             
              outx0=thb_v*r2d          # deg
              outx1=thplot             # urad
              outh0='th[deg] '         # header_col0
              outh1='th-thc[urad] '    # header_col1
-             
-             plt.subplot(212)
-             plt.plot(thplot,Tplot,'b-')
-             plt.ylabel('Transmissivity')
-             plt.xlabel('theta-theta0 [urad]')
+             #
+             f1=plt.figure()
+             #plt.xlabel('theta-theta0 [urad]')
              #plt.axis([1.0e6*th1,1.0e6*th2,0,auto])
-             #            
-             plt.subplot(211)
-             plt.plot(thplot,Rplot,'r-')
-             if opts.conv!=0: plt.plot(thplot,rc0,'k-')                        
-             plt.ylabel('Reflectivity')
-             #plt.axis([1.0e6*th1,1.0e6*th2,0,2])
-
+             #
+             if cmd_opts.syield != -1:
+                 plt.subplot(311)
+                 plt.plot(thplot,Rplot,'r-')
+                 if cmd_opts.conv != 0: plt.plot(thplot,rc0,'k-')                        
+                 plt.ylabel('Reflectivity')
+                 #plt.axis([1.0e6*th1,1.0e6*th2,0,2])
+                 plt.subplot(312)
+                 plt.plot(thplot,Tplot,'b-')
+                 plt.ylabel('Transmissivity')
+                 plt.subplot(313)
+                 plt.plot(thplot,SYplot/max(SYplot),'g-')
+                 plt.ylabel('Secondary yield [n.u.]')
+                 plt.xlabel('theta-theta0 [urad]')
+             else: 
+                 SYplot=zeros(len(Rplot))
+                 plt.subplot(211)
+                 plt.plot(thplot,Rplot,'r-')
+                 if cmd_opts.conv != 0: plt.plot(thplot,rc0,'k-')                        
+                 plt.ylabel('Reflectivity')
+                 plt.subplot(212)
+                 plt.plot(thplot,Tplot,'b-')
+                 plt.ylabel('Transmissivity')
+                 plt.xlabel('theta-theta0 [urad]')
+#
         else: fatalError('flag arg[8] either a (angle) or e (energy)')
 
 ###############################################################################
@@ -328,7 +465,8 @@ def main(opts,args):
         #       
         ## Calculate dispersion rate #################
         #Dr=2.0e3*sin(thc)*sin(eta)/(Ec*sin(thc-eta)) #murad/meV
-        Dr=-2.0e3/(cos(phi)/tan(thc)-1.0/tan(eta))/Ec # now using (2.138)
+        eps_eta = 1.0e-7
+        Dr=-2.0e3/(cos(phi)/tan(thc)-1.0/tan(eta+eps_eta))/Ec # now using (2.138)
         # notes:
         # this is angular dispersion rate in the dispersion plane
         # for phi=0 and phi=180 represents variation of dth_pr
@@ -368,7 +506,7 @@ def main(opts,args):
         #
         outFile.write('#-------------------------------------------------------------\n')
         
-        if opts.conv!=0:
+        if cmd_opts.conv != 0:
            outFile.write('# Widths Expected in Experiment (theory + inst.res.func.)\n')
            if flag=='a':
               outFile.write('Delta_E [meV] = '+str(1.0e3*fwhm_ex)+ '\n')
@@ -382,20 +520,19 @@ def main(opts,args):
         outFile.write('Rc [%]  = '+str(Rc*100.0)+' Reflectivity \n')
         outFile.write('Tc [%]  = '+str(Tc*100.0)+' Transmissivity \n')
         outFile.close
-
-
-        if opts.write is not None:
-               header = '# '+'2beam '+str(args)+'\n' \
+######################################################################################################
+        if cmd_opts.write is not None:
+               header = '# '+ str(sys.argv) +'\n' \
                         +'# version '+__version__+' by Stanislav Stoupin\n' \
                         +'# columns: \n' \
-                        + '# '+outh0+outh1+'Tplot Rplot rc0\n'                        
+                        + '# '+outh1+'Rplot Tplot SYplot rc0 '+outh0+'\n'                        
                try:                
-                    writeFile(opts.write,header,outx0,outx1,Tplot,Rplot,rc0)                                        
-
+                    writeFile(cmd_opts.write,header,outx1,Rplot,Tplot,SYplot,rc0,outx0)                                        
+               #     
                except IOError, e:
-                    fatalIOError(e)
-                                                        
+                    fatalIOError(e)            
+###### show figures ##################################################################################                                                        
         plt.show()
 if __name__ == '__main__':
-	options, args = ParseArguments(sys.argv[1:])
-	main(options,args)
+#	options, args = ParseArguments(sys.argv[1:])
+	main()

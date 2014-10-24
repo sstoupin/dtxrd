@@ -14,6 +14,24 @@ import sys
 from scipy.special import legendre
 from pylab import *
 
+# TO RUN LOCALLY:
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/DTXRD/'
+#sys.path.append(libpath)
+#from numpy import *
+#from scipy import *
+#
+#from myio import *
+#from rotation import *
+#from curvestat import *
+#from chi import *
+#from thfind import *
+#from dtxrd2_k import *
+#from constants import *
+
+#TO RUN GLOBALLY:
+
 from dtxrd.myio import *
 from dtxrd.rotation import *
 from dtxrd.curvestat import *
@@ -661,3 +679,5 @@ def main(opts,args):
 if __name__ == '__main__':
 	options, args = ParseArguments(sys.argv[1:])
 	main(options,args)
+
+

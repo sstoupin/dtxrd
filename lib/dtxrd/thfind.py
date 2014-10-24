@@ -15,10 +15,10 @@ a subroutine to calculate parameters of a Bragg reflection
 ################################################################
 
 from numpy import *
-from okada_si import *
-from stoupin_c import *
-from carr_ge import *
-from lucht_sph import *
+#from okada_si import *
+#from stoupin_c import *
+#from carr_ge import *
+#from lucht_sph import *
 from fh import *
 
 from dtxrd0 import *

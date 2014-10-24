@@ -24,12 +24,24 @@ a0=3.56712
 T0=298.0
 
 def a_stoupin(x):
-
   y=integrate.quad(lambda t: alpha_stoupin(t),T0,x)
   a=a0*(1.0+y[0])
-  
 #  print " integration abs. error", y[1]
 #  print " Temperature = ", x, " K"
 #  print " Lattice parameter = ", a, " Angstrom"
   return a
+
+
+def av_stoupin(temp):
+  stuff = []
+  for x in temp:
+    y=integrate.quad(lambda t: alpha_stoupin(t),T0,x)
+    a=a0*(1.0+y[0])
+    stuff = stuff +[a]
+  stuff = array(stuff)
+  
+#  print " integration abs. error", y[1]
+#  print " Temperature = ", x, " K"
+#  print " Lattice parameter = ", a, " Angstrom"
+  return stuff
 

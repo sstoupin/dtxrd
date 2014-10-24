@@ -2,7 +2,7 @@
 ########################################################
 ## SET OF FUNCTIONS TO CALCULATE STRUCTURE FACTORS
 ########################################################
-# VER=0.17
+# VER=0.18
 #########################################################################
 # to do list:
 # 1. check alternatives for DWF
@@ -11,8 +11,14 @@
 import dtxrd
 import os
 libpath = os.path.dirname(dtxrd.__file__)
+
+#import sys
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/DTXRD/'
+#sys.path.append(libpath)
+
 from numpy import *
-#
 from scipy.interpolate import UnivariateSpline
 from scipy.interpolate import KroghInterpolator
 from scipy.interpolate import BarycentricInterpolator
@@ -29,7 +35,7 @@ def f0h_ICD(atom,qx):
 #    lamx=hpl*c/Ex   #; print "lamx [A] = ", lamx
 #    qx=sin(th)/lamx #; print "qx [A-1] = ", qx
         
-    fileName=libpath+'/data/f0h_ICD.dat'
+    fileName=libpath+'f0h_ICD.dat'
     data=open(fileName, 'r')
     while 1:
         line=data.readline()
@@ -62,7 +68,7 @@ def f0h_waasmaier(atom,qx):
 #    qx=sin(th)/lamx #; print "qx [A-1] = ", qx
 
     a=zeros(6); b=zeros(6)
-    fileName=libpath+'/data/waasmaier.dat'
+    fileName=libpath+'waasmaier.dat'
     data=open(fileName, 'r')
     while 1:
         line=data.readline()
@@ -106,9 +112,9 @@ def f0h_waasmaier(atom,qx):
 #plot(qx,diff)
 #show()
 #
-###########################################################################
+############################################################################################################
 ###  ANOMALOUS CORRECTIONS
-###########################################################################
+############################################################################################################
 # dictionary format 
 # f=elements{'atom'}
 # Z=f[0]
@@ -246,32 +252,24 @@ def fa_cromer(atom,Ex):
 #    f_pp=UnivariateSpline(E,array(f[2]))
     f_p=interp1d(E,array(f[1]))        
     f_pp=interp1d(E,array(f[2]))
-    f_a=float(f[3])
-    
+    f_a=float(f[3])        
 #    print "f_p = ", f_p(Ex)
 #    print "f_pp = ", f_pp(Ex)  # things make sense only if taken with "-" sign - but not clear from the literature (Cromer, etc.)
           
     return f_p(Ex)+f_a-1.0j*f_pp(Ex)        
-    
+# --------------------------------------------------------------------------------    
 def fa_asf(atom,Ex):
-    #import xdp    
     from myio import readFile
-    fileName=libpath+'/asf/'+atom+'.asf'
+    fileName=libpath+'asf/'+atom+'.asf'
     d1,d2=readFile(fileName)
     Easf=d2[:,0]; Easf=1.0e3*Easf
     f1=d2[:,1]
     f2=d2[:,2]
-#    data=open(fileName, 'r')
-#    line0=data.readline(); print line0
-#    while 1:
-#        line=data.readline()
-#        stuff=line.split(' ')        
-#        if not(line): 
-#          break 
+    #
     Z=float(elementsZ[atom])
     f_1 = interp1d(Easf,f1)  # it seems that f1 in fa_asf is f1=f_p+f_rel+Z    
     f_2= interp1d(Easf,f2)
-    
+    #    
     return f_1(Ex)-Z+1.0j*f_2(Ex)
     
 # Tests: 
@@ -321,7 +319,7 @@ def expFh_dia(h,k,l):
       for x in r:
             Fh=Fh+exp(1j*sum(H*x))      
       return Fh
-
+#----------------------------------------------------------
 def expFh_sph(elem,h,k,l):
     
     H=2.0*pi*array([h,k,l])    
@@ -364,6 +362,88 @@ def expFh_sph(elem,h,k,l):
     for x in r:
         Fh=Fh+exp(1j*sum(H*x))      
     return Fh
+# ----------------------------------------------------------------
+def expFh_pyr(elem,h,k,l):   # Bailyss AM 1977
+    
+    H=2.0*pi*array([h,k,l])    
+            
+    if elem=='Fe':
+      r=[[]]*4
+      r[0]=array([0.00100,0.00200,0.00300])
+      r[1]=array([0.49660,0.00010,0.50360])
+      r[2]=array([0.50010,0.50200,0.00110])
+      r[3]=array([-0.00060,0.50130,0.50380])
+      
+    elif elem=='S':
+      r=[[]]*8
+      r[0]=array([0.38570,0.38320,0.38400])
+      r[1]=array([0.11490,0.61140,0.88460])
+      r[2]=array([0.88540,0.11570,0.61430])
+      r[3]=array([0.61530,0.88650,0.11410])
+      r[4]=array([0.61510,0.61320,0.61370])
+      r[5]=array([0.88540,0.38180,0.11490])
+      r[6]=array([0.11470,0.88560,0.38410])
+      r[7]=array([0.38570,0.11610,0.88420])
+      
+    Fh=0
+    for x in r:
+        Fh=Fh+exp(1j*sum(H*x))      
+    return Fh
+
+# ---------------------------------------------------------------------------------
+def expFh_SiC4H(elem,h,k,l):   #Bauer AC 2001  +1 model agrees with the refinement
+    
+    H=2.0*pi*array([h,k,l])    
+    delta1=0.0        ; eps1=0.0
+    delta2=0.0        ; eps2=0.0
+        
+    if elem=='Si':
+      ksi=delta1 
+      tau=4.0/16.0+delta2
+    elif elem=='C':
+      ksi=3.0/16.00+eps1
+      tau=7.0/16.0+eps2
+    
+    r=[[]]*4
+    r[0]=array([0.0,0.0,ksi])
+    r[1]=array([2.0/3.0,1.0/3.0,0.5+ksi])    
+    r[2]=array([1.0/3.0,2.0/3.0,tau])  
+    r[3]=array([1.0/3.0,2.0/3.0,0.5+tau])
+        
+    Fh=0
+    for x in r:
+        Fh=Fh+exp(1j*sum(H*x))      
+    return Fh
+
+# ---------------------------------------------------------------------------------
+def expFh_SiC6H(elem,h,k,l):   #Bauer AC 2001  +1 model agrees with the refinement
+    
+    H=2.0*pi*array([h,k,l])    
+    delta1=0.0 ; eps1=0.0
+    delta2=0.0 ; eps2=0.0
+    delta3=0.0 ; eps3=0.0
+        
+    if elem=='Si':
+      ksi=delta1 
+      tau=4.0/24.0+delta2
+      v=8.0/24.0+delta3
+    elif elem=='C':
+      ksi=3.0/24.0+eps1
+      tau=7.0/24.0+eps2
+      v=11.0/24.0+eps3
+    
+    r=[[]]*6
+    r[0]=array([0.0,0.0,ksi])
+    r[1]=array([0.0,0.0,0.5+ksi])
+    r[2]=array([1.0/3.0,2.0/3.0,tau])  
+    r[3]=array([2.0/3.0,1.0/3.0,0.5+tau])
+    r[4]=array([2.0/3.0,1.0/3.0,v])
+    r[5]=array([1.0/3.0,2.0/3.0,0.5+v])
+        
+    Fh=0
+    for x in r:
+        Fh=Fh+exp(1j*sum(H*x))      
+    return Fh
 
 
 ############################################################################
@@ -396,6 +476,25 @@ def debye_sears(atom,T,qx):
       f_2=7.495       
       f_1=2.245       
       f2=0.476       
+#----------------------------
+    elif atom=='Al':
+      M=26.982
+      nu_m=9.75
+      Tm=468
+      alp=3.670
+      f_2=4.029
+      f_1=1.778
+      f2=0.445
+#----------------------------
+    elif atom=='Fe':
+      M=55.847
+      nu_m=9.54
+      Tm=458
+      alp=3.079
+      f_2=3.310
+      f_1=1.602
+      f2=0.522
+#----------------------------
     elif atom=='Cu':
       M=63.546
       nu_m=7.29
@@ -415,4 +514,4 @@ def debye_sears(atom,T,qx):
         
     B=39.904/(M*nu_m)*Jy
     W=B*qx**2.0
-    return exp(-W)  
+    return [B,exp(-W)]

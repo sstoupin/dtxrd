@@ -1,14 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
-'''
-a subroutine to calculate parameters of a Bragg reflection
-
-:author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
-
-:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
-:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
-'''
+################################################################
+## subroutine to calculate parameters of hkl reflection
+# v 0.02 #######################################################
+# Stanislav Stoupin ## sstoupin@aps.anl.gov ####################
+################################################################
 
 from numpy import *
 from okada_si import *

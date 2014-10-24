@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-a program to calculate rocking curve images for a series of hdf4 snapshots
+a program for sequential topography/rocking curve imaging
 
 :author:    Stanislav Stoupin
 :email:     sstoupin@aps.anl.gov
@@ -10,40 +10,35 @@ a program to calculate rocking curve images for a series of hdf4 snapshots
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
 
+
 import sys
 import numpy
 import operator
-from pylab import *
-from dtxrd.pyhdf4 import *
+from dtxrd.pyhdf import *
 from dtxrd.curvestat import *
 from dtxrd.fit1d import *
 from dtxrd.myio import *
 
-#from __future__ import division
 from matplotlib.patches import Patch
+# LOCAL 
+#from pylab import *
+#from numpy import *
 ##################################################################
-## constants
+## fixed constants
 ##################################################################
 r2d=180.0/pi
-
-dx, dy = 0.06, 0.06  # CCD camera pixel size [mm]
-tot_range=10.0         # upper limit for threshold processing (to exclude "dead" pixels)
-dyn_range=6.0      # upper limit for threshold processing (gauss)
-fwhm_0=30.0          # expected fwhm (for fitting) 
 fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
-bkg0=2750.0          # "reasonable" background - dark current count
-
 ##################################################################
 
-__version__='0.67'
-proginfo = 'topohdf' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
-
-# version 0.2 - added gaussian fit for noisy data as an option "-g"
+__version__='0.69'
+prog = os.path.basename(sys.argv[0])
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
 #######################################################################################
 # HISTORY
 #######################################################################################
+# 0. added gaussian fit for noisy data as an option "-g" v 0.2
 # 1. need deglitching algorithm - done v 0.4
 # 2. -b - custom background done v 0.4
 # 3. calculate RMS and PV - done in v0.3
@@ -68,6 +63,9 @@ proginfo = 'topohdf' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.g
 # v067   additional pixel rejection criteria based on the bkg level and on the 
 #        COM and FWHM values (worked with Si 220 transmission data)
 #        eventually best way to reject bad pixels - just treshold (e.g. -t 1.2)
+# v068   added support for hdf5 files 
+#        introduced instrument files ccd.py
+# v069   minor iteration to adapt to data from topolab (Tim Madden's CCD)
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -101,12 +99,11 @@ def ParseArguments(args):
                        fatalError(
 'This program requires Optik, availible from http://optik.sourceforge.net/\n')
 
-        USAGE = '%prog [OPTIONS...] filename1 filename2 ... \n' \
-        +'the program computes and displays topography images using multiple CCD snapshots\n' \
-        +'of reflectivity (hdf files) taken at different angles on the crystal rocking curve\n' \
-        +'options:\n' \
-        +'-o - output file; columns: x, y, peak, fwhm, com, thmid, th_neg, th_pos\n' \
-        +'-t - threshold in reflectivity used to define crystal boundaries'
+        USAGE = prog + ' [OPTIONS...] filename1 filename2 ... \n' \
+        +'the program computes and displays rocking curve maps using a series of CCD \n' \
+        +'images taken at different angles on the rocking curve of a crystal\n' \
+        +'for options type: rctopo -h \n' \
+        +'Cheers!'
         VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' 
         parser = OptionParser(usage=USAGE, version=VERSION)                        
         #
@@ -118,8 +115,14 @@ def ParseArguments(args):
                 action='store',
                 dest='output',
                 default=None,
-                help='write results to file F (defaults to stdout)',
-                metavar='FILE')
+                help='write calculated parameters to file F (defaults to stdout)',
+                metavar='F')
+        parser.add_option('-w', '--write',
+                action='store',
+                dest='write',
+                default=None,
+                help='write data to file D (default: do not write)',
+                metavar='D')        
         parser.add_option('-t', '--threshold',
                 action='store',
                 dest='tr',
@@ -138,6 +141,18 @@ def ParseArguments(args):
                 default='-1 -1 -1 -1',
                 help='map range for analysis',
                 metavar='STRING')
+        parser.add_option('-x', '--xslice',
+                action='store',
+                dest='xsl',
+                default=-1,
+                help='slice and plot distribution at a fixed coordinate X',
+                metavar='CONST')
+        parser.add_option('-y', '--yslice',
+                action='store',
+                dest='ysl',
+                default=-1,
+                help='slice and plot distribution at a fixed coordinate Y',
+                metavar='CONST')
         parser.add_option('-n', '--name',
                 action='store',
                 dest='nm',
@@ -180,7 +195,12 @@ def ParseArguments(args):
                 dest='publish',
                 default=0,
                 help='generate figures for publication')
-                                                                       
+        parser.add_option('-i', '--instrument',
+                action='store_const',
+                const=1,
+                dest='instrument',
+                default=0,
+                help='read parameters from instrument file ccd.py')                                                                       
         #Parameters
         
         opts, args = parser.parse_args(args)
@@ -197,14 +217,14 @@ def main(opts, args):
      except IOError, e:
         fatalIOError(e)
   else:
-     outFile = open('topohdf.log', 'w') #sys.stdout
+     outFile = sys.stdout
   
   outFile.write(str(opts)+' '+str(args)+'\n')
   outFile.write('topohdf version: '+__version__+'\n')
   outFile.write('range (x1 x2 y1 y2): '+opts.rng+'\n')
   
 #----------------------------------------------------- 
-# initialize & get constants      
+# initialize & set constants      
 #-----------------------------------------------------
   alldata=[]
   data=[]
@@ -213,14 +233,38 @@ def main(opts, args):
   df=float(opts.degl); print "Deglitching factor (df) = ", df
   sf=float(opts.f);    print "Limit scale factor for plotting (sf) = ", sf
   nf=len(args);	       print "Number of files to analyze = ", nf
-#-----------------------------------------------------  
+  if opts.instrument == 1:  # if instrument file ccd.py is used
+    from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0,data_path,th_path,chi_path   # import parameters from ccd.py  
+  else:
+    rbin=1
+    dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]    
+    tot_range=10000.0     # upper limit for threshold processing (to exclude "dead" pixels)
+    dyn_range=10000.0      # upper limit for threshold processing (gauss)
+    fwhm_0=30.0        # expected fwhm (for fitting) 
+    bkg0=2750.0        # "reasonable" background - dark current count       
+    # default paths in hdf or h5 file    
+    data_path='/entry/instrument/detector/data'
+    th_path='/entry/instrument/detector/NDAttributes/theta'
+    chi_path='/entry/instrument/detector/NDAttributes/chi'
+  dx=float(rbin)*dx
+  dy=float(rbin)*dy
+#---------------------------------------------------------------------------------------------  
   for fn in args:   
-    angle, size, im = read_hdf4(fn)
-    nx=size[0] ;print nx
-    ny=size[1] ;print ny
+    fn_ext=fn.split(".")[-1]
+    if fn_ext == "hdf":
+      angle, size, im = read_hdf4(fn)
+    elif fn_ext == "h5":
+      angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path)        
+    else:
+      fatalError('Supported files are either hdf4 (extension .hdf) or hdf5 (extension h5)')  
+      
+    nx=size[0] #;print nx
+    ny=size[1] #;print ny
 #  print im.dtype
-    print fn+' ', angle
-
+    print "filename: ", fn
+    print "theta = ", angle
+    print "chi = ", chi
+        
 ### sorting data by angle #######################
     data_fn=[angle,im]
     alldata=alldata+[data_fn]
@@ -239,9 +283,11 @@ def main(opts, args):
   elif opts.units=='arcsec':
     th=1.0e6*array(th_deg)/(60.0)**2.0/r2d     #th_deg in arcseconds
   elif opts.units=='urad':
-    th=array(th_deg)
+    th=array(th_deg)                           # th_deg in urad
   elif opts.units=='um':
-    th=5.86*array(th_deg)
+    th=5.86*array(th_deg)                      # th_deg in microns
+  elif opts.units=='volt':
+    th=20.3*array(th_deg)                      # th_deg in microns
  
   th_beg=th[0]
   th_end=th[len(th)-1]
@@ -250,11 +296,10 @@ def main(opts, args):
   th0_deg=1.0e-6*r2d*th0
   
 ####################################################
-## Picking range
+## Analyzed Area (Range)
 ####################################################
-
   step=1
-  
+  #    
   rangexy=opts.rng.split(' ')    
   rngx1=float(rangexy[0]); rngy1=float(rangexy[2])
   rngx2=float(rangexy[1]); rngy2=float(rangexy[3])
@@ -281,6 +326,7 @@ def main(opts, args):
 #  yrange=arange(indy1,indy2,step)
   xrange=arange(nx-indx2,nx-indx1,step)
   yrange=arange(ny-indy2,ny-indy1,step) #;print yrange
+
 #-----------------------------------------------------
 #initialize arrays
 #-----------------------------------------------------
@@ -292,8 +338,9 @@ def main(opts, args):
   thpos=numpy.empty((nx,ny)) #6
   fwhm1=[]; peak1=[]; thmid1=[]; com1=[]; thpos1=[]; thneg1=[] # arrays to calclulate rms and pv
 #-------------------------------------------------------  
-  if opts.bkg>0:
-    bkg=float(opts.bkg); print "bkg = ", bkg
+  if opts.bkg > 0:
+    bkg=float(opts.bkg)
+    print "bkg is assigned through option, bkg = ", bkg
   else:
     print "bkg approximated by the endpoints"  
 #-------------------------------------------------------  
@@ -342,14 +389,21 @@ def main(opts, args):
       if (i==indx0) and (j==indy0):
             print "thi0 = ", thi0
             ugol=th-th0 #th_deg    
-            #fwhm_0=10.0  #1e-6*50.0*r2d
-            f1=plt.figure()
-            plt.plot(ugol,rcurve)
             p0=[bkg,rcmax,thi0,fwhm_0] #bkg max center std
-            p, unc, dte, stat, cov = fit1d(residuals,p0,ugol,rcurve); print "p @ X0,Y0 = ", p
-            com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0]); print "com @ X0,Y0 = ", com0
-            print "FWHM @ X0,Y0 =", 2.0*abs(p[3])*sqrt(log(2)), " urad"
-            plt.plot(ugol,gauss(p,ugol))
+            p, unc, dte, stat, cov = fit1d(residuals,p0,ugol,rcurve) 
+            com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0]); print "com = ", com0
+            print '--------------------------------------------------------------------------'
+            print 'Gaussian fit at the central pixel'
+            print 'X0 [mm] = ', float(xrange[0] + indx0)*dx
+            print 'Y0 [mm] = ', float(yrange[0] + indy0)*dy
+            print 'bkg = ', bkg
+            print 'p = ', p
+            print "FWHM =", 2.0*abs(p[3])*sqrt(log(2)), " urad"
+            # start plotting things ----------------------------------
+            f1=plt.figure()
+            plt.plot(ugol,rcurve, 'bo')            
+            ugol_g=arange(ugol[0],ugol[len(ugol)-1]+0.1,0.1)
+            plt.plot(ugol_g,gauss(p,ugol_g),'g-')            
             plt.title ('pixel location [mm]: X ='+str((nx-i)*dx)+', Y = '+str((ny-j)*dy))  
             plt.xlabel('angle, [urad]', size='x-large')
             plt.ylabel('Counts [a.u.]', size='x-large')
@@ -359,7 +413,7 @@ def main(opts, args):
                 tick.label1.set_fontsize(fontsize)
             for tick in ax.yaxis.get_major_ticks():
                 tick.label1.set_fontsize(fontsize)
-            
+                            
             if opts.output is not None:
                header="# RC from the selected pixel \n# columns: ugol rcurve \n"
                writeFile("1pix.dat", header, ugol, rcurve)                                                   
@@ -382,7 +436,7 @@ def main(opts, args):
                   thpos[i,j]=p[2]+fwhm_g/2.0; thpos1=thpos1+[thpos[i,j]]
                 else:
                   fwhm[i,j]=1e9
-                  peak[i,j]=0
+                  peak[i,j]=1e9
                   thmid[i,j]=1e9
                   com[i,j]=1e9
                   thneg[i,j]=1e9
@@ -399,7 +453,7 @@ def main(opts, args):
                   thpos[i,j]=stat[3];      thpos1=thpos1+[thpos[i,j]]
                 else:
                   fwhm[i,j]=1e9
-                  peak[i,j]=0
+                  peak[i,j]=1e9
                   thmid[i,j]=1e9
                   com[i,j]=1e9
                   thneg[i,j]=1e9
@@ -417,21 +471,23 @@ def main(opts, args):
 
               except UnboundLocalError:
                 fwhm[i,j]=1e9
-                peak[i,j]=0
+                peak[i,j]=1e9
                 thmid[i,j]=1e9
                 com[i,j]=1e9
                 thneg[i,j]=1e9
                 thpos[i,j]=1e9
           
       else:  
-        fwhm[i,j]=1e3
-        peak[i,j]=0
-        thmid[i,j]=1e3
-        com[i,j]=1e3
-        thneg[i,j]=1e3
-        thpos[i,j]=1e3
+        fwhm[i,j]=1e9
+        peak[i,j]=1e9
+        thmid[i,j]=1e9
+        com[i,j]=1e9
+        thneg[i,j]=1e9
+        thpos[i,j]=1e9
 
 #  norm=peak.max() 
+#  print "blah"
+#  print peak1
   norm=max(peak1) 
   peak=peak/norm
   peak1=peak1/norm        
@@ -443,8 +499,7 @@ def main(opts, args):
   thneg1=array(thneg1)
   thpos1=array(thpos1)
   
-  print '-----------------------------------------------------------------------'
-  out=''
+  out='------------------------------------------------------------------------\n'
   #----------------------------------------------------------------------------------
   fwhm0=average(fwhm1);          out=out+"FWHM_average = "+str(fwhm0)+" urad\n"
   fwhm_rms=std(fwhm1);           out=out+"FWHM_rms = "+str(fwhm_rms)+" urad\n"
@@ -470,23 +525,24 @@ def main(opts, args):
   thpos_rms=std(thpos1);            out=out+"thpos_rms = "+str(thpos_rms)+" urad\n"
   thpos_pv=max(thpos1)-min(thpos1); out=out+"thpos_pv = "+str(thpos_pv)+" urad\n"
   #----------------------------------------------------------------------------------
-  print out
 ##################################################################################
-## Write output									##
+## Write output									
 ##################################################################################
-  
-  outFile.write('-----------------Statistics---------------------------------------------------------\n')
+  outFile.write('------------------------------------------------------------------------\n')
+  outFile.write('peak max = '+str(norm)+'\n')
+  outFile.write('threshold = '+str(tr)+'\n')        
+  outFile.write('-----------------Statistics---------------------------------------------\n')
   outFile.write(out)
-  outFile.write('-----------------Map of the selected range------------------------------------------\n')
+  
+  if opts.output is not None:
+     outFile.write('-----------------Map of the selected range------------------------------------------\n')
 
-  for j in yrange:
-    for i in xrange:
-      outFile.write(str(i*dx)+' '+str(j*dy)+' '+str(peak[i,j])+' '+str(fwhm[i,j])+' ' \
-      +str(com[i,j])+' '+str(thmid[i,j])+' '+str(thneg[i,j])+' '+str(thpos[i,j])+'\n')
+     for j in yrange:
+       for i in xrange:
+          outFile.write(str(i*dx)+' '+str(j*dy)+' '+str(peak[i,j])+' '+str(fwhm[i,j])+' ' \
+          +str(com[i,j])+' '+str(thmid[i,j])+' '+str(thneg[i,j])+' '+str(thpos[i,j])+'\n')
   
   outFile.close
-  print 'peak.max = ', norm
-  print tr
 ##################################################################################  
 ##  Plot results
 ##################################################################################
@@ -494,20 +550,65 @@ def main(opts, args):
   # affects only choice of range - does not affect plotting 
   # same for x since it was found that the image has to be reversed in x direction
   # note that for x fliplr is applied later while for y imshow origin='upper'
+
+  # do stuff to display right
+#  fwhm=flipud(fwhm)
+#  peak=flipud(peak)
+#  thmid=flipud(thmid)
+#  com=flipud(com)
+#  thneg=flipud(thneg)
+#  thpos=flipud(thpos) 
+
+#  fwhm=fliplr(fwhm)
+#  peak=fliplr(peak)
+#  thmid=fliplr(thmid)
+#  com=fliplr(com)
+#  thneg=fliplr(thneg)
+#  thpos=fliplr(thpos) 
   
   nny1=ny-indy2; nny2=ny-indy1
 #  nny1=indy1; nny2=indy2
   nnx1=nx-indx2; nnx2=nx-indx1
 #  nnx1=indx1; nnx2=indx2
-  
+
   fwhm=fwhm[nnx1:nnx2,nny1:nny2]
   peak=peak[nnx1:nnx2,nny1:nny2]
   thmid=thmid[nnx1:nnx2,nny1:nny2]
   com=com[nnx1:nnx2,nny1:nny2]
   thneg=thneg[nnx1:nnx2,nny1:nny2]
-  thpos=thpos[nnx1:nnx2,nny1:nny2]
+  thpos=thpos[nnx1:nnx2,nny1:nny2]  
 
-
+#######################################################
+## Extract slices
+#######################################################  
+  xsl=float(opts.xsl)
+  ysl=float(opts.ysl)
+  if xsl >= 0:
+      indxsl = nx-int(xsl/dx) - nnx1
+      #      
+      peak_sl = peak[indxsl,:]
+      fwhm_sl = fwhm[indxsl,:]
+      com_sl = com[indxsl,:]
+      thmid_sl = thmid[indxsl,:]
+      thneg_sl = thneg[indxsl,:]
+      thpos_sl = thpos[indxsl,:] 
+      range_sl = dy*arange(indy1,indy2)
+      sbtitle0 = 'Slices at X = '+str(xsl)+' '
+      str_axis='y [mm]'
+  #----------------------------------    
+  if ysl >= 0:
+      indysl = ny-int(ysl/dx) - nny1
+      #
+      peak_sl = peak[:,indysl]
+      fwhm_sl = fwhm[:,indysl]
+      com_sl = com[:,indysl]
+      thmid_sl = thmid[:,indysl]
+      thneg_sl = thneg[:,indysl]
+      thpos_sl = thpos[:,indysl]
+      range_sl = dx*arange(indx1,indx2)
+      sbtitle0 = 'Slices at Y = '+str(ysl)+' '      
+      str_axis='x [mm]'
+  #
   if opts.transpose==1:
     fwhm=transpose(fwhm)
     peak=transpose(peak)
@@ -521,16 +622,27 @@ def main(opts, args):
     xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # for some reason the arrays should be transposed 
   else: 
     xyrange=(dy*indy1,dy*indy2,dx*indx1,dx*indx2)
-  
-  fwhm=fliplr(fwhm)
+  #  
   peak=fliplr(peak)
-  thmid=fliplr(thmid)
-  com=fliplr(com)
+  fwhm=fliplr(fwhm)  
+  thmid=fliplr(thmid) 
+  com=fliplr(com) 
   thneg=fliplr(thneg)
-  thpos=fliplr(thpos) 
-   
+  thpos=fliplr(thpos)
+  
+  if ysl >=0 or xsl >=0: 
+      peak_sl=peak_sl[::-1]
+      fwhm_sl=fwhm_sl[::-1]
+      thmid_sl=thmid_sl[::-1]
+      com_sl=com_sl[::-1]
+      thneg_sl=thneg_sl[::-1]
+      thpos_sl=thpos_sl[::-1] 
 
-  f2=plt.figure()
+###################################################################################
+## NOW PLOT EVERYTHING
+###################################################################################
+  
+  f2=plt.figure(2)
   if opts.stat==1:
     sbtitle='Gaussian curve fit.'
   else:
@@ -569,7 +681,7 @@ def main(opts, args):
   plt.subplot(334)
   plt.imshow(com, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=com.min(),vmax=com.max())
   plt.colorbar()
-  plt.title('Center of mass (angle) [urad]',size=20)
+  plt.title('COM (angle) [urad]',size=20)
   #plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
 
@@ -607,7 +719,7 @@ def main(opts, args):
 
   plt.subplot(333) 
   axis('off')
-  plt.title('X-ray beam orientation - diffraction in horizontal plane')
+  plt.title('Crystal orientation')
   plt.annotate('vertical', xy=(0.5,1.0), xytext=(0.5,0.0),
               arrowprops=dict(facecolor='black', shrink=0.05),
                           )
@@ -644,28 +756,71 @@ def main(opts, args):
   if opts.publish==1:
     from publish import figplot    
     com_exp=array(com)-com0
-    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,com_exp,fwhm)
-  plt.show()
-#
-#    matplotlib.rcParams.update({'font.size': 20})    
-#    f3=plt.figure() 
-#    vmin0=round(com0-sf*fwhm0,-1); print vmin0
-#    vmax0=round(com0+sf*fwhm0,-1); print vmax0
-#    vmin0=-25
-#    vmax0=25
-    #
-#    imgplot = plt.imshow(com, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=com.min(),vmax=com.max())
-#    imgplot.set_cmap('spectral')
-#    plt.colorbar()
-    #plt.title('Center of mass (angle) [urad]',size=20)
-#    plt.xlabel('x [mm]')
-#    plt.yticks([1,2,3,4,5],('1.0','2.0','3.0','4.0','5.0'))
-#    plt.ylabel('y [mm]')
-#    plt.ylim(ymin=0)
-#    plt.spines['left'].set_position('zero')
-#    
-#  plt.show()
+    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,com_exp,fwhm,peak)
 
+########################################################################################
+## PLOT SLICES AND WRITE FILE
+########################################################################################
+                 
+  if xsl >= 0 or ysl >= 0:    
+      
+      f3=plt.figure(3)         
+      plt.suptitle(sbtitle0+sbtitle, size=20)  
+      plt.subplot(331)
+      peak_sl_m=np.ma.array(peak_sl,mask=peak_sl>100.0)
+      plt.plot(range_sl,peak_sl_m)
+      plt.title('normalized reflectivity',size=20)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(332)
+      fwhm_sl_m=np.ma.array(fwhm_sl,mask=fwhm_sl>100.0*fwhm0)
+      plt.plot(range_sl,fwhm_sl_m)
+      plt.title('FWHM [urad]',size=20)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(333)
+      com_sl_m=np.ma.array(com_sl,mask=com_sl>1.0e6)
+      plt.plot(range_sl,com_sl_m)
+      plt.title('COM (angle) [urad]',size=20)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(334)
+      thmid_sl_m=np.ma.array(thmid_sl,mask=thmid_sl>1.0e6)
+      plt.plot(range_sl,thmid_sl_m)
+      plt.title('mid-point (angle) [urad]',size=20)
+      plt.xlabel(str_axis)
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(335)
+      thneg_sl_m=np.ma.array(thneg_sl,mask=thneg_sl>1.0e6)
+      plt.plot(range_sl,thneg_sl_m)
+      plt.title('left slope (angle) [urad]',size=20)
+      plt.xlabel(str_axis)
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(336)
+      thpos_sl_m=np.ma.array(thpos_sl,mask=thpos_sl>1.0e6)
+      plt.plot(range_sl,thpos_sl_m)
+      plt.title('right slope (angle) [urad]',size=20)
+      plt.xlabel(str_axis)
+      #plt.ylabel('y [mm]')
+      
+  plt.show() 
+  
+  if opts.write is not None:
+     header = '# '+ str(sys.argv) +'\n' \
+            +'# version '+__version__+' by Stanislav Stoupin\n' \
+            +'# Slices data\n' \
+            +'# columns: \n' \
+            '# '+str_axis+'peak COM[urad] FWHM[urad] mid-point[urad] left-slope[urad] right-slope[urad] \n'
+     try:                
+            writeFile(opts.write,header,peak_sl_m,fwhm_sl_m,com_sl_m,thmid_sl_m,thneg_sl_m,thpos_sl_m)
+     except IOError, e:
+            fatalIOError(e)                                        
+                   
 if __name__ == '__main__':
         options, args = ParseArguments(sys.argv[1:])
         main(options, args)                      
