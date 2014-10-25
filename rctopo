@@ -14,15 +14,24 @@ a program for sequential topography/rocking curve imaging
 import sys
 import numpy
 import operator
+
+# LOCAL
+#from numpy import *
+#from pyhdf import *
+#from curvestat import *
+#from fit1d import *
+#from myio import *
+
+# GLOBAL
 from dtxrd.pyhdf import *
 from dtxrd.curvestat import *
 from dtxrd.fit1d import *
 from dtxrd.myio import *
 
+#from __future__ import division
 from matplotlib.patches import Patch
-# LOCAL 
-#from pylab import *
-#from numpy import *
+from pylab import *
+#from publish import *
 ##################################################################
 ## fixed constants
 ##################################################################
@@ -31,7 +40,7 @@ fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
 ##################################################################
 
-__version__='0.69'
+__version__='0.70'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
@@ -66,6 +75,8 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 # v068   added support for hdf5 files 
 #        introduced instrument files ccd.py
 # v069   minor iteration to adapt to data from topolab (Tim Madden's CCD)
+# v070   added a capability to extract and plot slices
+#        rearrangement of output files - now separate files for statistics and map data
 #######################################################################################
 #  TODO LIST
 #######################################################################################
