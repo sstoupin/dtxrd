@@ -20,7 +20,7 @@ install_requires = [
 
 setup(
     name = 'python-dtxrd',
-    version = '1.0',
+    version = '1.1',
     url = 'https://subversion.xray.aps.anl.gov/dtxrd/',
     maintainer = 'Stanislav Stoupin',
     maintainer_email = 'sstoupin@gmail.com',
@@ -31,5 +31,5 @@ setup(
     #packages = ['dtxrd', 'dtxrd.myio'],
     packages = find_packages('lib'),
     package_data = {'dtxrd': ['asf/*.asf', 'data/*.dat']},
-    scripts = ['dtxrd', 'throughput', 'rctopo', 'seehdf', 'rcpeak', 'specscan']	
+    scripts = ['dtxrd', 'throughput', 'rctopo', 'seehdf', 'rcpeak', 'specscan', 'flux']	
 )

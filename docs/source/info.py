@@ -8,7 +8,7 @@ documentation information for dtxrd package
 :email:  <sstoupin@gmail.com>
 '''
 
-__version__         = '1.0'
+__version__         = '1.1'
 __author__	    = 'Stanislav Stoupin'
 __email__	    = 'sstoupin@gmail.com'
 __copyright__	    = '2014'

@@ -4,3 +4,4 @@ include throughput
 include rctopo
 include seehdf
 include rcpeak
+include flux
