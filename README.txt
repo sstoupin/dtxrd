@@ -48,7 +48,8 @@ For information about other Distutils commands, execute the following command:
 AVAILABILITY
 ------------
 
-Not publically available at the moment
+* http://python-dtxrd.readthedocs.org
+* https://github.com/sstoupin/dtxrd
 
 AUTHOR
 ------
