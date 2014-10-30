@@ -93,7 +93,7 @@ def ParseArguments():
         import argparse   # requires Python 2.7 or higher
         msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
 #        msg0 =  prog +' [OPTIONS...] crystal h k l eta phi T d flag Ex(or theta) \n'+'where:\n'
-	msg1 = 'available crystal models: C (diamond), Si, Ge, FeS2, SiC-4H, SiC-6H, Al2O3 \n' 
+	msg1 = 'available crystal models: C (diamond), Si, Ge, FeS2, SiC-4H, SiC-6H, Al2O3, SiO2 \n' 
 	msg2 = 'Miller index\n' 
 	msg3 = 'asymmetry angle [deg] \n' 
 	msg4 = 'azimuthal angle of incidence [deg]\n' 

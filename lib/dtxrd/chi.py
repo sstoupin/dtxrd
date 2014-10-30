@@ -10,7 +10,7 @@ a subroutine to calculate susceptibility(Chi) for a Bragg reflection
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
 ###########################################################################################
-# v 0.03 #######################################################
+# v 0.04 #######################################################
 ###########################################################################################
 from numpy import *
 #from okada_si import *
@@ -177,18 +177,9 @@ def chi(element,h,k,l,T,Ex):
      expF_C = expFh_SiC4H('C',h,k,l)   #; print "expF_O(h,k,l)  =  ", expF_O
      
      if abs(expF_Si)<epsFh and abs(expF_C)<epsFh: flagFh=0
-     
-     # these are from SiC-6H (Capitani) - need to find better approximation     
-     ### Anisotropic displacement parameters from Capitani etal AM 2007
-     U11=5.0e-3 # Angstrom^-2
-     U22=5.0e-3 # Angstrom^-2
-     U33=5.0e-3 # Angstrom^-2     
-     U12=2.0e-3 # Angstrom^-2
-     e11=U11*h**2.0*4.0/(3.0*a**2.0)  # reciprocal lattice constants sqrt(4)/(sqrt(3)*a)
-     e22=U22*k**2.0*4.0/(3.0*a**2.0)  # sqrt(4)/(sqrt(3)*a)
-     e33=U33*l**2.0/c**2.0            # 1/c
-     e12=U12*h*k*4.0/(3.0*a**2.0)
-     sigh_Si=exp(-2.0*pi**2.0*(e11+e22+e33+2.0*e12))
+     # Data from T. H. Peng Powder Diffraction, 2009
+     B=0.383 #Angstrom^2 
+     sigh_Si = exp(-B*qx**2.0)
      sigh_C=sigh_Si               
      V=sqrt(3.0)/2.0*a**2.0*c
      #
@@ -211,22 +202,20 @@ def chi(element,h,k,l,T,Ex):
      expF_Si = expFh_SiC6H('Si',h,k,l) #; print "expF_Al(h,k,l) =  ", expF_Al
      expF_C = expFh_SiC6H('C',h,k,l)   #; print "expF_O(h,k,l)  =  ", expF_O
      
-     if abs(expF_Si)<epsFh and abs(expF_C)<epsFh: flagFh=0
-     
-     #B_Si=0.195 # Angstrom^2    !!! temp dependece?
-     #B_C=0.274  # Angstrom^2    !!! temp dependence?     
-     #sigh_Si=exp(-B_Si*qx**2.0)
-     #sigh_C=exp(-B_C*qx**2.0)
+     if abs(expF_Si)<epsFh and abs(expF_C)<epsFh: flagFh=0               
      ### Anisotropic displacement parameters from Capitani etal AM 2007
+     ind = [h,k,l]
+     lp = [a,a,c]
+     ang = [90.0,90.0,120.0]
+     #Si or O - these are quite close from one atom to another                      
      U11=5.0e-3 # Angstrom^-2
      U22=5.0e-3 # Angstrom^-2
      U33=5.0e-3 # Angstrom^-2     
      U12=2.0e-3 # Angstrom^-2
-     e11=U11*h**2.0*4.0/(3.0*a**2.0)  # reciprocal lattice constants sqrt(4)/(sqrt(3)*a)
-     e22=U22*k**2.0*4.0/(3.0*a**2.0)  # sqrt(4)/(sqrt(3)*a)
-     e33=U33*l**2.0/c**2.0            # 1/c
-     e12=U12*h*k*4.0/(3.0*a**2.0)
-     sigh_Si=exp(-2.0*pi**2.0*(e11+e22+e33+2.0*e12))
+     U13=0.0
+     U23=0.0
+     U = [U11,U22,U33,U12,U13,U23]
+     sigh_Si = debye_tellipse(ind,lp,ang,U)  #;  print 'sigh_Si = ', sigh_Si
      sigh_C=sigh_Si     
      V=sqrt(3.0)/2.0*a**2.0*c
      #
@@ -235,8 +224,55 @@ def chi(element,h,k,l,T,Ex):
      Fh_= sigh_Si*(f0h_Si+fa_Si)*expF_Si.conjugate()+sigh_C*(f0h_C+fa_C)*expF_C.conjugate()
      F0 = (f00_Si+fa_Si)*expF0_Si+(f00_C+fa_C)*expF0_C
   #-------------------------------------------------------------------------------------------     
+  elif element=='SiO2':           
+     from barron_sio2 import a_sio2, c_sio2
+     a=a_sio2(T); c=c_sio2(T)               
+     #
+     dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
+     Eb=0.5*hpl*cl/dh
+     qx=0.5/dh    
+     
+     f0h_Si=f0h_ICD('Si',qx); f0h_O=f0h_ICD('O',qx)
+     f00_Si=f0h_ICD('Si',0.0); f00_O=f0h_ICD('O',0.0)
+     expF0_Si = expFh_SiO2('Si',0,0,0); expF0_O = expFh_SiO2('O',0,0,0); 
+     expF_Si = expFh_SiO2('Si',h,k,l) #; print "expF_Al(h,k,l) =  ", expF_Al
+     expF_O = expFh_SiO2('O',h,k,l)   #; print "expF_O(h,k,l)  =  ", expF_O
+     
+     if abs(expF_Si)<epsFh and abs(expF_O)<epsFh: flagFh=0     
+     ### Anisotropic displacement parameters from Le Page et al. JPCS 1980 at room temperature
+     ### for Si
+     ind = [h,k,l]
+     lp = [a,a,c]
+     ang = [90.0,90.0,120.0]
+     # Si
+     U11=0.00696 # Angstrom^2
+     U22=0.00542 # Angstrom^2
+     U33=0.00614 # Angstrom^2     
+     U12=0.5*U22 # Angstrom^2
+     U13=0.00008
+     U23=2.0*U13
+     U = [U11,U22,U33,U12,U13,U23]
+     sigh_Si = debye_tellipse(ind,lp,ang,U)  #;  print 'sigh_Si = ', sigh_Si
+     ### for O
+     U11=0.01544 # Angstrom^2
+     U22=0.01106 # Angstrom^2
+     U33=0.01130 # Angstrom^2     
+     U12=0.00878 # Angstrom^2
+     U13=0.00302 # Angstrom^2
+     U23=0.00458 # Angstrom^2
+     U = [U11,U22,U33,U12,U13,U23]               
+     sigh_O = debye_tellipse(ind,lp,ang,U)   #;  print 'sigh_O = ', sigh_O
+     #     
+     V=sqrt(3.0)/2.0*a**2.0*c
+     #
+     fa_Si=fa_asf('Si',Ex); fa_O=fa_asf('O',Ex)
+     Fh = sigh_Si*(f0h_Si+fa_Si)*expF_Si+sigh_O*(f0h_O+fa_O)*expF_O
+     Fh_= sigh_Si*(f0h_Si+fa_Si)*expF_Si.conjugate()+sigh_O*(f0h_O+fa_O)*expF_O.conjugate()
+     F0 = (f00_Si+fa_Si)*expF0_Si+(f00_O+fa_O)*expF0_O
+  #-------------------------------------------------------------------------------------------     
+  
   else:
-     fatalError('available elements are C, Si, Ge, Al2O3, FeS2, SiC-4H and SiC-6H')
+     fatalError('available crystal models: C, Si, Ge, Al2O3, FeS2, SiC-4H, SiC-6H, SiO2')
   #     
   Chi0  = -re*F0/(pi*V)*lamx**2.0   #; print "chi_{0} = ",  Chi0
   Chih  = -re*Fh/(pi*V)*lamx**2.0   #; print "chi_{h} = ",  Chih

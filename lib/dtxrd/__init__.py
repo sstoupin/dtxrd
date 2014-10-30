@@ -36,6 +36,6 @@ from constants import *
 from chi import *
 from rotation import *
 from dtxrd2_k import *
-from pyhdf4 import *
+from pyhdf import *
 from fit1d import *
 from matplotlib.patches import Patch

@@ -8,10 +8,12 @@
 # 1. check alternatives for DWF
 #########################################################################
 
+#GLOBAL:
 import dtxrd
 import os
 libpath = os.path.dirname(dtxrd.__file__)
 
+#LOCAL:
 #import sys
 #import commands
 #cmdout=commands.getstatusoutput('echo $HOME')
@@ -444,7 +446,72 @@ def expFh_SiC6H(elem,h,k,l):   #Bauer AC 2001  +1 model agrees with the refineme
     for x in r:
         Fh=Fh+exp(1j*sum(H*x))      
     return Fh
+#------------------------------------------------------------------------------------
+def expFh_SiO2(elem,h,k,l):   #Le Page et al 1980
+    
+    H = 2.0*pi*array([h,k,l])    
+    u0 = 0.46981
+    x0 = 0.41372
+    y0 = 0.26769
+    z0 = 0.11880  # positive because definition of atom positions from Nuttall 1981
+                  # z0 < 0 ???  
+        
+    if elem=='Si':    # Wyckoff posiitons from www.cryst.ehu.es
+      r=[[]]*3
+      r[0] = array([u0,0.0,2.0/3.0])
+      #r[0] = array([u0,0.0,0.0])  often in literature but not Wyckoff position that corresponds to x0 y0 z0
+      r[1] = array([-u0,-u0,0.0])
+      r[2] = array([0.0,u0,1.0/3.0])    
+    #
+    elif elem=='O':    
+      r=[[]]*6
+      r[0] = array([x0,y0,z0])
+      r[1] = array([y0-x0,-x0,z0+1.0/3.0])
+      r[2] = array([-y0,x0-y0,z0+2.0/3.0])
+      #r[3] = array([x0-y0,-y0,z0])
+      r[3] = array([y0,x0,-z0])
+      r[4] = array([x0-y0,-y0,1.0/3.0-z0])
+      r[5] = array([-x0,y0-x0,2.0/3.0-z0])
+      #
+      #r[4] = array([y0,x0,2.0/3.0-z0])
+      #r[5] = array([-x0,y0-x0,1.0/3.0-z0])
+                    
+    Fh=0
+    for x in r:
+        Fh=Fh+exp(1j*sum(H*x))      
+    return Fh
 
+
+############################################################################
+##  DWF  From thermal ellipsoid
+############################################################################
+def debye_tellipse(ind,lp,angles,U):
+    from constants import r2d
+    h,k,l = ind
+    a,b,c = lp
+    alpha,beta,gamma = angles
+    alpha = alpha/r2d
+    beta = beta/r2d
+    gamma = gamma/r2d
+    U11,U22,U33,U12,U13,U23 = U
+    
+    # formulas from 1.1.3 International Tables for Crystallography
+    V = a*b*c*sqrt(1.0-(cos(alpha))**2.0-(cos(beta))**2.0-(cos(gamma))**2.0 + 2.0*cos(alpha)*cos(beta)*cos(gamma))
+    
+    a_ = b*c*sin(alpha)/V
+    b_ = c*a*sin(beta)/V
+    c_ = a*b*sin(gamma)/V
+    
+    cos_alpha_ = (cos(beta)*cos(gamma)-cos(alpha))/(sin(beta)*sin(gamma))
+    cos_beta_ =  (cos(gamma)*cos(alpha)-cos(beta))/(sin(gamma)*sin(alpha))
+    cos_gamma_ = (cos(alpha)*cos(beta)-cos(gamma))/(sin(alpha)*sin(beta))
+        
+    summ = U11*(h*a_)**2.0 + U22*(k*b_)**2.0 + U33*(l*c_)**2.0 + \
+           2.0*U12*h*k*a_*b_*cos_gamma_ + \
+           2.0*U13*h*l*a_*c_*cos_beta_  + \
+           2.0*U23*k*l*b_*c_*cos_alpha_ 
+    
+    return exp(-2.0*pi**2.0*summ)
 
 ############################################################################
 ##  DWF  Sears and Sheley Acta Cryst. A47,441 (1991)
