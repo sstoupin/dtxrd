@@ -17,7 +17,7 @@ libpath = os.path.dirname(dtxrd.__file__)
 #import sys
 #import commands
 #cmdout=commands.getstatusoutput('echo $HOME')
-#libpath=cmdout[1]+'/bin/DTXRD/'
+#libpath=cmdout[1]+'/bin/DTXRD'
 #sys.path.append(libpath)
 
 from numpy import *
@@ -37,7 +37,7 @@ def f0h_ICD(atom,qx):
 #    lamx=hpl*c/Ex   #; print "lamx [A] = ", lamx
 #    qx=sin(th)/lamx #; print "qx [A-1] = ", qx
         
-    fileName=libpath+'f0h_ICD.dat'
+    fileName=libpath+'/data/f0h_ICD.dat'
     data=open(fileName, 'r')
     while 1:
         line=data.readline()
@@ -70,7 +70,7 @@ def f0h_waasmaier(atom,qx):
 #    qx=sin(th)/lamx #; print "qx [A-1] = ", qx
 
     a=zeros(6); b=zeros(6)
-    fileName=libpath+'waasmaier.dat'
+    fileName=libpath+'/data/waasmaier.dat'
     data=open(fileName, 'r')
     while 1:
         line=data.readline()
@@ -262,7 +262,7 @@ def fa_cromer(atom,Ex):
 # --------------------------------------------------------------------------------    
 def fa_asf(atom,Ex):
     from myio import readFile
-    fileName=libpath+'asf/'+atom+'.asf'
+    fileName=libpath+'/asf/'+atom+'.asf'
     d1,d2=readFile(fileName)
     Easf=d2[:,0]; Easf=1.0e3*Easf
     f1=d2[:,1]
