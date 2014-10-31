@@ -35,9 +35,9 @@ INPUT PARAMETERS
 
 :pinXXX.dat: detector calibration file containing two columns: 
 
-             ==================  ===========================
-             photon energy[keV]  detector response [THz/mA]
-             ==================  ===========================
+             ===================   ===========================
+             photon energy [keV]   detector response [THz/mA]
+             ===================   ===========================
     
 OPTIONS
 ============
