@@ -17,6 +17,8 @@ rcpeak - a tool to plot and perform fitting and analysis of a rocking curve
 peak data given by a multi-column ASCII file.
 
 specscan - a tool to view and extract a particular scan from a SPEC file
+
+flux - x-ray flux calculator based on scaler count rate and a detector response
   
 REQUIREMENTS
 ------------
