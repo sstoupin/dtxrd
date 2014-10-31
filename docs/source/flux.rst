@@ -5,32 +5,48 @@
 flux
 ************
 
+x-ray flux calculator
+
 :author: Stanislav Stoupin
 :email:  <sstoupin@gmail.com>
-
-
-a program to calculate x-ray flux based on a scaler counts, detection sensitivity and 
-a calibration file of a PIN detector
 
 SYNOPSIS
 ============
 
 ::
 
-       specscan [options] scan#1 scan#2... scan#N SPEC_file
+       flux [options] CR sens Ex pinXXX.dat
 
 DESCRIPTION
 ============
 
--tba-
+A program to calculate x-ray flux based on a scaler counts, detection sensitivity and 
+a calibration file of a PIN detector. A gain 1X is assumed on the voltage-to-frequency converter.
+
+
+INPUT PARAMETERS
+=================
+
+:CR: count rate from a scaler [counts/s]
+
+:sens: sensitivity of a current amplifier [mA/V]
+
+:Ex: photon energy [keV]
+
+:pinXXX.dat: PIN detector calibration file containing two columns:
+             photon_energy[keV]  response[THz/mA]
 
 OPTIONS
 ============
 
--tba-
+:-v, --version:
+       show program's version number
 
-SEE ALSO
-============
+:-h, --help:
+       show summary of options.
+
+:-o F, --output=F:
+       write results to file F (default to stdout)
 
 :author: Stanislav Stoupin
 :email:  <sstoupin@gmail.com>
