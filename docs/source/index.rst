@@ -40,6 +40,7 @@ Requires
    seehdf
    specscan
    throughput
+   flux
 
 ----
 
