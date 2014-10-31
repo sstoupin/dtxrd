@@ -15,7 +15,7 @@ SYNOPSIS
 
 ::
 
-       rctopo [options] filename1.hdf filename2.hdf ... filenameN.hdf
+       rctopo [options] filename1 filename2 ... filenameN
 
 DESCRIPTION
 ============
