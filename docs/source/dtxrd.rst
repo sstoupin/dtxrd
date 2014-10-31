@@ -8,6 +8,9 @@ dtxrd
 x-ray diffraction calculator 
 (dynamical theory of x-ray diffraction for perfect crystals)
 
+:author: Stanislav Stoupin
+:email:  <sstoupin@gmail.com>
+
 SYNOPSIS
 ============
 
@@ -19,8 +22,10 @@ SYNOPSIS
 DESCRIPTION
 ============
 
-A  program to calculate parameters of a single Bragg reflection for 
-a monochromatic incident wave using dynamical theory of x-ray diffraction for perfect crystals
+A  program to calculate parameters of a Bragg or Laue reflection for 
+a monochromatic incident wave using dynamical theory of x-ray diffraction for perfect crystals in the 
+2-beam approximation
+
 For a brief summary run::
 
     dtxrd -h
