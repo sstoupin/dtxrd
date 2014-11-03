@@ -9,7 +9,7 @@
 #########################################################################
 
 #GLOBAL:
-import dtxrd
+#import dtxrd
 import os
 libpath = os.path.dirname(__file__)
 
@@ -43,14 +43,14 @@ def f0h_ICD(atom,qx):
         line=data.readline()
         stuff=line.split(' ')
         if stuff[0]=='Q':
-          line1=data.readline()
-          q=line1.split(' ')
+            line1=data.readline()
+            q=line1.split(' ')
         elif stuff[0]==atom:
-          line1=data.readline()
-          f0=line1.split(' ')
-          break
+            line1=data.readline()
+            f0=line1.split(' ')
+            break
         elif not(line): 
-          break
+            break
     
     q=array(q, dtype=float)   #; print q
     f0=array(f0, dtype=float) #; print f0
@@ -76,21 +76,21 @@ def f0h_waasmaier(atom,qx):
         line=data.readline()
         stuff=line.split(' ')                
         if stuff[0]==atom:
-          a[1]=stuff[2];  b[1]=stuff[3]
-          a[2]=stuff[4];  b[2]=stuff[5]
-          a[3]=stuff[6];  b[3]=stuff[7]
-          a[4]=stuff[8];  b[4]=stuff[9]
-          a[5]=stuff[10]; b[5]=stuff[11]
-          c=float(stuff[12])
-          break
+            a[1]=stuff[2];  b[1]=stuff[3]
+            a[2]=stuff[4];  b[2]=stuff[5]
+            a[3]=stuff[6];  b[3]=stuff[7]
+            a[4]=stuff[8];  b[4]=stuff[9]
+            a[5]=stuff[10]; b[5]=stuff[11]
+            c=float(stuff[12])
+            break
         elif not(line): 
-          break
+            break
     a=array(a, dtype=float)
     b=array(b, dtype=float)
     
     f0q=[]
     for q in qx:
-      f0q=f0q+[sum(a*exp(-b*q**2.0))+c]  
+        f0q=f0q+[sum(a*exp(-b*q**2.0))+c]  
     print len(qx)
     print len(f0q)
     return array(f0q)
@@ -305,22 +305,22 @@ def fa_asf(atom,Ex):
 
 def expFh_dia(h,k,l):
       
-      H=2.0*pi*array([h,k,l])
-      
-      r=[[]]*8
-      r[0]=array([0.00,0.00,0.00])
-      r[1]=array([0.25,0.25,0.25])
-      r[2]=array([0.50,0.50,0.00])
-      r[3]=array([0.75,0.75,0.25])
-      r[4]=array([0.50,0.00,0.50])
-      r[5]=array([0.00,0.50,0.50])
-      r[6]=array([0.75,0.25,0.75])
-      r[7]=array([0.25,0.75,0.75])
-            
-      Fh=0
-      for x in r:
-            Fh=Fh+exp(1j*sum(H*x))      
-      return Fh
+    H=2.0*pi*array([h,k,l])
+    
+    r=[[]]*8
+    r[0]=array([0.00,0.00,0.00])
+    r[1]=array([0.25,0.25,0.25])
+    r[2]=array([0.50,0.50,0.00])
+    r[3]=array([0.75,0.75,0.25])
+    r[4]=array([0.50,0.00,0.50])
+    r[5]=array([0.00,0.50,0.50])
+    r[6]=array([0.75,0.25,0.75])
+    r[7]=array([0.25,0.75,0.75])
+          
+    Fh=0
+    for x in r:
+        Fh=Fh+exp(1j*sum(H*x))      
+    return Fh
 #----------------------------------------------------------
 def expFh_sph(elem,h,k,l):
     
@@ -331,34 +331,34 @@ def expFh_sph(elem,h,k,l):
     t[3]=array([1.0/3.0,2.0/3.0,2.0/3.0])
             
     if elem=='Al':
-      z=0.35220
-      p=[[]]*5
-      p[1]=array([0.0,0.0,z])
-      p[2]=array([0.0,0.0,0.5-z])
-      p[3]=array([0.0,0.0,-z])
-      p[4]=array([0.0,0.0,0.5+z]) 
+        z=0.35220
+        p=[[]]*5
+        p[1]=array([0.0,0.0,z])
+        p[2]=array([0.0,0.0,0.5-z])
+        p[3]=array([0.0,0.0,-z])
+        p[4]=array([0.0,0.0,0.5+z]) 
             
-      r=[[]]*12
-      for k in (1,2,3):
-        for m in (1,2,3,4):
-          n=m+4*(k-1)
-          r[n-1]=p[m]+t[k]
+        r=[[]]*12
+        for k in (1,2,3):
+            for m in (1,2,3,4):
+                n=m+4*(k-1)
+                r[n-1]=p[m]+t[k]
       
     elif elem=='O':
-      x=0.30627       
-      p=[[]]*7
-      p[1]=array([x,0.0,0.25])
-      p[2]=array([0.0,x,0.25])
-      p[3]=array([-x,-x,0.25])
-      p[4]=array([-x,0.0,0.75])
-      p[5]=array([0.0,-x,0.75])
-      p[6]=array([x,x,0.75])
-
-      r=[[]]*18
-      for k in (1,2,3):
-        for m in (1,2,3,4,5,6):
-          n=m+6*(k-1)
-          r[n-1]=p[m]+t[k]
+        x=0.30627       
+        p=[[]]*7
+        p[1]=array([x,0.0,0.25])
+        p[2]=array([0.0,x,0.25])
+        p[3]=array([-x,-x,0.25])
+        p[4]=array([-x,0.0,0.75])
+        p[5]=array([0.0,-x,0.75])
+        p[6]=array([x,x,0.75])
+        
+        r=[[]]*18
+        for k in (1,2,3):
+            for m in (1,2,3,4,5,6):
+                n=m+6*(k-1)
+                r[n-1]=p[m]+t[k]
 
     Fh=0
     for x in r:
@@ -370,22 +370,22 @@ def expFh_pyr(elem,h,k,l):   # Bailyss AM 1977
     H=2.0*pi*array([h,k,l])    
             
     if elem=='Fe':
-      r=[[]]*4
-      r[0]=array([0.00100,0.00200,0.00300])
-      r[1]=array([0.49660,0.00010,0.50360])
-      r[2]=array([0.50010,0.50200,0.00110])
-      r[3]=array([-0.00060,0.50130,0.50380])
+        r=[[]]*4
+        r[0]=array([0.00100,0.00200,0.00300])
+        r[1]=array([0.49660,0.00010,0.50360])
+        r[2]=array([0.50010,0.50200,0.00110])
+        r[3]=array([-0.00060,0.50130,0.50380])
       
     elif elem=='S':
-      r=[[]]*8
-      r[0]=array([0.38570,0.38320,0.38400])
-      r[1]=array([0.11490,0.61140,0.88460])
-      r[2]=array([0.88540,0.11570,0.61430])
-      r[3]=array([0.61530,0.88650,0.11410])
-      r[4]=array([0.61510,0.61320,0.61370])
-      r[5]=array([0.88540,0.38180,0.11490])
-      r[6]=array([0.11470,0.88560,0.38410])
-      r[7]=array([0.38570,0.11610,0.88420])
+        r=[[]]*8
+        r[0]=array([0.38570,0.38320,0.38400])
+        r[1]=array([0.11490,0.61140,0.88460])
+        r[2]=array([0.88540,0.11570,0.61430])
+        r[3]=array([0.61530,0.88650,0.11410])
+        r[4]=array([0.61510,0.61320,0.61370])
+        r[5]=array([0.88540,0.38180,0.11490])
+        r[6]=array([0.11470,0.88560,0.38410])
+        r[7]=array([0.38570,0.11610,0.88420])
       
     Fh=0
     for x in r:
@@ -400,11 +400,11 @@ def expFh_SiC4H(elem,h,k,l):   #Bauer AC 2001  +1 model agrees with the refineme
     delta2=0.0        ; eps2=0.0
         
     if elem=='Si':
-      ksi=delta1 
-      tau=4.0/16.0+delta2
+        ksi=delta1
+        tau=4.0/16.0+delta2
     elif elem=='C':
-      ksi=3.0/16.00+eps1
-      tau=7.0/16.0+eps2
+        ksi=3.0/16.00+eps1
+        tau=7.0/16.0+eps2
     
     r=[[]]*4
     r[0]=array([0.0,0.0,ksi])
@@ -426,13 +426,13 @@ def expFh_SiC6H(elem,h,k,l):   #Bauer AC 2001  +1 model agrees with the refineme
     delta3=0.0 ; eps3=0.0
         
     if elem=='Si':
-      ksi=delta1 
-      tau=4.0/24.0+delta2
-      v=8.0/24.0+delta3
+        ksi=delta1 
+        tau=4.0/24.0+delta2
+        v=8.0/24.0+delta3
     elif elem=='C':
-      ksi=3.0/24.0+eps1
-      tau=7.0/24.0+eps2
-      v=11.0/24.0+eps3
+        ksi=3.0/24.0+eps1
+        tau=7.0/24.0+eps2
+        v=11.0/24.0+eps3
     
     r=[[]]*6
     r[0]=array([0.0,0.0,ksi])
@@ -457,24 +457,24 @@ def expFh_SiO2(elem,h,k,l):   #Le Page et al 1980
                   # z0 < 0 ???  
         
     if elem=='Si':    # Wyckoff posiitons from www.cryst.ehu.es
-      r=[[]]*3
-      r[0] = array([u0,0.0,2.0/3.0])
-      #r[0] = array([u0,0.0,0.0])  often in literature but not Wyckoff position that corresponds to x0 y0 z0
-      r[1] = array([-u0,-u0,0.0])
-      r[2] = array([0.0,u0,1.0/3.0])    
+        r=[[]]*3
+        r[0] = array([u0,0.0,2.0/3.0])
+        #r[0] = array([u0,0.0,0.0])  often in literature but not Wyckoff position that corresponds to x0 y0 z0
+        r[1] = array([-u0,-u0,0.0])
+        r[2] = array([0.0,u0,1.0/3.0])    
     #
     elif elem=='O':    
-      r=[[]]*6
-      r[0] = array([x0,y0,z0])
-      r[1] = array([y0-x0,-x0,z0+1.0/3.0])
-      r[2] = array([-y0,x0-y0,z0+2.0/3.0])
-      #r[3] = array([x0-y0,-y0,z0])
-      r[3] = array([y0,x0,-z0])
-      r[4] = array([x0-y0,-y0,1.0/3.0-z0])
-      r[5] = array([-x0,y0-x0,2.0/3.0-z0])
-      #
-      #r[4] = array([y0,x0,2.0/3.0-z0])
-      #r[5] = array([-x0,y0-x0,1.0/3.0-z0])
+        r=[[]]*6
+        r[0] = array([x0,y0,z0])
+        r[1] = array([y0-x0,-x0,z0+1.0/3.0])
+        r[2] = array([-y0,x0-y0,z0+2.0/3.0])
+        #r[3] = array([x0-y0,-y0,z0])
+        r[3] = array([y0,x0,-z0])
+        r[4] = array([x0-y0,-y0,1.0/3.0-z0])
+        r[5] = array([-x0,y0-x0,2.0/3.0-z0])
+        #
+        #r[4] = array([y0,x0,2.0/3.0-z0])
+        #r[5] = array([-x0,y0-x0,1.0/3.0-z0])
                     
     Fh=0
     for x in r:
@@ -519,57 +519,57 @@ def debye_tellipse(ind,lp,angles,U):
 def debye_sears(atom,T,qx):
     
     if atom=='C':
-      M=12.011
-      nu_m=40.09
-      #Tm=1924.0
-      Tm=2200.0
-      alp=2.352
-      f_2=3.114
-      f_1=1.552
-      f2=0.576
+        M=12.011
+        nu_m=40.09
+        #Tm=1924.0
+        Tm=2200.0
+        alp=2.352
+        f_2=3.114
+        f_1=1.552
+        f2=0.576
     elif atom=='Si':
-      M=28.086
-      nu_m=15.85
-      Tm=761.0
-      alp=6.933
-      f_2=6.943
-      f_1=2.136
-      f2=0.497
+        M=28.086
+        nu_m=15.85
+        Tm=761.0
+        alp=6.933
+        f_2=6.943
+        f_1=2.136
+        f2=0.497
     elif atom=='Ge':
-      M=72.59
-      nu_m=9.20
-      Tm=442.0
-      alp=4.518       
-      f_2=7.495       
-      f_1=2.245       
-      f2=0.476       
+        M=72.59
+        nu_m=9.20
+        Tm=442.0
+        alp=4.518       
+        f_2=7.495       
+        f_1=2.245       
+        f2=0.476       
 #----------------------------
     elif atom=='Al':
-      M=26.982
-      nu_m=9.75
-      Tm=468
-      alp=3.670
-      f_2=4.029
-      f_1=1.778
-      f2=0.445
+        M=26.982
+        nu_m=9.75
+        Tm=468
+        alp=3.670
+        f_2=4.029
+        f_1=1.778
+        f2=0.445
 #----------------------------
     elif atom=='Fe':
-      M=55.847
-      nu_m=9.54
-      Tm=458
-      alp=3.079
-      f_2=3.310
-      f_1=1.602
-      f2=0.522
+        M=55.847
+        nu_m=9.54
+        Tm=458
+        alp=3.079
+        f_2=3.310
+        f_1=1.602
+        f2=0.522
 #----------------------------
     elif atom=='Cu':
-      M=63.546
-      nu_m=7.29
-      Tm=350.0
-      alp=3.681
-      f_2=3.737
-      f_1=1.699
-      f2=0.479
+        M=63.546
+        nu_m=7.29
+        Tm=350.0
+        alp=3.681
+        f_2=3.737
+        f_1=1.699
+        f2=0.479
                     
     y=T/Tm  #t=T/Tm
 #    Jy=[]
