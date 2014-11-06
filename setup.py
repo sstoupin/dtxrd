@@ -31,5 +31,6 @@ setup(
     #packages = ['dtxrd', 'dtxrd.myio'],
     packages = find_packages('lib'),
     package_data = {'dtxrd': ['asf/*.asf', 'data/*.dat']},
-    scripts = ['dtxrd', 'throughput', 'rctopo', 'seehdf', 'rcpeak', 'specscan', 'flux']	
+    scripts = ['dtxrd', 'throughput', 'rctopo', 'seehdf', 'rcpeak', 'specscan', 'flux'],
+    zip_safe = False,
 )
