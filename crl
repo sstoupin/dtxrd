@@ -1,0 +1,284 @@
+#!/usr/bin/env python
+
+'''
+a program to calculate profiles of parabolic CRLs
+based on refocusing geometry requirements
+
+:author:    Stanislav Stoupin
+:email:     sstoupin@aps.anl.gov
+
+:copyright: Copyright 2015 by XSD, Advanced Photon Source, Argonne National Laboratory
+:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
+'''
+import os
+import sys
+from numpy import *
+from scipy import *
+from pylab import *
+
+# LOCAL
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/DTXRD/'
+#sys.path.append(libpath)
+#from myio import coljoin, writeFile
+#from constants import *
+#from chi import *
+
+#GLOBAL
+from dtxrd.myio coljoin, writeFile
+from dtxrd.constants import *
+from dtxrd.chi import *
+
+__version__ = '0.05'
+#-------------------------------------------------------------------------------------------
+# SUMMARY OF CHANGES:
+#-------------------------------------------------------------------------------------------
+# v0.01 pilot version
+# v0.01 added expressions for parabolic lens gain and transmission (Lengeler JAP 1998)
+# v0.02 corrected the expression for the lens gain 05/07/2015
+# v0.03 transmission corrected for reduction due to rms gaussian surface roughness (Lengeler 1999)
+# v0.04 rms surface roughness added as input parameter
+# v0.05 reports refocused beam size, adapted to go to APSshare
+#-------------------------------------------------------------------------------------------
+#  things to do
+# 
+
+def fatalError(msg):
+	sys.stderr.write('Error: ')
+	sys.stderr.write(str(msg))
+	sys.stderr.write('\n')
+	sys.exit(1)
+
+def fatalIOError(err):
+	if issubclass(err.__class__, IOError) and err.strerror and err.filename:
+		err = '%s: %s' % (err.strerror, err.filename)
+	fatalError(err)
+
+
+def ParseArguments(args):
+	try:
+		from optik import OptionParser
+	except ImportError:
+		try:
+			from optparse import OptionParser
+		except ImportError:
+			fatalError(
+'This program requires Optik, availible from http://optik.sourceforge.net/\n')
+
+	USAGE = '%prog [OPTIONS...] element S1 S2 sh sv R0 da N Ex sig \n'+'where:\n' \
+	+'element - Be, C (diamond), Si, Ge, Al2O3 \n' \
+	+'S1 - source-to-lens distance [m] \n' \
+	+'S2  - lens to image distance [m] \n' \
+	+'sh  - horizontal source size FWHM [um] \n' \
+	+'sv  - vertical source size FWHM [um]   \n'  \
+	+'R0  - half-aperture of the lens [mm] \n' \
+	+'da  - distance between apexes of the lens [um] \n' \
+	+'N   - number of lenses in the stack [integer] \n' \
+	+'Ex  - photon energy [keV]' \
+	+'sig - rms surface roughness [um]'
+	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
+	+'the program calculates parabolic refractive lens profile (Lengeler JAP 1998)'
+	parser = OptionParser(usage=USAGE, version=VERSION)
+#----------------------------------------------------------------------------------------------
+        parser.add_option('-o', '--output',
+                action='store',
+                dest='output',
+                default=None,
+                help='write results to file F (defaults to stdout)',
+                metavar='F')
+        parser.add_option('-w', '--write',
+                action='store',
+                dest='write',
+                default=None,
+                help='write data to file (default do not write)',
+                metavar='D')
+#-----------------------------------------------------------------------------------------------
+	opts, args = parser.parse_args(args)
+	if len(args) != 10:
+		parser.print_usage()
+		sys.exit(1)
+	try:
+		args[8] = float(args[8])
+	except ValueError:
+		fatalError('Ex(keV)  must be a valid number')
+		
+	return opts, args
+#-----------------------------------------------------------------------------------------------
+def main(opts,args):
+
+        if opts.output is not None:
+               try:
+                        outFile = open(opts.output, 'w')
+               except IOError, e:
+                        fatalIOError(e)
+        else:
+                outFile = sys.stdout                
+########
+        S1 = float(args[1])  #[m]
+        S2 = float(args[2])  #[m]
+        sh = float(args[3])  #[um]
+        sv = float(args[4])  #[um]
+        R0 = float(args[5])  #[mm]
+        da = float(args[6])  #[um]
+        N  = float(args[7])  # dimless
+        Ex = 1.0e3*float(args[8])   #[eV]
+        sig = float(args[9])        #[um]
+#####################################################################################
+        f = S1*S2/(S1+S2)
+        demag = f/(S1-f)
+        bh = sh*f/(S1-f)  # geometric demagnified horizontal size of the source image
+        bv = sv*f/(S1-f)  # geometric demagnified vertical size of the source image
+##################################################################################### 
+####### CALCULATIONS
+################################################################################  
+        lamx=hpl*cl/Ex  # wavelength
+        kx=2.0*pi/lamx  # wavevector
+        
+        [[Chi0,Chih,Chih_],dh],flagFh=chi(args[0],0,0,12,300.0,Ex)
+        
+        delta=-0.5*real(Chi0)
+        beta=0.5*imag(Chi0)
+        
+        alpha=sqrt(2.0*delta)*1.0e3 # critical angle mrad
+
+        # absorption coefficient - Als-Nielsen McMorrow  p68 - Eq(3.11)
+        mu=2.0*beta*kx  # [Angstrom]
+        mu=1.0e8*mu    # [cm-1]
+        # radius of curvature
+        R = 1.0e6*f*2.0*N*delta #[um] radius of curvature
+                
+######  BEGIN OUTPUT #########################################################################################
+        param = sys.argv
+        param = ' '.join(param)
+        outFile.write(param + '\n')
+        outFile.write('##############################################################\n')
+        outFile.write('##### CRL v'+__version__+' ############################################\n')
+        outFile.write('##### Author: Stanislav Stoupin ## sstoupin@aps.anl.gov ######\n')
+        outFile.write('##############################################################\n')
+        outFile.write('lamx [Anstrom] = '+str(lamx)+' Wavelength\n')
+        outFile.write('demagnification ratio = '+str(demag)+'\n')
+        outFile.write('bh [um]  = '+str(bh)+' Geometric horizontal size of the source image\n')
+        outFile.write('bv [um]  = '+str(bv)+' Geometric vertical  size of the source image\n')        
+        outFile.write('alpha [mrad] = '+str(alpha)+' Critical angle\n')
+        outFile.write('delta = '+str(delta)+' Refraction index correction\n')        
+        outFile.write('beta = '+str(beta)+' Imaginary index correction\n')
+        outFile.write('mu [cm-1] = '+str(mu)+' Absorption coefficient\n')                
+        outFile.write('--------------------------------------------------------------\n')
+        outFile.write('f [m] = '+str(f)+' focal distance \n')
+        outFile.write('R [um] = '+str(R)+' radius of curvature \n')
+##############################################################################################################                        
+        #################################################################################
+        # Diffraction limited focal size
+        #################################################################################
+        NA=2.0*1.0e-3*R0/f  # dimensionless
+        sdl=0.5*lamx/NA # [Angstrom] # diffracton limited spot size        
+        outFile.write('sdl [nm] = '+str(1.0e-1*sdl)+' Diffraction limited focal spot\n')                
+        sra=1.22*lamx*f/(1.0e-3*R0) # Rayleigh criterion - Als-Nielsen 2nd ed. eq. (3.39)
+        outFile.write('sra [nm] = '+str(1.0e-1*sra)+' focal spot by Rayleigh criterion\n')
+#        sdl0=f*lamx/(2.0*b_red)*1.0e-1
+#        outFile.write('sdl0 [nm] = '+str
+#        print "Check f*lambda/aperture [nm] = ", sdl0
+#        print "Demagnified source size fwhm [nm] = ", sqrt(sdl0**2.0 + fs0**2.0)
+        ##################################################################################
+        # 2pi phase shift
+        ##################################################################################
+        x2pi=lamx/delta
+        outFile.write('x2pi [um] = '+str(x2pi*1.0e-4)+' 2pi phase shift distance\n')        
+        ###########################################################
+        # Fresnel distance
+        ###########################################################
+        lf=(2.0*1.0e-3*R0)**2.0/(lamx*1.0e-10)
+        outFile.write('LF [m] = '+str(lf)+' Fresnel distance\n') 
+        ###########################################################
+        # Ideal Lens Equation
+        ###########################################################
+        S12 = S1+S2
+        outFile.write('S12 [m] = '+str(S12)+' Distance from source to image\n')
+        ##################################################################################
+        # Transmission for lens with rotational parabolic profile
+        # Lengeller et al. 1999
+        ##################################################################################
+        sig = 1.0e-4*sig    #[cm]  
+        Q0 = kx*delta*1.0e8 #[cm-1] momentum transfer
+        da = 1.0e-4*da  #[cm] distance between apexes of the lens
+        R =  1.0e-4*R   #[cm] radius of curvature 
+        R0 = 1.0e-1*R0  #[cm] half-aperture of the lens
+        a =  mu*N*R + 2.0*N*Q0**2.0*sig**2.0
+        #ap = mu*N*R0**2.0/R
+        ap = 0.5*a*R0**2.0/R**2.0
+        #Tp = 1.0/ap*(1.0-exp(-ap))*exp(-mu*N*da)
+        Tp = exp(-mu*N*da)/(2.0*ap)*(1.0-exp(-2.0*ap)) # compact expression for transmission including Raley/Gaussian surface roughness
+        #bv =  1.0e-4*2.35*10.0  #[cm] Vertical source size Undulator A at 8.0 keV
+        #bh =  1.0e-4*2.35*273.0 #[cm] Horizontal source size  Undulator A at 8.0 keV        
+        #bv = 1.0e-4*ss #[cm] vertical source size (input parameter)
+        #bh = 1.0e-4*2.35*91.0 #[cm] horizontal source size APS BM at the critical energy        
+        bh = 1.0e-4*bh #[cm]
+        bv = 1.0e-4*bv #[cm]                                 
+        gp = 4.0*R0**2.0*Tp/(bv*bh) #*((S1-f)/f)**2.0   # gain         
+        outFile.write('Tp [%] = '+str(100.0*Tp)+' Transmission of the lens stack rotational parabolic profile (Lengeler JSR 1999)\n')
+        outFile.write('Gp = '+str(gp)+' Gain of the stack of lenses with rotational parabolic profile (Lengeler JAP 1998)\n')        
+        ###########################################################
+        # Roughness effect separately
+        ###########################################################
+        t12t21 = exp(-2.0*N*Q0**2.0*sig**2.0)*exp(-2.0*N*Q0**2.0*sig**2.0*R0**2.0/R**2.0)
+        outFile.write('t12t21 = '+str(t12t21)+' Transmission intensity due to surface roughness 1 um (Lengeler 1999) \n')
+        #ystep=b_red/10000.0
+        #y=arange(ystep,b_red+ystep,ystep) #;print y
+        #theta=arctan(y*a/(b**2.0*sqrt(1.0-y**2.0/b**2.0)))
+        #print theta*r2d
+        #
+        #dqz=q*delta*cos(theta)
+        #refl=exp(-dqz**2.0*sig**2.0)
+        #eff=sum(refl)/len(refl)
+        #outFile.write('refractive efficiency [%] = '+str(100.0*eff)+' Average efficiency due to 1um rms surface roughness for ellipse\n')
+        #
+        R0 = R0*1.0e1                                #print "R0 [mm] = ", R0 
+        R  = 1.0e1*R   #[mm] radius of curvature     #print "R [mm] = ", R
+        da = 1.0e1*da  #[mm] distance between apexes #print "da [mm] = ", da       
+        # PLOT PROFILES ###############################################################################
+        f2=plt.figure()
+        s1 = -R0
+        s2 =  R0
+        xstep=(s2-s1)/1.0e3
+        xplot=arange(s1,s2+xstep,xstep)
+        i = 0
+        while i < N:        
+            yplot1 = xplot**2.0/(2.0*R)+0.5*da  + (R0**2.0/R+da)*i 
+            yplot2 = -xplot**2.0/(2.0*R)-0.5*da + (1.0*R0**2.0/R+1.0*da)*i
+            plt.plot(xplot,yplot1,'-b')
+            plt.plot(xplot,yplot2,'-b')
+            i=i+1
+        plt.xlabel('x [mm]')
+        plt.ylabel('y [mm]')
+        plt.title('Lengeler type parabolic lens profile')
+                               
+#             plt.subplot(212)
+#             plt.plot(Eplot,Tplot,'b-')
+#             plt.ylabel('Transmissivity')
+#             plt.xlabel('E-E0 [meV]')
+             #
+#             plt.subplot(211)
+#             plt.plot(Eplot,Rplot,'r-')
+#             plt.plot(Eplot,rc0,'k-')
+#             plt.ylabel('Reflectivity')             
+########   
+        outFile.close
+
+        if opts.write is not None:
+               header = '# '+param+'\n' \
+                        +'# version '+__version__+' by Stanislav Stoupin\n' \
+                        +'# columns: \n' \
+                        + '# Tplot Rplot rc0\n'                        
+               try:                
+                    writeFile(opts.write,header)                                        
+
+               except IOError, e:
+                    fatalIOError(e)
+                                                        
+        plt.show()
+if __name__ == '__main__':
+	options, args = ParseArguments(sys.argv[1:])
+	main(options,args)
+
+
