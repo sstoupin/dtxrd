@@ -16,7 +16,7 @@ install_requires = [
    'numpy>=1.4.1', 
    'scipy>=0.7.2', 
    'matplotlib>=0.99.1.1',
-   'h5py>=2.4.0',
+   'h5py>=2.0.1',
 ]
 
 setup(
