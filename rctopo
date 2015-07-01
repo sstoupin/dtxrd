@@ -21,12 +21,14 @@ import operator
 #from curvestat import *
 #from fit1d import *
 #from myio import *
+#from roll_zeropad import roll_zeropad
 
 # GLOBAL
 from dtxrd.pyhdf import *
 from dtxrd.curvestat import *
 from dtxrd.fit1d import *
 from dtxrd.myio import *
+from dtxrd.roll_zeropad import roll_zeropad
 
 #from __future__ import division
 from matplotlib.patches import Patch
@@ -40,7 +42,7 @@ fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
 ##################################################################
 
-__version__='0.70'
+__version__='0.74'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
@@ -77,6 +79,15 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 # v069   minor iteration to adapt to data from topolab (Tim Madden's CCD)
 # v070   added a capability to extract and plot slices
 #        rearrangement of output files - now separate files for statistics and map data
+# v071   fixed input for rotated matrixes 
+#        now absence of transpose card processes images which correspond to as collected
+#        data - the image is rotated in the data acquisition software so that the desired 
+#        is obtained and this orientation is preserved with absence of transpose (-s) 
+#        card in the processed rocking curve maps
+# v072   added command line to the bottom of the main figure
+# v073   switched rollzeropad to global import
+# v074   disable writing map data with -o option 
+#        -w option only makes sense when saving slices
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -146,6 +157,14 @@ def ParseArguments(args):
                 default=-1,
                 help='background from CCD',
                 metavar='CONST')
+                #
+        parser.add_option('-a', '--ashift',
+                action='store',
+                dest='ashift',
+                default=0,
+                help='compensate beam shift in the imaging plane at a distance CONST [m]',
+                metavar='CONST')
+                #
         parser.add_option('-r', '--range',
                 action='store',
                 dest='rng',
@@ -174,7 +193,13 @@ def ParseArguments(args):
                 action='store',
                 dest='f',
                 default=1.0,
-                help='factor*fwhm_aver defines colormap range of images',
+                help='factor*fwhm_aver defines range of colormap on peak/slope position images',
+                metavar='CONST')  
+        parser.add_option('-m', '--magnify',
+                action='store',
+                dest='m',
+                default=1.0,
+                help='shirks colormap range for fwhm by this factor',
                 metavar='CONST')  
         parser.add_option('-d', '--deglitch',
                 action='store',
@@ -230,8 +255,12 @@ def main(opts, args):
   else:
      outFile = sys.stdout
   
-  outFile.write(str(opts)+' '+str(args)+'\n')
-  outFile.write('topohdf version: '+__version__+'\n')
+  nall = len(sys.argv)-len(args)
+  param = sys.argv[0:nall]
+  param = ' '.join(param)  
+  outFile.write(param + '\n')                    
+  #outFile.write(str(opts)+' '+str(args)+'\n')
+  outFile.write(prog + ' v '+__version__+'\n')
   outFile.write('range (x1 x2 y1 y2): '+opts.rng+'\n')
   
 #----------------------------------------------------- 
@@ -243,6 +272,7 @@ def main(opts, args):
   tr=float(opts.tr);   print "Threshold (tr) = ", tr
   df=float(opts.degl); print "Deglitching factor (df) = ", df
   sf=float(opts.f);    print "Limit scale factor for plotting (sf) = ", sf
+  mf=float(opts.m);    print "Shrink FWHM colormap range", mf
   nf=len(args);	       print "Number of files to analyze = ", nf
   if opts.instrument == 1:  # if instrument file ccd.py is used
     from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0,data_path,th_path,chi_path   # import parameters from ccd.py  
@@ -268,27 +298,30 @@ def main(opts, args):
       angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path)        
     else:
       fatalError('Supported files are either hdf4 (extension .hdf) or hdf5 (extension h5)')  
-      
-    nx=size[0] #;print nx
-    ny=size[1] #;print ny
+#   
+    if opts.transpose == 0:
+        im=transpose(im)
+        im=fliplr(im)
+        nx=size[1]
+        ny=size[0]
+    else:             
+        nx=size[0] #;print nx
+        ny=size[1] #;print ny            
+        im=flipud(im)
 #  print im.dtype
     print "filename: ", fn
     print "theta = ", angle
-    print "chi = ", chi
-        
+    print "chi = ", chi        
 ### sorting data by angle #######################
     data_fn=[angle,im]
     alldata=alldata+[data_fn]
-  
+    #
   alldata=sorted(alldata,key=operator.itemgetter(0))
 #################################################    
   
   for x in alldata:
-    th_deg=th_deg+[x[0]]
-    data=data+[x[1]]
- 
-  data=array(data); #print data
-  
+    th_deg=th_deg+[x[0]]            
+
   if opts.units=='deg':
     th=1.0e6*array(th_deg)/r2d # th_deg in degrees
   elif opts.units=='arcsec':
@@ -298,7 +331,7 @@ def main(opts, args):
   elif opts.units=='um':
     th=5.86*array(th_deg)                      # th_deg in microns
   elif opts.units=='volt':
-    th=20.3*array(th_deg)                      # th_deg in microns
+    th=22.1388*array(th_deg)                      # th_deg in microns
  
   th_beg=th[0]
   th_end=th[len(th)-1]
@@ -306,6 +339,26 @@ def main(opts, args):
   th0=0.5*(th_beg+th_end)  
   th0_deg=1.0e-6*r2d*th0
   
+  print "###########################################"
+  print "th0 (initial) = ", th0
+
+  if opts.ashift == 0:
+     for x in alldata:
+         data=data+[x[1]]
+  else:
+     from ccd import th0
+     #from roll_zeropad import roll_zeropad
+     for (t,x) in map(None,th,alldata): 
+        imdist = float(opts.ashift) # [m]
+        imsh = 1.0e-6*(t-th0)*imdist*1.0e3 # image shift [mm]
+        print "applied shifts [mm] =  ", imsh
+        print "th0 [urad] = ", th0
+        rind = int(imsh/dy); print "rind = ", rind 
+        #sarray = roll(x[1],-rind,axis=0)
+        sarray = roll_zeropad(x[1],-rind,axis=0)        
+        data = data +[sarray]                                                 
+  data=array(data); #print data
+    
 ####################################################
 ## Analyzed Area (Range)
 ####################################################
@@ -332,12 +385,9 @@ def main(opts, args):
     indy2=ny
   else:
     indy2=int(rngy2/dy)        
-       
-#  xrange=arange(indx1,indx2,step) #;print xrange
-#  yrange=arange(indy1,indy2,step)
+  
   xrange=arange(nx-indx2,nx-indx1,step)
   yrange=arange(ny-indy2,ny-indy1,step) #;print yrange
-
 #-----------------------------------------------------
 #initialize arrays
 #-----------------------------------------------------
@@ -442,7 +492,8 @@ def main(opts, args):
                   fwhm[i,j]=fwhm_g;      fwhm1=fwhm1+[fwhm[i,j]]
                   peak[i,j]=p[1];        peak1=peak1+[peak[i,j]]   # p[1] - in gauss function background already subtracted               
                   thmid[i,j]=p[2];       thmid1=thmid1+[thmid[i,j]]
-                  com[i,j]=sum((rcurve-p[0])*(th-th0))/sum(rcurve-p[0]); com1=com1+[com[i,j]]                                    
+                  #com[i,j]=sum((rcurve-p[0])*(th-th0))/sum(rcurve-p[0]); com1=com1+[com[i,j]]                                    
+                  com[i,j]=p[2];         com1=com1+[com[i,j]]               
                   thneg[i,j]=p[2]-fwhm_g/2.0; thneg1=thneg1+[thneg[i,j]]
                   thpos[i,j]=p[2]+fwhm_g/2.0; thpos1=thpos1+[thpos[i,j]]
                 else:
@@ -545,13 +596,13 @@ def main(opts, args):
   outFile.write('-----------------Statistics---------------------------------------------\n')
   outFile.write(out)
   
-  if opts.output is not None:
-     outFile.write('-----------------Map of the selected range------------------------------------------\n')
-
-     for j in yrange:
-       for i in xrange:
-          outFile.write(str(i*dx)+' '+str(j*dy)+' '+str(peak[i,j])+' '+str(fwhm[i,j])+' ' \
-          +str(com[i,j])+' '+str(thmid[i,j])+' '+str(thneg[i,j])+' '+str(thpos[i,j])+'\n')
+  #if opts.output is not None:
+  #   outFile.write('-----------------Map of the selected range------------------------------------------\n')
+  #
+  #   for j in yrange:
+  #     for i in xrange:
+  #        outFile.write(str(i*dx)+' '+str(j*dy)+' '+str(peak[i,j])+' '+str(fwhm[i,j])+' ' \
+  #        +str(com[i,j])+' '+str(thmid[i,j])+' '+str(thneg[i,j])+' '+str(thpos[i,j])+'\n')
   
   outFile.close
 ##################################################################################  
@@ -576,12 +627,12 @@ def main(opts, args):
 #  com=fliplr(com)
 #  thneg=fliplr(thneg)
 #  thpos=fliplr(thpos) 
-  
-  nny1=ny-indy2; nny2=ny-indy1
-#  nny1=indy1; nny2=indy2
-  nnx1=nx-indx2; nnx2=nx-indx1
-#  nnx1=indx1; nnx2=indx2
 
+#      nnx1=indx1; nnx2=indx2
+#      nny1=indy1; nny2=indy2
+  nnx1=nx-indx2; nnx2=nx-indx1
+  nny1=ny-indy2; nny2=ny-indy1
+                
   fwhm=fwhm[nnx1:nnx2,nny1:nny2]
   peak=peak[nnx1:nnx2,nny1:nny2]
   thmid=thmid[nnx1:nnx2,nny1:nny2]
@@ -620,27 +671,22 @@ def main(opts, args):
       sbtitle0 = 'Slices at Y = '+str(ysl)+' '      
       str_axis='x [mm]'
   #
-  if opts.transpose==1:
-    fwhm=transpose(fwhm)
-    peak=transpose(peak)
-    thmid=transpose(thmid)
-    com=transpose(com)
-    thneg=transpose(thneg)
-    thpos=transpose(thpos)
-#    xyrange=(0,dx*nx,0,dy*ny)  # for some reason the arrays should be transposed 
-#  else: 
-#    xyrange=(0,dy*ny,0,dx*nx)
-    xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # for some reason the arrays should be transposed 
-  else: 
-    xyrange=(dy*indy1,dy*indy2,dx*indx1,dx*indx2)
-  #  
+  fwhm=transpose(fwhm)
+  peak=transpose(peak)
+  thmid=transpose(thmid)
+  com=transpose(com)
+  thneg=transpose(thneg)
+  thpos=transpose(thpos)
+  
   peak=fliplr(peak)
   fwhm=fliplr(fwhm)  
   thmid=fliplr(thmid) 
   com=fliplr(com) 
   thneg=fliplr(thneg)
   thpos=fliplr(thpos)
-  
+  xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # for some reason the arrays should be transposed   
+  #
+  #      
   if ysl >=0 or xsl >=0: 
       peak_sl=peak_sl[::-1]
       fwhm_sl=fwhm_sl[::-1]
@@ -648,7 +694,6 @@ def main(opts, args):
       com_sl=com_sl[::-1]
       thneg_sl=thneg_sl[::-1]
       thpos_sl=thpos_sl[::-1] 
-
 ###################################################################################
 ## NOW PLOT EVERYTHING
 ###################################################################################
@@ -662,10 +707,12 @@ def main(opts, args):
   sbtitle='Rocking curve topographs: '+sbtitle
         
   if opts.nm != '':
-    sbtitle=sbtitle+' Sample: '+opts.nm  
-
+    sbtitle=sbtitle+' Sample: '+opts.nm  #+'\n' + param  
   plt.suptitle(sbtitle, size=20)  
-
+  
+  gca().set_position((.1, .1, .1, .1))
+  figtext(0.1,0.025,param)
+  
   plt.subplot(331)
   plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
   plt.colorbar()
@@ -675,8 +722,8 @@ def main(opts, args):
 
 #  vmin0=round(fwhm_l*fwhm0,-1)
 #  vmax0=round(fwhm_r*fwhm0,-1)
-  vmin0=round(fwhm0*(1.0-sf))
-  vmax0=round(fwhm0*(1.0+sf))
+  vmin0=round(fwhm0*(1.0-mf*sf))
+  vmax0=round(fwhm0*(1.0+mf*sf))
   
   plt.subplot(332)
   plt.imshow(fwhm, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
@@ -715,7 +762,7 @@ def main(opts, args):
   plt.title('left slope (angle) [urad]',size=20)
   plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
-
+  
 #  vmin0=round(com0-(sf-1.0)*fwhm0,-1)
   vmin0=round(thmid0)
   vmax0=round(thpos0+1.0*sf*fwhm0)
@@ -764,10 +811,13 @@ def main(opts, args):
     outfile1.close
     outfile2.close
     outfile3.close
+  #####################################################################################
+  # FIGURES FOR PUBLICATION
+  #####################################################################################
   if opts.publish==1:
-    from publish import figplot    
-    com_exp=array(com)-com0
-    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,com_exp,fwhm,peak)
+    from figures import figplot    
+    thmid_exp=array(thmid)-thmid0
+    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,thmid_exp,fwhm,peak)
 
 ########################################################################################
 ## PLOT SLICES AND WRITE FILE
@@ -826,9 +876,9 @@ def main(opts, args):
             +'# version '+__version__+' by Stanislav Stoupin\n' \
             +'# Slices data\n' \
             +'# columns: \n' \
-            '# '+str_axis+'peak COM[urad] FWHM[urad] mid-point[urad] left-slope[urad] right-slope[urad] \n'
+            '# '+str_axis+' peak(norm) FWHM[urad] COM[urad] mid-point[urad] left-slope[urad] right-slope[urad] \n'
      try:                
-            writeFile(opts.write,header,peak_sl_m,fwhm_sl_m,com_sl_m,thmid_sl_m,thneg_sl_m,thpos_sl_m)
+            writeFile(opts.write,header,range_sl,peak_sl_m,fwhm_sl_m,com_sl_m,thmid_sl_m,thneg_sl_m,thpos_sl_m)
      except IOError, e:
             fatalIOError(e)                                        
                    

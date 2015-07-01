@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-a simple hdf4 image viewer
+a program to view data array in hdf files as an image
 
 :author:    Stanislav Stoupin
 :email:     sstoupin@aps.anl.gov
@@ -9,17 +9,24 @@ a simple hdf4 image viewer
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
-
 import sys
+import os
 from numpy import *
 from pylab import *
-from dtxrd.pyhdf4 import *
-from matplotlib.patches import Patch
+
+#LOCAL
+#from pyhdf import *
+
+#GLOBAL
+from dtxrd.pyhdf import *
+
+prog = os.path.basename(sys.argv[0])
 ############################################################
-dx, dy = 0.06, 0.06  # CCD camera pixel size [mm]
-############################################################
-__version__='0.11'
-proginfo = 'viewhdf' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+__version__='0.13'
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+########################################################################################
+# v 0.12 - after pyhdf modification and convention for image transformation is adopted
+# v 0.13 - minor adaptation to run globally
 
 
 def fatalError(msg):
@@ -55,7 +62,25 @@ def ParseArguments(args):
                 default=None,
                 help='write results to file F (defaults to stdout)',
                 metavar='F')
-
+        parser.add_option('-p', '--publish',
+                action='store_const',
+                const=1,
+                dest='publish', 
+                default=0,  
+                help='generate figures for publication')
+        parser.add_option('-s', '--transpose',
+                action='store_const',
+                const=1,
+                dest='transpose', 
+                default=0,  
+                help='transpose image matrix')                
+        parser.add_option('-i', '--instrument',
+                action='store_const',
+                const=1,
+                dest='instrument',
+                default=0,
+                help='read parameters from instrument file ccd.py')
+        #                                                                              
         opts, args = parser.parse_args(args)
         if len(args) < 1:
                 parser.print_usage()
@@ -71,25 +96,70 @@ def main(opts, args):
         fatalIOError(e)
   else:
      outFile = sys.stdout
-  
+
+  if opts.instrument == 1:  # if instrument file ccd.py is used      
+      # import parameters from ccd.py
+      from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0
+      from ccd import data_path,th_path,chi_path 
+      from ccd import a2urad
+  else:
+      rbin=1
+      dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]
+      tot_range=10000.0     # upper limit for threshold processing (to exclude "dead" pixels)
+      dyn_range=10000.0      # upper limit for threshold processing (gauss)
+      fwhm_0=30.0        # expected fwhm (for fitting)
+      bkg0=2750.0        # "reasonable" background - dark current count
+      # default paths in hdf or h5 file
+      data_path='/entry/instrument/detector/data'
+      th_path='/entry/instrument/detector/NDAttributes/theta'
+      chi_path='/entry/instrument/detector/NDAttributes/chi'
+  dx=float(rbin)*dx
+  dy=float(rbin)*dy
+#                                                    
+  outFile.write('# seehdf '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n')
   count=1
   for fn in args:   
-    angle, size, im = read_hdf4(fn)
-    nx=size[0] ;print nx
-    ny=size[1] ;print ny
-    
-    im=fliplr(im)
-    xyrange=(0,dx*nx,0,dy*ny)
-    plt.figure(count)
-    plt.imshow(im, extent=xyrange)  
-    plt.colorbar()
-    plt.title(fn)
-    plt.xlabel('x [mm]')
-    plt.ylabel('y [mm]') 
-    count=count+1  
-  
-  outFile.write('# seehdf '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n')
-  outFile.write('# image: '+str(nx)+' x '+str(ny)+'\n')
+      fn_ext=fn.split(".")[-1]
+      if fn_ext == "hdf":
+          angle, size, im = read_hdf4(fn)
+      elif fn_ext == "h5":
+          angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path)
+      else:
+          fatalError('Supported files are either hdf4 (extension .hdf) or hdf5 (extension h5)')
+      #
+      if opts.transpose == 0:
+          im=transpose(im)
+          im=fliplr(im)
+          nx=size[1]
+          ny=size[0]
+      else:
+          nx=size[0] #;print nx
+          ny=size[1] #;print ny
+          im=flipud(im)
+                                                                        
+          #im=fliplr(im)                                   
+          #nx=size[0] #;print nx
+          #ny=size[1] #;print ny    
+      theta = a2urad*angle
+      if opts.publish !=1:
+          xyrange=(0,dx*nx,0,dy*ny)
+          plt.figure()
+          plt.imshow(im, extent=xyrange)  
+          plt.colorbar()
+          plt.title(fn)
+          plt.xlabel('x [mm]')
+          plt.ylabel('y [mm]') 
+      else:
+          from publish import figplot
+          indx1=0; indx2=nx
+          indy1=0; indy2=ny 
+          print "opts.transpose", opts.transpose
+          figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,im,fn,theta)
+      count = count + 1              
+      outFile.write('# filename: '+fn+'\n')
+      outFile.write('# image: '+str(nx)+' x '+str(ny)+'\n')
+      outFile.write('theta [urad] = '+str(theta)+'\n')
+      outFile.write('chi [orig. u.] = '+str(chi)+'\n')
   outFile.close  
   plt.show()     
     

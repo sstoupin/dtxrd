@@ -1,28 +1,34 @@
-#!/usr/bin/env python
-
-'''
-a program to plot and calculate parameters of a reflectivity curve
-
-:author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
-
-:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
-:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
-'''
-
+#!/usr/bin/python
+# Program to calculate reflection curve parameters
+# requires input file containing raw spec scan data
+# required python site-packages: xdp, python-scientific, scipy
+# for plotting requires: python-matplotlib
+# ------------------------------------------------------------ 
+# Copyright: Stanislav Stoupin (sstoupin@aps.anl.gov) 2011
+# Advanced Photon Source, Argonne National Laboratory 
+#-------------------------------------------------------------
+import os
 import sys
-#from numpy import *
-from pylab import *
-#from scipy import *
+from scipy import *
+from numpy import *
 from scipy.optimize import *
+from pylab import *
 from scipy.interpolate import interp1d
-#
+
+#LOCAL
+#from myio import *
+#from curvestat import *
+#from deriv import *
+
+#GLOBAL
 from dtxrd.myio import *
 from dtxrd.curvestat import *
 from dtxrd.deriv import *
 
+prog = os.path.basename(sys.argv[0])
+
 __version__='0.27'
-proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
 ########################################################################
 # modifications:

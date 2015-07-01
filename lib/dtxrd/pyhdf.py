@@ -94,7 +94,7 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
     shape1 = (ny//rbin,nx//rbin)
     im = rebin(im,shape1)
     (ny,nx) = shape1
-    im = flipud(im)
+    #im = flipud(im)
                 
     # EXTRACT ANGLES
     try:

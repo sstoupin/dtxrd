@@ -13,9 +13,14 @@ a calibration file of a PIN detector
 import os
 import sys
 from numpy import *
-from dtxrd.myio import readFile
 import scipy
 from scipy.interpolate import interp1d
+
+#LOCAL
+#from myio import readFile
+
+# GLOBAL
+from dtxrd.myio import readFile
 
 prog = os.path.basename(sys.argv[0])        
 __version__ = '0.21'

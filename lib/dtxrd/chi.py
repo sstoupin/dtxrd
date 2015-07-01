@@ -10,19 +10,13 @@ a subroutine to calculate susceptibility(Chi) for a Bragg reflection
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
 ###########################################################################################
-# v 0.04 #######################################################
+# v 0.05 ##################################################################################
+###########################################################################################
+# 0.05 updated texpan of Si to Reeber's expression
 ###########################################################################################
 from numpy import *
-#from okada_si import *
-#from stoupin_c import *
-#from carr_ge import *
-#from lucht_sph import *
 from fh import *
-#
-#from dtxrd import *
-#from dtxrd_k import *
 from constants import *
-#from curvestat import *
 import sys
 ######################################################################################
 def fatalError(msg):
@@ -43,8 +37,8 @@ def chi(element,h,k,l,T,Ex):
   lamx = hpl*cl/Ex
   
   if element=='Si':  
-     from okada_si import a_okada
-     a=a_okada(T)
+     from td_si import a_reeber
+     a=a_reeber(T)
      #    
      dh=a/sqrt(h**2.0+k**2.0+l**2.0)
      Eb=0.5*hpl*cl/dh
@@ -239,27 +233,28 @@ def chi(element,h,k,l,T,Ex):
      expF_O = expFh_SiO2('O',h,k,l)   #; print "expF_O(h,k,l)  =  ", expF_O
      
      if abs(expF_Si)<epsFh and abs(expF_O)<epsFh: flagFh=0     
-     ### Anisotropic displacement parameters from Le Page et al. JPCS 1980 at room temperature
+     ### From Kihara EurMin90 RT  # or the second set from LePage JPCS1980 RT
      ### for Si
      ind = [h,k,l]
      lp = [a,a,c]
      ang = [90.0,90.0,120.0]
      # Si
-     U11=0.00696 # Angstrom^2
-     U22=0.00542 # Angstrom^2
-     U33=0.00614 # Angstrom^2     
+     U11=0.0073  #0.00696 # Angstrom^2
+     U22=0.0056  #0.00542 # Angstrom^2
+     U33=0.0066  #0.00614 # Angstrom^2     
      U12=0.5*U22 # Angstrom^2
-     U13=0.00008
-     U23=2.0*U13
+     U23=-0.0003 #2.0*U13
+     U13=0.5*U23  #0.00008
+     #U23=2.0*U13
      U = [U11,U22,U33,U12,U13,U23]
      sigh_Si = debye_tellipse(ind,lp,ang,U)  #;  print 'sigh_Si = ', sigh_Si
      ### for O
-     U11=0.01544 # Angstrom^2
-     U22=0.01106 # Angstrom^2
-     U33=0.01130 # Angstrom^2     
-     U12=0.00878 # Angstrom^2
-     U13=0.00302 # Angstrom^2
-     U23=0.00458 # Angstrom^2
+     U11=0.0164  #0.01544 # Angstrom^2
+     U22=0.0120  #0.01106 # Angstrom^2
+     U33=0.0124  #0.01130 # Angstrom^2     
+     U12=0.0094  #0.00878 # Angstrom^2
+     U13=-0.0030 #0.00302 # Angstrom^2
+     U23=-0.0047 #0.00458 # Angstrom^2
      U = [U11,U22,U33,U12,U13,U23]               
      sigh_O = debye_tellipse(ind,lp,ang,U)   #;  print 'sigh_O = ', sigh_O
      #     
@@ -270,7 +265,43 @@ def chi(element,h,k,l,T,Ex):
      Fh_= sigh_Si*(f0h_Si+fa_Si)*expF_Si.conjugate()+sigh_O*(f0h_O+fa_O)*expF_O.conjugate()
      F0 = (f00_Si+fa_Si)*expF0_Si+(f00_O+fa_O)*expF0_O
   #-------------------------------------------------------------------------------------------     
-  
+  elif element=='Be':           
+     from meyerhoff_be import a_meyer, c_meyer
+     a=a_meyer(T); c=c_meyer(T)               
+     #
+     dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
+     Eb=0.5*hpl*cl/dh
+     qx=0.5/dh    
+     
+     f0h=f0h_ICD('Be',qx)
+     f00=f0h_ICD('Be',0.0)     
+     expF0 = expFh_Be(0,0,0)
+     expF  = expFh_Be(h,k,l) #; print "expF_Al(h,k,l) =  ", expF_Al
+     
+     if abs(expF)<epsFh: flagFh=0     
+     ### From Kihara EurMin90 RT  # or the second set from LePage JPCS1980 RT
+     ### for Si
+     ind = [h,k,l]
+     lp = [a,a,c]
+     ang = [90.0,90.0,120.0]
+     # Yang AC 198
+     U11=0.0072  # Angstrom^2
+     U22=0.0072  # Angstrom^2
+     U33=0.0066  # Angstrom^2     
+     U12=0.0036  # Angstrom^2
+     U23=0.0000  # 2.0*U13
+     U13=0.0000  # 
+     U = [U11,U22,U33,U12,U13,U23]
+     sigh = debye_tellipse(ind,lp,ang,U)  #;  print 'sigh = ', sigh
+     #     
+     V=sqrt(3.0)/2.0*a**2.0*c
+     #
+     fa=fa_asf('Be',Ex)
+     Fh = sigh*(f0h+fa)*expF
+     Fh_= sigh*(f0h+fa)*expF.conjugate()
+     F0 = (f00+fa)*expF0
+  #-------------------------------------------------------------------------------------------     
+   
   else:
      fatalError('available crystal models: C, Si, Ge, Al2O3, FeS2, SiC-4H, SiC-6H, SiO2')
   #     
