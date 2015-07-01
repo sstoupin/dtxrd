@@ -26,9 +26,9 @@ REQUIREMENTS
 * python-numpy
 * python-scipy
 * python-matplotlib
+* h5py
 * Optik 1.3 or above OR Python 2.3's optparse module.
     http://optik.sourceforge.net
-
 
 INSTALLATION
 ------------
