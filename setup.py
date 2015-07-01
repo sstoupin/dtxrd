@@ -22,7 +22,7 @@ install_requires = [
 setup(
     name = 'python-dtxrd',
     version = '1.2',
-    url = 'https://subversion.xray.aps.anl.gov/dtxrd/',
+    url = 'https://github.com/sstoupin/dtxrd',
     maintainer = 'Stanislav Stoupin',
     maintainer_email = 'sstoupin@gmail.com',
     license = 'UChicago Argonne, LLC OPEN SOURCE LICENSE',
