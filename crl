@@ -26,7 +26,7 @@ from pylab import *
 #from chi import *
 
 #GLOBAL
-from dtxrd.myio coljoin, writeFile
+from dtxrd.myio import coljoin, writeFile
 from dtxrd.constants import *
 from dtxrd.chi import *
 

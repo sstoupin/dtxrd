@@ -11,7 +11,7 @@ a program for sequential topography/rocking curve imaging
 '''
 
 
-import sys
+import os, sys
 import numpy
 import operator
 
@@ -33,7 +33,6 @@ from dtxrd.roll_zeropad import roll_zeropad
 #from __future__ import division
 from matplotlib.patches import Patch
 from pylab import *
-#from publish import *
 ##################################################################
 ## fixed constants
 ##################################################################
@@ -42,7 +41,7 @@ fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
 ##################################################################
 
-__version__='0.74'
+__version__='0.75'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
@@ -88,6 +87,8 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 # v073   switched rollzeropad to global import
 # v074   disable writing map data with -o option 
 #        -w option only makes sense when saving slices
+# v075   when importing modules point to user_dir through os.getcdw()
+#        append to path and when import is done exclude sys.path.pop()
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -275,7 +276,10 @@ def main(opts, args):
   mf=float(opts.m);    print "Shrink FWHM colormap range", mf
   nf=len(args);	       print "Number of files to analyze = ", nf
   if opts.instrument == 1:  # if instrument file ccd.py is used
+    user_dir = os.getcwd()
+    sys.path.append(user_dir)
     from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0,data_path,th_path,chi_path   # import parameters from ccd.py  
+    sys.path.pop()
   else:
     rbin=1
     dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]    
@@ -815,9 +819,12 @@ def main(opts, args):
   # FIGURES FOR PUBLICATION
   #####################################################################################
   if opts.publish==1:
-    from figures import figplot    
+    user_dir = os.getcwd()
+    sys.path.append(user_dir)
+    from figures import figplot        
     thmid_exp=array(thmid)-thmid0
     figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,thmid_exp,fwhm,peak)
+    sys.path.pop()
 
 ########################################################################################
 ## PLOT SLICES AND WRITE FILE
