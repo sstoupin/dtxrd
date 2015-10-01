@@ -15,7 +15,22 @@ from numpy import *
 from scipy import *
 from pylab import *
 
-#TO RUN GLOBALLY
+# TO RUN LOCALLY
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/DTXRD/'
+#sys.path.append(libpath)
+#print "library path: ", libpath
+#
+#from myio import coljoin, writeFile
+#from curvestat import *
+#from thfind import *
+#from dtxrd0 import *
+#from constants import *
+#from chi import *
+#from deriv import *
+#-----------------------------------------------
+# TO RUN GLOBALLY
 from dtxrd.myio import coljoin, writeFile
 from dtxrd.curvestat import *
 from dtxrd.thfind import *
@@ -24,19 +39,6 @@ from dtxrd.constants import *
 from dtxrd.chi import *
 from dtxrd.deriv import *
 
-# TO RUN LOCALLY:
-#import commands
-#cmdout=commands.getstatusoutput('echo $HOME')
-#libpath=cmdout[1]+'/bin/DTXRD/'
-#sys.path.append(libpath)
-
-#from myio import coljoin, writeFile
-#from curvestat import *
-#from thfind import *
-#from dtxrd0 import *
-#from constants import *
-#from chi import *
-#from deriv import *
 
 prog = os.path.basename(sys.argv[0])
 __version__ = '0.33'
@@ -93,7 +95,7 @@ def ParseArguments():
         import argparse   # requires Python 2.7 or higher
         msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
 #        msg0 =  prog +' [OPTIONS...] crystal h k l eta phi T d flag Ex(or theta) \n'+'where:\n'
-	msg1 = 'available crystal models: C (diamond), Si, Ge, FeS2, SiC-4H, SiC-6H, Al2O3, SiO2 \n' 
+	msg1 = 'available crystal models: C (diamond), Si, Ge, FeS2, SiC-4H, SiC-6H, Al2O3, SiO2\n' 
 	msg2 = 'Miller index\n' 
 	msg3 = 'asymmetry angle [deg] \n' 
 	msg4 = 'azimuthal angle of incidence [deg]\n' 
@@ -502,7 +504,8 @@ def main():
         outFile.write('# Additional Characteristics of the Reflection: \n')
         outFile.write('dE/dth [meV/urad] = '+str(1.0e-3*Ec/tan(thc))+' Tangent of the Braggs Law \n') 
         outFile.write('Dr [urad/meV] = '+str(Dr)+' Intrinsic Angular Dispersion Rate \n') 
-        outFile.write('de [um] = '+str(1.0e-4*de)+' Extinction Length \n')
+        outFile.write('de [um] = '+str(1.0e-4*de)+' Extinction depth \n')
+        outFile.write('dl [um] = '+str(1.0e-4*2.0*pi*de)+' Extinction distance (Pend. length) \n')
         #
         outFile.write('#-------------------------------------------------------------\n')
         

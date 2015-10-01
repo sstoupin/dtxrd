@@ -140,6 +140,11 @@ def main(opts, args):
           #im=fliplr(im)                                   
           #nx=size[0] #;print nx
           #ny=size[1] #;print ny    
+      #############################################
+      # final transformation to match topohdf
+      #im=transpose(im)
+      im=fliplr(im)
+      #############################################                                        
       theta = a2urad*angle
       if opts.publish !=1:
           xyrange=(0,dx*nx,0,dy*ny)

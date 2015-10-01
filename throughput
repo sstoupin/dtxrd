@@ -14,7 +14,7 @@ import sys
 from scipy.special import legendre
 from pylab import *
 
-# TO RUN LOCALLY:
+## TO RUN LOCALLY:
 #import commands
 #cmdout=commands.getstatusoutput('echo $HOME')
 #libpath=cmdout[1]+'/bin/DTXRD/'
@@ -30,8 +30,7 @@ from pylab import *
 #from dtxrd2_k import *
 #from constants import *
 
-#TO RUN GLOBALLY:
-
+## TO RUN GLOBALLY:
 from dtxrd.myio import *
 from dtxrd.rotation import *
 from dtxrd.curvestat import *
@@ -40,7 +39,7 @@ from dtxrd.thfind import *
 from dtxrd.dtxrd2_k import *
 from dtxrd.constants import *
 
-__version__ = '0.16'
+__version__ = '0.18'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -65,6 +64,8 @@ __version__ = '0.16'
 # 0.15 additional card ebb=9 to switch off alignment to backscattering crystal 
 #      added calculation of the cummulative dispersion rate
 # 0.16 additional columns in the output file (Ex(keV) or th (deg))
+# 0.17 included -n option for assigning npsi (default npsi=200 was found insufficient for large accepted divergence - Ge111)
+# 0.18 included detailed header in the output file 'param0'
 #-------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. vector dtxrd function?
@@ -111,11 +112,13 @@ def ParseArguments(args):
         parser.add_option('-a', '--angular_scan', type='int', action='store', dest='nth', default=0,
                 help='do angular scan with nth points')
         parser.add_option('-s', '--source', type='int', action='store', dest='src', default=0,
-                help='type of energy distribution for the source: 0 - flat (default), 1 - Cu K alpha, 9 - energy dist from file source_e.dat')
+                help='type of spectral distribution for the source: 0 - flat (default), 1 - Cu K alpha, 9 - spectral distribution from file source_e.dat')
         parser.add_option('-w', '--write', action='store', dest='write', default=None,
                 help='write data to file (default do not write)', metavar='DATAFILE')
         parser.add_option('-p', '--pi', action='store_const', const=1, dest='polarization', default=0,  
-                help='-p - pi polarization ')	
+                help='-p - pi polarization of the incident waves')	
+        parser.add_option('-n', '--npsi', type='int', action='store', dest='npsi', default=200,  
+                help='-n - number of points in the angular grid (nmax = 1000) ')	 
 #-----------------------------------------------------------------------------------------------
 	opts, args = parser.parse_args(args)
 	if len(args) != 6:
@@ -140,14 +143,18 @@ def main(opts,args):
                         fatalIOError(e)
         else:
                 outFile = sys.stdout
-                
-######## read input parameters ######################################
+######## define header line with input parameters ################################################
+        nall = len(sys.argv) #-len(args) need to include input file too unlike in rctopo!
+        param0 = sys.argv[0:nall]
+        param0 = ' '.join(param0)                    
+######## read input parameters ###################################################################
         type=args[0]
         dpsi=1.0e-6*float(args[1])  # rms value - in my gauss sigma=sqrt(2)*dpsi then
         Ec=1.0e3*float(args[2]) # central energy converted to [eV]
         dEx=float(args[3])  # energy range to evaluate [meV]
         ne=int(args[4]) # number of steps in energy
-        nth=opts.nth        
+        nth=opts.nth
+        npsi=opts.npsi        
 ######## IF FIXED ENERGY SOURCE - ASSIGN ENERGY #######################################################
         if opts.src==1:   # Cu Kalpha1
             Ec=8047.84
@@ -389,10 +396,11 @@ def main(opts,args):
         elif opts.src==9:
            from scipy.interpolate import interp1d
            d1,d2=readFile('source_e.dat')
-           eev=d2[:,0]
+           eev=1.0e3*d2[:,0]
            rrv=d2[:,1]
-           rrf=interp1d(eev,rrv)
-           edist=rrf(Eran*pe_w[0])
+           rrf=interp1d(eev,rrv)           
+           #edist=rrf(Eran*pe_w[0])
+           edist=rrf(Ev)
 #           figure(99)
 #           plot(eev,rrv,'k-')                  
 #           plot(Eran*pe_w[0],edist,'b-')
@@ -400,8 +408,8 @@ def main(opts,args):
 #                      
         Norm_E=0.5*sum(Ew*edist); print "Norm_E = ", Norm_E        
 ####### angular divergence ###########################################################################################
-        if type !='1r':
-           npsi=200
+        if type !='1r':           
+           #npsi=200 #now 200 is default and npsi is included as -n option
            pa=legendre(npsi); pa_w=transpose(array(pa.weights))
            thv=3.0*dpsi*pa_w[0]  # 3.0*dpsi=0.5*(b-a) integration from -3*dpsi to 3*dpsi; for Gauss +-3*sigma - 99.7%
            thw=pa_w[1]
@@ -423,7 +431,7 @@ def main(opts,args):
            fwhm_psi=0.0             
            thw=2.0*ones(1)           
         elif type =='f':     #flat from -3*dpsi to 3*dpsi
-           fwhm_psi=float('inf')
+           fwhm_psi=float(6.0*dpsi)
            psiv=ones(len(thv))
         else:
            fatalError('res. function type is either "l" ,"g", "1r" or "f" at the moment')        
@@ -501,8 +509,8 @@ def main(opts,args):
            thscan=[0]
         if opts.write is not None:
            if opts.nth !=0:
-               header = '# '+'throughput '+str(args)+'\n' \
-                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n' \
+               header = '#'+ param0 +'\n' \
+                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@aps.anl.gov\n' \
                         +'# columns: (th-thc)[urad] Tptt th[deg]\n' \
                         + '# \n'
                fig0 = plt.figure(0)
@@ -511,8 +519,8 @@ def main(opts,args):
                plt.xlabel('angle [urad]')
 
            else:
-               header = '# '+'throughput '+str(args)+'\n' \
-                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n' \
+               header = '#'+ param0 +'\n' \
+                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
                         +'# columns: (E-Ec)[meV] Tpte Ex[keV]\n' \
                         + '# \n'                        
                plt.xlabel('Energy [meV]')
@@ -616,7 +624,7 @@ def main(opts,args):
          
 ######  BEGIN OUTPUT #############################################################
         outFile.write('##############################################################\n')
-        outFile.write('##### THRUPUT v'+__version__+' ########################################\n')
+        outFile.write('##### THROUGHPUT v'+__version__+' ################################\n')
         outFile.write('##### Author: Stanislav Stoupin ## sstoupin@aps.anl.gov ######\n')
         outFile.write('##############################################################\n')
         outFile.write('Throughput (monochromatic ray) = '+str(Tpt0)+'\n')

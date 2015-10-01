@@ -205,16 +205,24 @@ def main(opts,args):
         R =  1.0e-4*R   #[cm] radius of curvature 
         R0 = 1.0e-1*R0  #[cm] half-aperture of the lens
         a =  mu*N*R + 2.0*N*Q0**2.0*sig**2.0
+        outFile.write('a = '+str(a)+ ' damping factor (Lengeler 1999)\n')
         #ap = mu*N*R0**2.0/R
         ap = 0.5*a*R0**2.0/R**2.0
+        outFile.write('ap = '+str(a)+ ' renormalized damping factor (Lengeler 1999)\n')
         #Tp = 1.0/ap*(1.0-exp(-ap))*exp(-mu*N*da)
         Tp = exp(-mu*N*da)/(2.0*ap)*(1.0-exp(-2.0*ap)) # compact expression for transmission including Raley/Gaussian surface roughness
         #bv =  1.0e-4*2.35*10.0  #[cm] Vertical source size Undulator A at 8.0 keV
         #bh =  1.0e-4*2.35*273.0 #[cm] Horizontal source size  Undulator A at 8.0 keV        
         #bv = 1.0e-4*ss #[cm] vertical source size (input parameter)
         #bh = 1.0e-4*2.35*91.0 #[cm] horizontal source size APS BM at the critical energy        
-        bh = 1.0e-4*bh #[cm]
-        bv = 1.0e-4*bv #[cm]                                 
+        
+        bv = S1*f/(S1-f)*sqrt((1.0e-6*sv)**2.0/S1**2.0 + a/(2.0*(1.0e8*kx)**2.0*R**2.0)) # Lengeler 1999               
+        bh = S1*f/(S1-f)*sqrt((1.0e-6*sh)**2.0/S1**2.0 + a/(2.0*(1.0e8*kx)**2.0*R**2.0)) # Lengeler 1999               
+        outFile.write('bh [um]  = '+str(1.0e6*bh)+' convoluted horizontal size of the source image (Lengeler 1999)\n')
+        outFile.write('bv [um]  = '+str(1.0e6*bv)+' convoluted vertical  size of the source image (Lengeler 1999)\n')        
+        
+        bh = 1.0e2*bh #[cm]
+        bv = 1.0e2*bv #[cm]                                 
         gp = 4.0*R0**2.0*Tp/(bv*bh) #*((S1-f)/f)**2.0   # gain         
         outFile.write('Tp [%] = '+str(100.0*Tp)+' Transmission of the lens stack rotational parabolic profile (Lengeler JSR 1999)\n')
         outFile.write('Gp = '+str(gp)+' Gain of the stack of lenses with rotational parabolic profile (Lengeler JAP 1998)\n')        
