@@ -139,7 +139,7 @@ def ParseArguments():
                 dest='syield', 
                 default=-1,  
                 metavar='Ls',
-                help='calculate secondary radiation yield with escape length Ls [Angstrom]')
+                help='calculate secondary radiation yield with escape depth Ls [Angstrom]')
 #-----------------------------------------------------------------------------------------------
         parser.add_argument('crystal', action='store', nargs=1, help=msg1)
         parser.add_argument('h', action='store', type=float, nargs=1, help=msg2)

@@ -48,8 +48,16 @@ def curvestat(th,r,bkg):
                         
         th_mid=0.5*(th_neg+th_pos)
         fwhm=abs(th_pos-th_neg)
-        com=sum(th*(r-bkg))/sum(r-bkg)
-        return [th_max,r_max,th_neg,th_pos,th_mid,fwhm,com]
+        
+        r_eff0 = r - bkg
+        r_eff = r_eff0[r_eff0 > 0] 
+        th_eff = th[r_eff0 > 0]
+        com=sum(th_eff*(r_eff))/sum(r_eff)             # center of mass (mean) or  first cumulant
+        var=sum((r_eff)*(th_eff-com)**2.0)/sum(r_eff)  # variance or second cumulant
+        #var=abs(sum((r-bkg)*th**2.0)/sum(r-bkg)-com**2.0)  # equivalent!
+        int=sum(r_eff)*(th[len(th)-1] - th[0])/(N1-1)
+        #
+        return [th_max,r_max,th_neg,th_pos,th_mid,fwhm,com,var,int]
 
 def gauss(a,x):
     a0=abs(a[0])

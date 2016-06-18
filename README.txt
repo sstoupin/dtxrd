@@ -7,19 +7,21 @@ reflection of various single crystals: C (diamond), Si, Ge and Al2O3
 throughput - calculates throughput for a multi-crystal configuration
 described by an input file with a special format
 
-rctopo - recombines snapshots of crystal reflectivity at different 
+rctopo - recombines 2D images of crystal reflectivity at different 
 angles on the crystal rocking curve to produce rocking curve images 
-(e.g., map of FWHM of the rocking curve, peak position, etc.)
+(e.g., maps of the rocking curve's width, peak position, etc.)
 
-seehdf - an hdf4 file viewer 
+seehdf - plots maps of 2D data contained in hdf4 and hdf5 files 
 
 rcpeak - a tool to plot and perform fitting and analysis of a rocking curve
 peak data given by a multi-column ASCII file.
 
-specscan - a tool to view and extract a particular scan from a SPEC file
+specscan - extracts a particular scan from a SPEC file
 
 flux - x-ray flux calculator based on scaler count rate and a detector response
-  
+
+crl - compound reflractive lens calculator
+
 REQUIREMENTS
 ------------
 * hdf (hdf4, includes *hdp* command-line tool)

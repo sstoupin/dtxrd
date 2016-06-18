@@ -9,8 +9,7 @@ a program to view data array in hdf files as an image
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
-import sys
-import os
+import os, sys
 from numpy import *
 from pylab import *
 
@@ -22,12 +21,14 @@ from dtxrd.pyhdf import *
 
 prog = os.path.basename(sys.argv[0])
 ############################################################
-__version__='0.13'
+__version__='0.16'
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 ########################################################################################
 # v 0.12 - after pyhdf modification and convention for image transformation is adopted
 # v 0.13 - minor adaptation to run globally
-
+# v 0.14 - add -r option to plot selected region
+# v 0.15 - fix transformations for -s option 
+# v 0.16 - user_dir = os.getcwd() sys.path.append(user_dir) for ccd.py and publish.py 
 
 def fatalError(msg):
         sys.stderr.write('Error: ')
@@ -80,6 +81,12 @@ def ParseArguments(args):
                 dest='instrument',
                 default=0,
                 help='read parameters from instrument file ccd.py')
+        parser.add_option('-r', '--range',
+                action='store',
+                dest='rng',
+                default='-1 -1 -1 -1',
+                help='map range for analysis',
+                metavar='STRING')
         #                                                                              
         opts, args = parser.parse_args(args)
         if len(args) < 1:
@@ -99,9 +106,11 @@ def main(opts, args):
 
   if opts.instrument == 1:  # if instrument file ccd.py is used      
       # import parameters from ccd.py
+      user_dir = os.getcwd()
+      sys.path.append(user_dir)          
       from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0
-      from ccd import data_path,th_path,chi_path 
-      from ccd import a2urad
+      from ccd import data_path,th_path,chi_path
+      sys.path.pop() 
   else:
       rbin=1
       dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]
@@ -118,6 +127,7 @@ def main(opts, args):
 #                                                    
   outFile.write('# seehdf '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n')
   count=1
+  ########################################################################
   for fn in args:   
       fn_ext=fn.split(".")[-1]
       if fn_ext == "hdf":
@@ -126,8 +136,9 @@ def main(opts, args):
           angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path)
       else:
           fatalError('Supported files are either hdf4 (extension .hdf) or hdf5 (extension h5)')
-      #
-      if opts.transpose == 0:
+      # need to do these transformations in the opposite sense to viewhdf for some reason
+      # then -s assignment matches in both programs     
+      if opts.transpose == 1:
           im=transpose(im)
           im=fliplr(im)
           nx=size[1]
@@ -140,14 +151,47 @@ def main(opts, args):
           #im=fliplr(im)                                   
           #nx=size[0] #;print nx
           #ny=size[1] #;print ny    
+      ####################################################
+      ## Analyzed Area (Range)
+      ####################################################
+      step=1
+      #    
+      rangexy=opts.rng.split(' ')    
+      rngx1=float(rangexy[0]); rngy1=float(rangexy[2])
+      rngx2=float(rangexy[1]); rngy2=float(rangexy[3])
+  
+      if rngx1<0:
+        indx1=0
+      else:
+        indx1=int(rngx1/dx)
+      if rngy1<0:
+        indy1=0
+      else:
+        indy1=int(rngy1/dy)
+    #---------------------------------------  
+      if rngx2<0 or rngx2>nx*dx:
+        indx2=nx
+      else:  
+        indx2=int(rngx2/dx)
+      if rngy2<0 or rngy2>ny*dy:
+        indy2=ny
+      else:
+        indy2=int(rngy2/dy)        
+  
+      #xrange=arange(nx-indx2,nx-indx1,step)
+      #yrange=arange(ny-indy2,ny-indy1,step) #;print yrange
+      #
+      nnx1=nx-indx2; nnx2=nx-indx1
+      nny1=ny-indy2; nny2=ny-indy1                
+      im=im[nnx1:nnx2,nny1:nny2]
       #############################################
       # final transformation to match topohdf
-      #im=transpose(im)
-      im=fliplr(im)
+      im=transpose(im)
+      im=fliplr(im)      
       #############################################                                        
-      theta = a2urad*angle
       if opts.publish !=1:
-          xyrange=(0,dx*nx,0,dy*ny)
+          #xyrange=(0,dx*nx,0,dy*ny)
+          xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # for some reason the arrays should be transposed 
           plt.figure()
           plt.imshow(im, extent=xyrange)  
           plt.colorbar()
@@ -155,16 +199,21 @@ def main(opts, args):
           plt.xlabel('x [mm]')
           plt.ylabel('y [mm]') 
       else:
+          user_dir = os.getcwd()             
+          sys.path.append(user_dir) 
           from publish import figplot
-          indx1=0; indx2=nx
-          indy1=0; indy2=ny 
+          from publish import a2urad                    
+          sys.path.pop()
+          theta = a2urad*angle
+          #indx1=0; indx2=nx
+          #indy1=0; indy2=ny 
           print "opts.transpose", opts.transpose
           figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,im,fn,theta)
       count = count + 1              
       outFile.write('# filename: '+fn+'\n')
       outFile.write('# image: '+str(nx)+' x '+str(ny)+'\n')
-      outFile.write('theta [urad] = '+str(theta)+'\n')
-      outFile.write('chi [orig. u.] = '+str(chi)+'\n')
+      outFile.write('angle [orig. units]  = '+str(angle)+'\n')
+      outFile.write('chi [orig. units] = '+str(chi)+'\n')
   outFile.close  
   plt.show()     
     

@@ -14,7 +14,7 @@ import sys
 from scipy.special import legendre
 from pylab import *
 
-## TO RUN LOCALLY:
+# TO RUN LOCALLY:
 #import commands
 #cmdout=commands.getstatusoutput('echo $HOME')
 #libpath=cmdout[1]+'/bin/DTXRD/'
@@ -30,7 +30,7 @@ from pylab import *
 #from dtxrd2_k import *
 #from constants import *
 
-## TO RUN GLOBALLY:
+#TO RUN GLOBALLY:
 from dtxrd.myio import *
 from dtxrd.rotation import *
 from dtxrd.curvestat import *

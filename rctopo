@@ -33,6 +33,7 @@ from dtxrd.roll_zeropad import roll_zeropad
 #from __future__ import division
 from matplotlib.patches import Patch
 from pylab import *
+#from publish import *
 ##################################################################
 ## fixed constants
 ##################################################################
@@ -41,7 +42,7 @@ fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
 ##################################################################
 
-__version__='0.75'
+__version__='0.76'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
@@ -89,6 +90,8 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 #        -w option only makes sense when saving slices
 # v075   when importing modules point to user_dir through os.getcdw()
 #        append to path and when import is done exclude sys.path.pop()
+# v076   introduced calculation for total rocking curve over the selected region 
+#        output for prcurve(pixel) and trcurve(total/region) in the same file
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -138,13 +141,13 @@ def ParseArguments(args):
                 action='store',
                 dest='output',
                 default=None,
-                help='write calculated parameters to file F (defaults to stdout)',
+                help='write calculated parameters to file F (defaults to stdout); also, write output for 1pix_total.dat',
                 metavar='F')
         parser.add_option('-w', '--write',
                 action='store',
                 dest='write',
                 default=None,
-                help='write data to file D (default: do not write)',
+                help='write data to file D (default: do not write) - reserved for slice data',
                 metavar='D')        
         parser.add_option('-t', '--threshold',
                 action='store',
@@ -238,6 +241,12 @@ def ParseArguments(args):
                 dest='instrument',
                 default=0,
                 help='read parameters from instrument file ccd.py')                                                                       
+        parser.add_option('-z', '--integrate',
+                action='store',
+                dest='z',
+                default=0,
+                help='integrate reflectivity and normalize by theoretical angular acceptance for perfect crystal (input value)',
+                metavar='CONST')                  
         #Parameters
         
         opts, args = parser.parse_args(args)
@@ -275,6 +284,7 @@ def main(opts, args):
   sf=float(opts.f);    print "Limit scale factor for plotting (sf) = ", sf
   mf=float(opts.m);    print "Shrink FWHM colormap range", mf
   nf=len(args);	       print "Number of files to analyze = ", nf
+  zf=float(opts.z);    print "integrate reflectivity", zf
   if opts.instrument == 1:  # if instrument file ccd.py is used
     user_dir = os.getcwd()
     sys.path.append(user_dir)
@@ -336,7 +346,10 @@ def main(opts, args):
     th=5.86*array(th_deg)                      # th_deg in microns
   elif opts.units=='volt':
     th=22.1388*array(th_deg)                      # th_deg in microns
- 
+
+################################################################################
+## theta origin is defined here as the center of the angular range in the scan 
+################################################################################
   th_beg=th[0]
   th_end=th[len(th)-1]
 #  th0=0.5*(th[0]+th[len(th)-1])
@@ -401,7 +414,9 @@ def main(opts, args):
   com=numpy.empty((nx,ny))   #4
   thneg=numpy.empty((nx,ny)) #5
   thpos=numpy.empty((nx,ny)) #6
-  fwhm1=[]; peak1=[]; thmid1=[]; com1=[]; thpos1=[]; thneg1=[] # arrays to calclulate rms and pv
+  stdev=numpy.empty((nx,ny)) #7
+  fwhm1=[]; peak1=[]; thmid1=[]; com1=[]; thpos1=[]; thneg1=[]; stdev1=[] # arrays to calclulate rms and pv
+  rcurve_tot = [] # initialize total rcurve list
 #-------------------------------------------------------  
   if opts.bkg > 0:
     bkg=float(opts.bkg)
@@ -421,7 +436,6 @@ def main(opts, args):
       #-------------------------------------------------
       if opts.bkg==-1:    
         bkg=0.25*(rcurve[0]+rcurve[1]+rcurve[len(rcurve)-2]+rcurve[len(rcurve)-1]) #; print 'bkg = ', bkg  
-
       #------------------------------------------------
       # Deglitching procedure
       #------------------------------------------------                  
@@ -433,24 +447,24 @@ def main(opts, args):
           mean=0.25*(rcurve[k-2]+rcurve[k-1]+rcurve[k+1]+rcurve[k+2])
           if y > df*mean or y < (2.0-df)*mean:
             rcurve[k]=mean
-            print "X= ", dx*i, "Y= ",dy*j, " glitch found"                                      
-      #------------------------------------------------ 
+            print "X= ", dx*i, "Y= ",dy*j, " glitch found"   
+      #---------------------------------------------------------------------------------------
+      # add rcurve to rcurve_tot - afer deglitching if it is activated
+      # subtracting bkg since it can vary from pixel to pixel
+      rcurve_tot = rcurve_tot + [rcurve-bkg]                                    
+      #--------------------------------------------------------------------------------------- 
       rcmax=max(rcurve)
       rmax=rcmax-bkg		       #; print 'rmax= ', rmax
-      #------------------------------------------------      
+      #---------------------------------------------------------------------------------------
 #     tot=sum(rcurve)/len(rcurve)      #; print 'tot = ', tot
       rcurve_l=list(rcurve)
       max_i=rcurve_l.index(rcmax)
       thi0=th[max_i]-th0
-                                      
-#      if rmax==abs_max:
-#      if (i*dx==1.92) and (j*dy==1.92):
-#     specific point chosen:
-#      xi=60; yi=40
-#      thi0=-7.0      
+      #---------------------------------------------------------      
+      # define central pixel                                     
       indx0=int(0.5*(xrange[0]+xrange[len(xrange)-1]))
-#      int(0.5*len(xrange)) #; print indx0
       indy0=int(0.5*(yrange[0]+yrange[len(yrange)-1]))
+      #--------------------------------------------------------
       if (i==indx0) and (j==indy0):
             print "thi0 = ", thi0
             ugol=th-th0 #th_deg    
@@ -464,24 +478,27 @@ def main(opts, args):
             print 'bkg = ', bkg
             print 'p = ', p
             print "FWHM =", 2.0*abs(p[3])*sqrt(log(2)), " urad"
+            #--------------------------------------------------
+            # assign rcurve from pixel for output
+            # subtract background 
+            prcurve = rcurve - bkg               
+            ##################################################################################              
             # start plotting things ----------------------------------
             f1=plt.figure()
-            plt.plot(ugol,rcurve, 'bo')            
+            plt.plot(ugol,prcurve, 'bo',label="pixel RC") 
+            plt.plot(ugol,prcurve, 'b-')
             ugol_g=arange(ugol[0],ugol[len(ugol)-1]+0.1,0.1)
-            plt.plot(ugol_g,gauss(p,ugol_g),'g-')            
+            plt.plot(ugol_g,gauss(p,ugol_g)-p[0],'b--',label="Gaussian/pixel RC")            
             plt.title ('pixel location [mm]: X ='+str((nx-i)*dx)+', Y = '+str((ny-j)*dy))  
-            plt.xlabel('angle, [urad]', size='x-large')
+            plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size='x-large')
             plt.ylabel('Counts [a.u.]', size='x-large')
             ax = plt.gca()
-            fontsize=16
+            fontsize=12
             for tick in ax.xaxis.get_major_ticks():
                 tick.label1.set_fontsize(fontsize)
             for tick in ax.yaxis.get_major_ticks():
                 tick.label1.set_fontsize(fontsize)
                             
-            if opts.output is not None:
-               header="# RC from the selected pixel \n# columns: ugol rcurve \n"
-               writeFile("1pix.dat", header, ugol, rcurve)                                                   
 ################################################################################################################## 
 ####### PIXEL REJECTION CRITERIA ################################################################################# 
 ##################################################################################################################  
@@ -492,12 +509,13 @@ def main(opts, args):
                 p, unc, dte, stat, cov = fit1d(residuals,p0,th-th0,rcurve)                                
                 if abs(p[0]) < dyn_range*bkg0 and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg):  # and cov !='NA' # as an option
                   #
-                  fwhm_g=2.0*abs(p[3])*sqrt(log(2))
+                  fwhm_g=2.0*abs(p[3])*sqrt(log(2.0))
                   fwhm[i,j]=fwhm_g;      fwhm1=fwhm1+[fwhm[i,j]]
                   peak[i,j]=p[1];        peak1=peak1+[peak[i,j]]   # p[1] - in gauss function background already subtracted               
                   thmid[i,j]=p[2];       thmid1=thmid1+[thmid[i,j]]
                   #com[i,j]=sum((rcurve-p[0])*(th-th0))/sum(rcurve-p[0]); com1=com1+[com[i,j]]                                    
                   com[i,j]=p[2];         com1=com1+[com[i,j]]               
+                  stdev[i,j]=abs(p[3])/sqrt(2.0); stdev1=stdev1+[stdev[i,j]]
                   thneg[i,j]=p[2]-fwhm_g/2.0; thneg1=thneg1+[thneg[i,j]]
                   thpos[i,j]=p[2]+fwhm_g/2.0; thpos1=thpos1+[thpos[i,j]]
                 else:
@@ -507,23 +525,32 @@ def main(opts, args):
                   com[i,j]=1e9
                   thneg[i,j]=1e9
                   thpos[i,j]=1e9  
+                  stdev[i,j]=1e9
           else:
               try: 
                 stat=curvestat(th-th0,rcurve,bkg)
                 if abs(stat[1]-bkg) < dyn_range*bkg and abs(stat[6]) < 0.5*abs(th_end-th_beg) and abs(stat[5]) < abs(th_end-th_beg):
-                  fwhm[i,j]=stat[5];       fwhm1=fwhm1+[fwhm[i,j]]
-                  peak[i,j]=stat[1]-bkg;   peak1=peak1+[peak[i,j]]
-                  thmid[i,j]=stat[4];      thmid1=thmid1+[thmid[i,j]]
-                  com[i,j]=stat[6];        com1=com1+[com[i,j]]
-                  thneg[i,j]=stat[2];      thneg1=thneg1+[thneg[i,j]]
-                  thpos[i,j]=stat[3];      thpos1=thpos1+[thpos[i,j]]
+                  fwhm[i,j]=stat[5];         fwhm1=fwhm1+[fwhm[i,j]]
+                  
+                  if opts.z == 0:
+                      peak[i,j]=stat[1]-bkg
+                  else:
+                      peak[i,j]=stat[8]/zf                      
+                      #                                            
+                  peak1=peak1+[peak[i,j]]    # peak intensity - bkg
+                  thmid[i,j]=stat[4];        thmid1=thmid1+[thmid[i,j]]
+                  com[i,j]=stat[6];          com1=com1+[com[i,j]]
+                  stdev[i,j]=sqrt(abs(stat[7]));  stdev1=stdev1+[stdev[i,j]]  # variance to standard deviation
+                  thneg[i,j]=stat[2];        thneg1=thneg1+[thneg[i,j]]
+                  thpos[i,j]=stat[3];        thpos1=thpos1+[thpos[i,j]]
                 else:
                   fwhm[i,j]=1e9
                   peak[i,j]=1e9
                   thmid[i,j]=1e9
                   com[i,j]=1e9
                   thneg[i,j]=1e9
-                  thpos[i,j]=1e9                                                            
+                  thpos[i,j]=1e9
+                  stdev[i,j]=1e9                                                            
 ####################################################################
 ## Testing
 ####################################################################
@@ -542,6 +569,7 @@ def main(opts, args):
                 com[i,j]=1e9
                 thneg[i,j]=1e9
                 thpos[i,j]=1e9
+                stdev[i,j]=1e9
           
       else:  
         fwhm[i,j]=1e9
@@ -550,47 +578,81 @@ def main(opts, args):
         com[i,j]=1e9
         thneg[i,j]=1e9
         thpos[i,j]=1e9
-
+        stdev[i,j]=1e9
+                
 #  norm=peak.max() 
 #  print "blah"
 #  print peak1
-  norm=max(peak1) 
-  peak=peak/norm
-  peak1=peak1/norm        
+  norm=max(peak1)
+  if zf == 0:
+      peak=peak/norm
+      peak1=peak1/norm        
   
   fwhm1=array(fwhm1)
+  stdev1=array(stdev1)
   peak1=array(peak1)
   thmid1=array(thmid1)
-  com1=array(com1)
+  com1=array(com1)  
   thneg1=array(thneg1)
   thpos1=array(thpos1)
   
   out='------------------------------------------------------------------------\n'
   #----------------------------------------------------------------------------------
-  fwhm0=average(fwhm1);          out=out+"FWHM_average = "+str(fwhm0)+" urad\n"
-  fwhm_rms=std(fwhm1);           out=out+"FWHM_rms = "+str(fwhm_rms)+" urad\n"
-  fwhm_pv=max(fwhm1)-min(fwhm1); out=out+"FWHM_pv = "+str(fwhm_pv)+" urad\n"
+  fwhm0=average(fwhm1);          out = out + "FWHM_average = "+str(fwhm0)+" urad\n"
+  fwhm_rms=std(fwhm1);           out = out + "FWHM_rms = "+str(fwhm_rms)+" urad\n"
+  fwhm_pv=max(fwhm1)-min(fwhm1); out = out + "FWHM_pv = "+str(fwhm_pv)+" urad\n"
   #----------------------------------------------------------------------------------
-  peak0=average(peak1);          out=out+"Reflect_average = "+str(peak0)+"\n"
-  peak_rms=std(peak1);           out=out+"Reflect_rms = "+str(peak_rms)+"\n"
-  peak_pv=max(peak1)-min(peak1); out=out+"reflect_pv = "+str(peak_pv)+"\n"
+  stdev0=average(stdev1);           out = out + "STDEV_average = "+str(stdev0)+" urad\n"
+  stdev_rms=std(stdev1);            out = out + "STDEV_rms = "+str(stdev_rms)+" urad\n"
+  stdev_pv=max(stdev1)-min(stdev1); out = out + "STDEV_pv = "+str(stdev_pv)+" urad\n"
   #----------------------------------------------------------------------------------
-  com0=average(com1);         out=out+"COM_average = "+str(com0)+" urad\n"
-  com_rms=std(com1);          out=out+"COM_rms = "+str(com_rms)+" urad\n"
-  com_pv=max(com1)-min(com1); out=out+"COM_pv = "+str(com_pv)+" urad\n"
+  peak0=average(peak1);          out = out + "Reflect_average = "+str(peak0)+"\n"
+  peak_rms=std(peak1);           out = out + "Reflect_rms = "+str(peak_rms)+"\n"
+  peak_pv=max(peak1)-min(peak1); out = out + "reflect_pv = "+str(peak_pv)+"\n"
   #----------------------------------------------------------------------------------
-  thmid0=average(thmid1);           out=out+"thmid_average ="+str(thmid0)+" urad\n"
-  thmid_rms=std(thmid1);            out=out+"thmid_rms = "+str(thmid_rms)+" urad\n"
-  thmid_pv=max(thmid1)-min(thmid1); out=out+"thmid_pv = "+str(thmid_pv)+" urad\n"
+  com0=average(com1);         out = out + "COM_average = "+str(com0)+" urad\n"
+  com_rms=std(com1);          out = out + "COM_rms = "+str(com_rms)+" urad\n"
+  com_pv=max(com1)-min(com1); out = out + "COM_pv = "+str(com_pv)+" urad\n"
   #----------------------------------------------------------------------------------
-  thneg0=average(thneg1);           out=out+"thneg_average = "+str(thneg0)+" urad\n"
-  thneg_rms=std(thneg1);            out=out+"thneg_rms = "+str(thneg_rms)+" urad\n"
-  thneg_pv=max(thneg1)-min(thneg1); out=out+"thneg_pv = "+str(thneg_pv)+" urad\n"
+  thmid0=average(thmid1);           out = out + "thmid_average ="+str(thmid0)+" urad\n"
+  thmid_rms=std(thmid1);            out = out + "thmid_rms = "+str(thmid_rms)+" urad\n"
+  thmid_pv=max(thmid1)-min(thmid1); out = out + "thmid_pv = "+str(thmid_pv)+" urad\n"
   #----------------------------------------------------------------------------------
-  thpos0=average(thpos1);           out=out+"thpos_average = "+str(thpos0)+" urad\n"
-  thpos_rms=std(thpos1);            out=out+"thpos_rms = "+str(thpos_rms)+" urad\n"
-  thpos_pv=max(thpos1)-min(thpos1); out=out+"thpos_pv = "+str(thpos_pv)+" urad\n"
+  thneg0=average(thneg1);           out = out +"thneg_average = "+str(thneg0)+" urad\n"
+  thneg_rms=std(thneg1);            out = out + "thneg_rms = "+str(thneg_rms)+" urad\n"
+  thneg_pv=max(thneg1)-min(thneg1); out = out + "thneg_pv = "+str(thneg_pv)+" urad\n"
   #----------------------------------------------------------------------------------
+  thpos0=average(thpos1);           out = out + "thpos_average = "+str(thpos0)+" urad\n"
+  thpos_rms=std(thpos1);            out = out + "thpos_rms = "+str(thpos_rms)+" urad\n"
+  thpos_pv=max(thpos1)-min(thpos1); out = out + "thpos_pv = "+str(thpos_pv)+" urad\n"
+  out = out + '------------------------------------------------------------------------\n'
+  #----------------------------------------------------------------------------------
+
+##############################################################################
+## Total rocking curve
+##############################################################################
+  rcurve_tot = array(rcurve_tot)
+  trcurve =  sum(rcurve_tot,axis=0)/len(rcurve_tot)
+  # Stats:
+  bkg_tot=0.25*(trcurve[0]+trcurve[1]+trcurve[len(trcurve)-2]+trcurve[len(trcurve)-1]) ; print 'bkg_tot = ', bkg_tot
+  stat=curvestat(th-th0,trcurve,bkg_tot)
+  #
+  fwhm_tot=stat[5];                 out = out + "fwhm_tot = "+str(fwhm_tot)+" urad\n"
+  #
+  if opts.z == 0:
+      peak_tot=stat[1]-bkg_tot
+  else:
+      peak_tot=stat[8]/zf           
+  out = out + "peak_tot = "+str(peak_tot)+"\n"
+  #                                            
+  thmid_tot=stat[4];                out = out + "thmid_tot = "+str(thmid_tot)+" urad\n"   
+  com_tot=stat[6];                  out = out + "com_tot = "+str(com_tot)+" urad\n"
+  stdev_tot=sqrt(abs(stat[7]));     out = out + "stdev_tot = "+str(stdev_tot)+" urad\n"
+  thneg_tot=stat[2];                out = out + "thneg_tot = "+str(thneg_tot)+" urad\n"  
+  thpos_tot=stat[3];                out = out + "thpos_tot = "+str(thpos_tot)+" urad\n"       
+  plt.plot(ugol,trcurve, 'ro',label="total RC")
+  plt.plot(ugol,trcurve, 'r-')
+  plt.legend(loc='upper right')
 ##################################################################################
 ## Write output									
 ##################################################################################
@@ -609,6 +671,12 @@ def main(opts, args):
   #        +str(com[i,j])+' '+str(thmid[i,j])+' '+str(thneg[i,j])+' '+str(thpos[i,j])+'\n')
   
   outFile.close
+    
+  if opts.output is not None:
+      header="# RC from the selected pixel and total rocking curve over selected region \n# columns: ugol prcurve trcurve\n"
+      writeFile("prcurve.dat", header, ugol, prcurve)                                                   
+      header="# RC total rocking curve over selected region \n# columns: ugol trcurve\n"
+      writeFile("trcurve.dat", header, ugol, trcurve)                                                   
 ##################################################################################  
 ##  Plot results
 ##################################################################################
@@ -638,6 +706,7 @@ def main(opts, args):
   nny1=ny-indy2; nny2=ny-indy1
                 
   fwhm=fwhm[nnx1:nnx2,nny1:nny2]
+  stdev=stdev[nnx1:nnx2,nny1:nny2]
   peak=peak[nnx1:nnx2,nny1:nny2]
   thmid=thmid[nnx1:nnx2,nny1:nny2]
   com=com[nnx1:nnx2,nny1:nny2]
@@ -654,6 +723,7 @@ def main(opts, args):
       #      
       peak_sl = peak[indxsl,:]
       fwhm_sl = fwhm[indxsl,:]
+      stdev_sl = stdev[indxsl,:]
       com_sl = com[indxsl,:]
       thmid_sl = thmid[indxsl,:]
       thneg_sl = thneg[indxsl,:]
@@ -667,6 +737,7 @@ def main(opts, args):
       #
       peak_sl = peak[:,indysl]
       fwhm_sl = fwhm[:,indysl]
+      stdev_sl = stdev[:,indysl]
       com_sl = com[:,indysl]
       thmid_sl = thmid[:,indysl]
       thneg_sl = thneg[:,indysl]
@@ -676,6 +747,7 @@ def main(opts, args):
       str_axis='x [mm]'
   #
   fwhm=transpose(fwhm)
+  stdev=transpose(stdev)
   peak=transpose(peak)
   thmid=transpose(thmid)
   com=transpose(com)
@@ -683,7 +755,8 @@ def main(opts, args):
   thpos=transpose(thpos)
   
   peak=fliplr(peak)
-  fwhm=fliplr(fwhm)  
+  fwhm=fliplr(fwhm)
+  stdev=fliplr(stdev)  
   thmid=fliplr(thmid) 
   com=fliplr(com) 
   thneg=fliplr(thneg)
@@ -694,6 +767,7 @@ def main(opts, args):
   if ysl >=0 or xsl >=0: 
       peak_sl=peak_sl[::-1]
       fwhm_sl=fwhm_sl[::-1]
+      stdev_sl=stdev_sl[::-1]
       thmid_sl=thmid_sl[::-1]
       com_sl=com_sl[::-1]
       thneg_sl=thneg_sl[::-1]
@@ -718,9 +792,17 @@ def main(opts, args):
   figtext(0.1,0.025,param)
   
   plt.subplot(331)
-  plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-  plt.colorbar()
-  plt.title('normalized reflectivity',size=20)
+  #plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+  #plt.colorbar()  
+  if opts.z == 0:
+      plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+      plt.title('normalized reflectivity',size=20)
+      plt.colorbar()
+  else: 
+      vmin0=min(peak1)/1e6; vmax0=max(peak1)/1e6
+      plt.imshow(peak/1e6, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
+      plt.title('integrated refl. [cnt x urad x 10$^6$]',size=20)
+      plt.colorbar()
   #plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
 
@@ -728,12 +810,25 @@ def main(opts, args):
 #  vmax0=round(fwhm_r*fwhm0,-1)
   vmin0=round(fwhm0*(1.0-mf*sf))
   vmax0=round(fwhm0*(1.0+mf*sf))
+  if vmin0 < 0: vmin0 = 0
   
   plt.subplot(332)
   plt.imshow(fwhm, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
   plt.colorbar()
   plt.title('FWHM [urad]',size=20)
   #plt.xlabel('x [mm]')
+  plt.ylabel('y [mm]')
+  #grid(True)
+
+  vmin0=round(stdev0*(1.0-mf*sf))
+  vmax0=round(stdev0*(1.0+mf*sf))
+  if vmin0 < 0: vmin0 = 0
+    
+  plt.subplot(333)
+  plt.imshow(stdev, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
+  plt.colorbar()
+  plt.title('STDEV [urad]',size=20)
+  plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
   #grid(True)
 
@@ -778,19 +873,18 @@ def main(opts, args):
   plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
 
-
-  plt.subplot(333) 
-  axis('off')
-  plt.title('Crystal orientation')
-  plt.annotate('vertical', xy=(0.5,1.0), xytext=(0.5,0.0),
-              arrowprops=dict(facecolor='black', shrink=0.05),
-                          )
-  plt.annotate('horizontal', xy=(1.0,0.5), xytext=(0.0,0.5),
-              arrowprops=dict(facecolor='black', shrink=0.05),
-                          )
+  #plt.subplot(333) 
+  #axis('off')
+  #plt.title('Crystal orientation')
+  #plt.annotate('vertical', xy=(0.5,1.0), xytext=(0.5,0.0),
+  #            arrowprops=dict(facecolor='black', shrink=0.05),
+  #                        )
+  #plt.annotate('horizontal', xy=(1.0,0.5), xytext=(0.0,0.5),
+  #            arrowprops=dict(facecolor='black', shrink=0.05),
+  #                        )
   plt.subplot(339)
   axis('off')
-  plt.text(0,0,out,size=20)  
+  plt.text(0,0,out,size=13)  
 #  plt.show()
   ################################
   # output for GLE
@@ -822,8 +916,12 @@ def main(opts, args):
     user_dir = os.getcwd()
     sys.path.append(user_dir)
     from figures import figplot        
+    com_exp = array(com)-com0
     thmid_exp=array(thmid)-thmid0
-    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,thmid_exp,fwhm,peak)
+    thneg_exp=array(thneg)-thneg0
+    thpos_exp=array(thpos)-thpos0
+    #figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,thmid_exp,fwhm,peak)
+    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com_exp,thmid_exp,thneg_exp,thpos_exp)
     sys.path.pop()
 
 ########################################################################################
@@ -849,27 +947,34 @@ def main(opts, args):
       #plt.ylabel('y [mm]')
 
       plt.subplot(333)
+      stdev_sl_m=np.ma.array(stdev_sl,mask=stdev_sl>100.0*stdev0)
+      plt.plot(range_sl,stdev_sl_m)
+      plt.title('STDEV [urad]',size=20)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(334)
       com_sl_m=np.ma.array(com_sl,mask=com_sl>1.0e6)
       plt.plot(range_sl,com_sl_m)
       plt.title('COM (angle) [urad]',size=20)
       #plt.xlabel('x [mm]')
       #plt.ylabel('y [mm]')
 
-      plt.subplot(334)
+      plt.subplot(335)
       thmid_sl_m=np.ma.array(thmid_sl,mask=thmid_sl>1.0e6)
       plt.plot(range_sl,thmid_sl_m)
       plt.title('mid-point (angle) [urad]',size=20)
       plt.xlabel(str_axis)
       #plt.ylabel('y [mm]')
 
-      plt.subplot(335)
+      plt.subplot(336)
       thneg_sl_m=np.ma.array(thneg_sl,mask=thneg_sl>1.0e6)
       plt.plot(range_sl,thneg_sl_m)
       plt.title('left slope (angle) [urad]',size=20)
       plt.xlabel(str_axis)
       #plt.ylabel('y [mm]')
 
-      plt.subplot(336)
+      plt.subplot(337)
       thpos_sl_m=np.ma.array(thpos_sl,mask=thpos_sl>1.0e6)
       plt.plot(range_sl,thpos_sl_m)
       plt.title('right slope (angle) [urad]',size=20)
@@ -883,9 +988,9 @@ def main(opts, args):
             +'# version '+__version__+' by Stanislav Stoupin\n' \
             +'# Slices data\n' \
             +'# columns: \n' \
-            '# '+str_axis+' peak(norm) FWHM[urad] COM[urad] mid-point[urad] left-slope[urad] right-slope[urad] \n'
+            '# '+str_axis+' peak(norm) FWHM[urad] COM[urad] mid-point[urad] left-slope[urad] right-slope[urad] STDEV[urad]\n'
      try:                
-            writeFile(opts.write,header,range_sl,peak_sl_m,fwhm_sl_m,com_sl_m,thmid_sl_m,thneg_sl_m,thpos_sl_m)
+            writeFile(opts.write,header,range_sl,peak_sl_m,fwhm_sl_m,com_sl_m,thmid_sl_m,thneg_sl_m,thpos_sl_m,stdev_sl_m)
      except IOError, e:
             fatalIOError(e)                                        
                    

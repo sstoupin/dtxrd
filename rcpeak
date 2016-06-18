@@ -18,19 +18,19 @@ from scipy.optimize import *
 from pylab import *
 from scipy.interpolate import interp1d
 
-## LOCAL
+#LOCAL
 #from myio import *
 #from curvestat import *
 #from deriv import *
 #from merge_vect import *
 
-## GLOBAL
+#GLOBAL
 from dtxrd.myio import *
 from dtxrd.curvestat import *
 from dtxrd.deriv import *
 from dtxrd.merge_vect import *
 
-__version__='0.31'
+__version__='0.34'
 proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
 ##############################################################################################################################
@@ -58,6 +58,9 @@ proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.go
 # v0.29 interp1d made avail for derivative fitting but decided to keep spline for now
 # v0.30 th,r are sorted now before processing - this caused some issues in fitting the derivative!
 # v0.31 skip plotting semilog in lookup mode
+# v0.32 keep th0_mid = 0.0 to plot data without offset on the angular scale
+# v0.33 avoid unavailable computation of corr if gauss or lorentz fits fail
+# v0.34 add time series statistics (-s option): average and std - used only when -l option
 ##############################################################################################################################
 # Todo list
 # 1. interpolate data
@@ -192,6 +195,13 @@ def ParseArguments(args):
                 default=0,  
                 help='normalize for plotting',
                 metavar='norm')
+        parser.add_option('-s', '--stat',
+                action='store_const',
+                const=1,
+                dest='stat', 
+                default=0,  
+                help='do time series statistics',
+                metavar='stat')
         ##########################################################################################    
         #Parameters
         ##########################################################################################
@@ -273,6 +283,7 @@ def main(opts, args):
             bkg=0.25*(r[0]+r[1]+r[len(r)-2]+r[len(r)-1])
             # reference in theta
             th0_mid = 0.0  # will be redefined later if analysis is performed            
+                           # v0.32 decided to keep it zero so that the original angular scale is plotted without offset for all processed files
             if opts.lookup ==0: 
              result=curvestat(th,r,bkg)
              th_max=result[0]; r_max=result[1]
@@ -287,8 +298,10 @@ def main(opts, args):
                                                                         
              fwhm_=fwhm_+[fwhm]; com_=com_+[com]
 #            c_pos_=c_pos_+[c_pos]; c_neg_=c_neg_+[c_neg]
-             if fn==args[0]: 
-                    th0_mid=th_mid   # th0_mid defined
+             
+             #if fn==args[0]: 
+             #       th0_mid=th_mid   # th0_mid defined
+             # v0.32 decided to keep it zero so that the original angular scale is plotted without offset for all processed files
           #--------------------------------
           # gaussian fit
           #--------------------------------          
@@ -300,17 +313,20 @@ def main(opts, args):
              bkg_g=p_fin[0]; r_max_g=p_fin[1]; th_max_g=p_fin[2]; fwhm_g=sqrt(4.0*log(2.0))*p_fin[3]
 #            fwhmg_=fwhmg_+[fwhm_g]
 #            thmaxg_=thmaxg_+[th_max_g]
-
              chisq = abs(sum((residuals1(p_fin,y,x))**2.0))
              r2 = sum(residuals1(p_fin,y,x)**2.0)/sum((r_g-p_fin[0])**2.0)
              stdv = sqrt(1.0/N1*chisq)
-             corr = stdv*sqrt(abs(gaussfit[1]))
-             uncert = diag(corr)
+             #print gaussfit[1]
+             if gaussfit[1] != None:
+                 corr = stdv*sqrt(abs(gaussfit[1]))
+                 uncert = diag(corr)
+             else:
+                 print "Warning: fit did not converge!"
+                 uncert = [0,0,0,0]
              u_bkg_g = uncert[0]
              u_rmax_g = uncert[1] 
              u_thmax_g = uncert[2]
              u_fwhm_g = sqrt(4.0*log(2.0))*uncert[3]
-            
              outFile.write('------------------------------------------------------------\n')
              outFile.write('Gaussian fit: \n')
              outFile.write('fwhm_g = '+str(cf*fwhm_g)    +' +- '+str(cf*u_fwhm_g)+'\n')
@@ -333,9 +349,12 @@ def main(opts, args):
              chisq = abs(sum((residuals2(p_fin,y,x))**2.0))
              r2 = sum(residuals1(p_fin,y,x)**2.0)/sum((r_l-p_fin[0])**2.0)
              stdv = sqrt(1.0/N1*chisq)
-             corr = stdv*sqrt(abs(gaussfit[1]))
-             uncert = diag(corr)
-          
+             if lorentzfit[1] != None:   
+                 corr = stdv*sqrt(abs(lorentzfit[1]))
+                 uncert = diag(corr)
+             else:
+                 print "Warning: fit did not converge!"
+                 uncert = [0,0,0,0]          
              outFile.write('-------------------------------------------------------------------\n')
              outFile.write('Lorentzian fit: \n')
              outFile.write('fwhm_l = '+str(cf*fwhm_l)+'\n')
@@ -367,12 +386,20 @@ def main(opts, args):
              if opts.cntr!=0:
                 outFile.write('C_pos = '+str(c_pos)+'\n')            
                 outFile.write('C_neg = '+str(c_neg)+'\n')                                    
+            else:
+             outFile.write('simply looking at data - no curve statistics\n')
+             if opts.stat ==1:
+              outFile.write('treat data as time series, calculate average, and standard dev.\n')
+              r_aver = mean(r)
+              r_std  = std(r)
+              outFile.write('mean = '+str(r_aver)+'\n')
+              outFile.write('std  = '+str(r_std)+'\n')            
             #--------------------------------------------------------------
             # Plot results
             #--------------------------------------------------------------
             th=th-th0_mid
             thint=thint-th0_mid
-            if opts.plotting == 1:
+            if opts.plotting == 1 and opts.lookup == 0:
                 fig = plt.figure(count)
                 #plt.title('Peak')
                 ax1=fig.add_subplot(111)
