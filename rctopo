@@ -42,7 +42,7 @@ fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
 ##################################################################
 
-__version__='0.76'
+__version__='0.77'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
@@ -92,6 +92,8 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 #        append to path and when import is done exclude sys.path.pop()
 # v076   introduced calculation for total rocking curve over the selected region 
 #        output for prcurve(pixel) and trcurve(total/region) in the same file
+# v077   improve logic on handling integrated reflectivity (now possible to integrate 
+#        and normalize)
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -245,7 +247,8 @@ def ParseArguments(args):
                 action='store',
                 dest='z',
                 default=0,
-                help='integrate reflectivity and normalize by theoretical angular acceptance for perfect crystal (input value)',
+                help='integrate reflectivity and normalize by theoretical angular acceptance for perfect crystal (input value) \n' 
+                + 'hint: z == 0 - do not integrate (default), z != 0 - integrate , z ==-1 - integrate and normalize by max. value',
                 metavar='CONST')                  
         #Parameters
         
@@ -284,7 +287,7 @@ def main(opts, args):
   sf=float(opts.f);    print "Limit scale factor for plotting (sf) = ", sf
   mf=float(opts.m);    print "Shrink FWHM colormap range", mf
   nf=len(args);	       print "Number of files to analyze = ", nf
-  zf=float(opts.z);    print "integrate reflectivity", zf
+  zf=int(opts.z);      print "integrate reflectivity (==0 no, !=0 yes, ==-1 normalize", zf
   if opts.instrument == 1:  # if instrument file ccd.py is used
     user_dir = os.getcwd()
     sys.path.append(user_dir)
@@ -535,7 +538,7 @@ def main(opts, args):
                   if opts.z == 0:
                       peak[i,j]=stat[1]-bkg
                   else:
-                      peak[i,j]=stat[8]/zf                      
+                      peak[i,j]=stat[8]/abs(zf)
                       #                                            
                   peak1=peak1+[peak[i,j]]    # peak intensity - bkg
                   thmid[i,j]=stat[4];        thmid1=thmid1+[thmid[i,j]]
@@ -584,7 +587,7 @@ def main(opts, args):
 #  print "blah"
 #  print peak1
   norm=max(peak1)
-  if zf == 0:
+  if zf == 0 or zf == -1:
       peak=peak/norm
       peak1=peak1/norm        
   
@@ -794,13 +797,17 @@ def main(opts, args):
   plt.subplot(331)
   #plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
   #plt.colorbar()  
-  if opts.z == 0:
+  if zf == 0:
       plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-      plt.title('normalized reflectivity',size=20)
+      plt.title('peak reflectivity [n.u.]',size=20)
       plt.colorbar()
+  elif zf == -1:
+     plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+     plt.title('integrated refl. [n.u.]',size=20)
+     plt.colorbar()      
   else: 
-      vmin0=min(peak1)/1e6; vmax0=max(peak1)/1e6
-      plt.imshow(peak/1e6, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
+      vmin0=min(peak1)/1.0e6; vmax0=max(peak1)/1.0e6
+      plt.imshow(peak/1.0e6, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
       plt.title('integrated refl. [cnt x urad x 10$^6$]',size=20)
       plt.colorbar()
   #plt.xlabel('x [mm]')

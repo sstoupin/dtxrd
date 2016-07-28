@@ -41,7 +41,7 @@ from dtxrd.deriv import *
 
 
 prog = os.path.basename(sys.argv[0])
-__version__ = '0.33'
+__version__ = '0.34'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -76,6 +76,7 @@ __version__ = '0.33'
 # v 0.31 secondary electron yield implemented + write SYplot data if -s option is used
 # v 0.32 replaced optik with argparse and got rid of "division by zero" in the calculation of Dr
 # v 0.33 minor rearrangements of "prog", deleted some obsolete comments
+# v 0.34 added RC width for double-crystal symmetric configuration (sqrt(2)*dth_s)
 #-------------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. draw a figure of crystal and waves
@@ -139,7 +140,7 @@ def ParseArguments():
                 dest='syield', 
                 default=-1,  
                 metavar='Ls',
-                help='calculate secondary radiation yield with escape depth Ls [Angstrom]')
+                help='calculate secondary radiation yield with escape length Ls [Angstrom]')
 #-----------------------------------------------------------------------------------------------
         parser.add_argument('crystal', action='store', nargs=1, help=msg1)
         parser.add_argument('h', action='store', type=float, nargs=1, help=msg2)
@@ -506,6 +507,7 @@ def main():
         outFile.write('Dr [urad/meV] = '+str(Dr)+' Intrinsic Angular Dispersion Rate \n') 
         outFile.write('de [um] = '+str(1.0e-4*de)+' Extinction depth \n')
         outFile.write('dl [um] = '+str(1.0e-4*2.0*pi*de)+' Extinction distance (Pend. length) \n')
+        outFile.write('dth2 [urad] = '+str(1.0e6*dth_s*sqrt(2.0))+' double-crystal rocking curve for the symmetric reflection (sqrt(2)*dth_s) \n')
         #
         outFile.write('#-------------------------------------------------------------\n')
         
