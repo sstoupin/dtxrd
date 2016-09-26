@@ -81,6 +81,11 @@ For a brief summary run::
 :-i, --instrument:      
        read detector and image analysis parameters from instrument file ccd.py
 
+:-z CONST, --integrate=CONST:
+       integrate reflectivity and normalize by theoretical angular acceptance for perfect crystal (input value);
+       specific cases: z = 0 - do not integrate (default), z = -1 - integrate and normalize by the maximum value
+         
+
 EXAMPLES
 ===========
 
