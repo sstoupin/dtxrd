@@ -16,6 +16,11 @@ import numpy
 import operator
 
 # LOCAL
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/dtxrd/lib/dtxrd/'
+#sys.path.append(libpath)
+
 #from numpy import *
 #from pyhdf import *
 #from curvestat import *
@@ -32,6 +37,7 @@ from dtxrd.roll_zeropad import roll_zeropad
 
 #from __future__ import division
 from matplotlib.patches import Patch
+import matplotlib.image as mpimg
 from pylab import *
 #from publish import *
 ##################################################################
@@ -42,7 +48,7 @@ fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
 ##################################################################
 
-__version__='0.77'
+__version__='0.81'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
@@ -94,13 +100,20 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 #        output for prcurve(pixel) and trcurve(total/region) in the same file
 # v077   improve logic on handling integrated reflectivity (now possible to integrate 
 #        and normalize)
+# v078   began work on implementing transmissivity measurements
+# v079   further changes in handling TC data: 
+#        background rejection on overall baseline transmissivity (bkg0) and 
+#        the strength of the effect (tr ~ 0.01)
+# v080   now processing forward diffracted topographs (transmission) 
+#        with an option -c (--conduct)
+# v081   now can process sequence of tiff (or other image) files using an external angular
+#        scale from first column of a data file e.g. SPECfile.dat (-e SPECfile.dat)
 #######################################################################################
 #  TODO LIST
 #######################################################################################
-# 0. need to improve comput. speed!
+# 0. improve comput. speed?
 # 1. need mouse click access to each point on the maps
-# 2. need total rocking curve
-# 3. need to select region for processing
+# 2. figure out how to handle image rotations (reference)
 ####################################################################################### 
 
 def residuals(p,y,x):
@@ -237,6 +250,12 @@ def ParseArguments(args):
                 dest='publish',
                 default=0,
                 help='generate figures for publication')
+        parser.add_option('-c', '--conduct',
+                action='store_const',
+                const=1,
+                dest='conduct',
+                default=0,
+                help='process forward diffraction data')
         parser.add_option('-i', '--instrument',
                 action='store_const',
                 const=1,
@@ -250,6 +269,11 @@ def ParseArguments(args):
                 help='integrate reflectivity and normalize by theoretical angular acceptance for perfect crystal (input value) \n' 
                 + 'hint: z == 0 - do not integrate (default), z != 0 - integrate , z ==-1 - integrate and normalize by max. value',
                 metavar='CONST')                  
+        parser.add_option('-e', '--external',
+                action='store',
+                dest='SPECscan',
+                default=None,
+                help='read angular steps from the first column of a SPEC scan')  
         #Parameters
         
         opts, args = parser.parse_args(args)
@@ -287,7 +311,8 @@ def main(opts, args):
   sf=float(opts.f);    print "Limit scale factor for plotting (sf) = ", sf
   mf=float(opts.m);    print "Shrink FWHM colormap range", mf
   nf=len(args);	       print "Number of files to analyze = ", nf
-  zf=int(opts.z);      print "integrate reflectivity (==0 no, !=0 yes, ==-1 normalize", zf
+  zf=int(opts.z);      print "integrate reflectivity (==0 no, !=0 yes, ==-1 normalize)", zf
+  #-------------------------------------------------------------------------------------------
   if opts.instrument == 1:  # if instrument file ccd.py is used
     user_dir = os.getcwd()
     sys.path.append(user_dir)
@@ -306,15 +331,42 @@ def main(opts, args):
     chi_path='/entry/instrument/detector/NDAttributes/chi'
   dx=float(rbin)*dx
   dy=float(rbin)*dy
+  ##
+  if opts.SPECscan is not None:
+    fn_ang = str(opts.SPECscan) # read SPEC scan
+    d1,d2=readFile(fn_ang)      
+    angle_v = 1.0*d2[:,0] # assume it is the first column in the SPEC scan
 #---------------------------------------------------------------------------------------------  
+  fn_count = 0 
   for fn in args:   
     fn_ext=fn.split(".")[-1]
     if fn_ext == "hdf":
       angle, size, im = read_hdf4(fn)
     elif fn_ext == "h5":
-      angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path)        
+      angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path) 
+    #  
+    elif fn_ext == "tiff" or fn_ext == "tif" or fn_ext == "png" or fn_ext == "jpg" or fn_ext == "jpeg":        
+        im = mpimg.imread(fn) # read image   
+        shape0 = im.shape
+        if len(shape0) == 2:             
+            (ny,nx) =  shape0
+            res = 1
+        elif len(shape0) == 3:
+            (ny,nx,res) = shape0        
+        chi = -9999
+        angle = angle_v[fn_count]
+        ######################
+        ## REBIN #############
+        #            
+        shape1 = (ny//rbin,nx//rbin)
+        im = rebin(im,shape1)        
+        (ny,nx) = shape1       
+        size = [ny,nx]        
+        #print "nx = ", nx
+        #print "ny = ", ny           
+        im = transpose(im)
     else:
-      fatalError('Supported files are either hdf4 (extension .hdf) or hdf5 (extension h5)')  
+      fatalError('Supported files are: hdf4 (ext .hdf), hdf5 (ext h5), image file (ext tif,tiff,png,jpg or jpeg)')  
 #   
     if opts.transpose == 0:
         im=transpose(im)
@@ -327,11 +379,13 @@ def main(opts, args):
         im=flipud(im)
 #  print im.dtype
     print "filename: ", fn
+    print "fn_count: ", fn_count    
     print "theta = ", angle
     print "chi = ", chi        
 ### sorting data by angle #######################
     data_fn=[angle,im]
     alldata=alldata+[data_fn]
+    fn_count = fn_count + 1
     #
   alldata=sorted(alldata,key=operator.itemgetter(0))
 #################################################    
@@ -406,8 +460,8 @@ def main(opts, args):
   else:
     indy2=int(rngy2/dy)        
   
-  xrange=arange(nx-indx2,nx-indx1,step)
-  yrange=arange(ny-indy2,ny-indy1,step) #;print yrange
+  xrange=arange(nx-indx2,nx-indx1,step) #;print "xrange = ", xrange
+  yrange=arange(ny-indy2,ny-indy1,step) #;print "yrange = ", yrange
 #-----------------------------------------------------
 #initialize arrays
 #-----------------------------------------------------
@@ -454,10 +508,21 @@ def main(opts, args):
       #---------------------------------------------------------------------------------------
       # add rcurve to rcurve_tot - afer deglitching if it is activated
       # subtracting bkg since it can vary from pixel to pixel
-      rcurve_tot = rcurve_tot + [rcurve-bkg]                                    
-      #--------------------------------------------------------------------------------------- 
-      rcmax=max(rcurve)
-      rmax=rcmax-bkg		       #; print 'rmax= ', rmax
+      
+      if opts.conduct == 1:
+          rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg)]  # TC        
+          rcurve = -1.0*(rcurve-bkg)  # TC
+          bkgs = 0.0    # TC      
+          rcmax=max(rcurve)
+          rmax=rcmax       # TC
+          #rmax=bkg        # TC
+      if opts.conduct == 0:
+          rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
+          bkgs = bkg  #RC
+          rcmax=max(rcurve)
+          rmax=rcmax-bkg # RC     
+      ###debug:  
+      #print 'rmax= ', rmax
       #---------------------------------------------------------------------------------------
 #     tot=sum(rcurve)/len(rcurve)      #; print 'tot = ', tot
       rcurve_l=list(rcurve)
@@ -471,20 +536,21 @@ def main(opts, args):
       if (i==indx0) and (j==indy0):
             print "thi0 = ", thi0
             ugol=th-th0 #th_deg    
-            p0=[bkg,rcmax,thi0,fwhm_0] #bkg max center std
+            p0=[bkgs,rcmax,thi0,fwhm_0] #bkg max center
             p, unc, dte, stat, cov = fit1d(residuals,p0,ugol,rcurve) 
             com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0]); print "com = ", com0
             print '--------------------------------------------------------------------------'
             print 'Gaussian fit at the central pixel'
             print 'X0 [mm] = ', float(xrange[0] + indx0)*dx
             print 'Y0 [mm] = ', float(yrange[0] + indy0)*dy
-            print 'bkg = ', bkg
+            print 'bkg  = ', bkg
+            print 'bkgs = ', bkgs
             print 'p = ', p
             print "FWHM =", 2.0*abs(p[3])*sqrt(log(2)), " urad"
             #--------------------------------------------------
             # assign rcurve from pixel for output
             # subtract background 
-            prcurve = rcurve - bkg               
+            prcurve = rcurve - bkgs               
             ##################################################################################              
             # start plotting things ----------------------------------
             f1=plt.figure()
@@ -505,16 +571,35 @@ def main(opts, args):
 ################################################################################################################## 
 ####### PIXEL REJECTION CRITERIA ################################################################################# 
 ##################################################################################################################  
-      if bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0:  
-                    
+      if opts.conduct == 0: #RC
+          crit1 = bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0            
+      elif opts.conduct == 1: #TC
+          crit1 = bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0 and bkg>bkg0
+      # explicitly:          
+      #if bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0:  #RC
+      #if bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0 and bkg>bkg0:            #TC 
+      if crit1 == True:
+              
           if opts.stat==1:
-                p0=[bkg,rcmax,thi0,fwhm_0]
-                p, unc, dte, stat, cov = fit1d(residuals,p0,th-th0,rcurve)                                
-                if abs(p[0]) < dyn_range*bkg0 and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg):  # and cov !='NA' # as an option
+                p0=[bkgs,rcmax,thi0,fwhm_0]
+                p, unc, dte, stat, cov = fit1d(residuals,p0,th-th0,rcurve)
+                if opts.conduct == 0: #RC
+                  crit2 = abs(p[0]) < dyn_range*bkg0 and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg)  # and cov !='NA' # as an option
+                elif opts.conduct == 1: #TC  
+                  crit2 = abs(p[0]) < dyn_range*bkg0 and abs(p[1])>tr*bkg and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg)
+                #if abs(p[0]) < dyn_range*bkg0 and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg):  # and cov !='NA' # as an option
+                #if abs(p[0]) < dyn_range*bkg0 and abs(p[1])>tr*bkg and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg):  # TC 
+                if crit2 == True:
                   #
                   fwhm_g=2.0*abs(p[3])*sqrt(log(2.0))
-                  fwhm[i,j]=fwhm_g;      fwhm1=fwhm1+[fwhm[i,j]]
-                  peak[i,j]=p[1];        peak1=peak1+[peak[i,j]]   # p[1] - in gauss function background already subtracted               
+                  fwhm[i,j]=fwhm_g;   fwhm1=fwhm1+[fwhm[i,j]]                  
+                  if opts.z == 0: 
+                      if opts.conduct == 0:    peak[i,j] = p[1]      #RC
+                      elif opts.conduct == 1:  peak[i,j] = p[1]/bkg  #TC                 
+                  else:
+                      if opts.conduct == 0: peak[i,j] = abs(p[1])*abs(p[3])*sqrt(pi)/abs(zf)
+                      if opts.conduct == 1: peak[i,j] = abs(p[1])*abs(p[3])*sqrt(pi)/abs(zf)/bkg
+                  peak1=peak1+[peak[i,j]]   # p[1] - in gauss function background already subtracted               
                   thmid[i,j]=p[2];       thmid1=thmid1+[thmid[i,j]]
                   #com[i,j]=sum((rcurve-p[0])*(th-th0))/sum(rcurve-p[0]); com1=com1+[com[i,j]]                                    
                   com[i,j]=p[2];         com1=com1+[com[i,j]]               
@@ -531,16 +616,23 @@ def main(opts, args):
                   stdev[i,j]=1e9
           else:
               try: 
-                stat=curvestat(th-th0,rcurve,bkg)
-                if abs(stat[1]-bkg) < dyn_range*bkg and abs(stat[6]) < 0.5*abs(th_end-th_beg) and abs(stat[5]) < abs(th_end-th_beg):
+                stat=curvestat(th-th0,rcurve,bkgs)
+                if opts.conduct == 0:
+                  crit2 = abs(stat[1]-bkgs) < dyn_range*bkg0 and abs(stat[6]) < 0.5*abs(th_end-th_beg) and abs(stat[5]) < abs(th_end-th_beg)
+                if opts.conduct == 1:
+                  crit2 = abs(stat[1]-bkgs) < dyn_range*bkg0 and abs(stat[1])>tr*bkg and abs(stat[6]) < 0.5*abs(th_end-th_beg) and abs(stat[5]) < abs(th_end-th_beg)
+                #
+                if crit2 == True:
                   fwhm[i,j]=stat[5];         fwhm1=fwhm1+[fwhm[i,j]]
                   
                   if opts.z == 0:
-                      peak[i,j]=stat[1]-bkg
+                      if opts.conduct == 0:   peak[i,j]=stat[1]-bkgs   #RC
+                      elif opts.conduct == 1: peak[i,j]=stat[1]/bkg    #TC
                   else:
-                      peak[i,j]=stat[8]/abs(zf)
+                      if opts.conduct == 0:   peak[i,j]=stat[8]/abs(zf)
+                      elif opts.conduct == 1: peak[i,j]=stat[8]/abs(zf)/bkg   
                       #                                            
-                  peak1=peak1+[peak[i,j]]    # peak intensity - bkg
+                  peak1=peak1+[peak[i,j]]    # peak intensity                 
                   thmid[i,j]=stat[4];        thmid1=thmid1+[thmid[i,j]]
                   com[i,j]=stat[6];          com1=com1+[com[i,j]]
                   stdev[i,j]=sqrt(abs(stat[7]));  stdev1=stdev1+[stdev[i,j]]  # variance to standard deviation
@@ -582,13 +674,20 @@ def main(opts, args):
         thneg[i,j]=1e9
         thpos[i,j]=1e9
         stdev[i,j]=1e9
-                
+              
 #  norm=peak.max() 
 #  print "blah"
 #  print peak1
-  norm=max(peak1)
-  if zf == 0 or zf == -1:
-      peak=peak/norm
+  norm=max(peak1)  
+  print "norm = ", norm
+
+  if opts.conduct == 0:
+    if zf == 0 or zf == -1:
+      peak=peak/norm 
+      peak1=peak1/norm
+  elif opts.conduct == 1:
+    if zf == -1:
+      peak=peak/norm 
       peak1=peak1/norm        
   
   fwhm1=array(fwhm1)
@@ -645,7 +744,7 @@ def main(opts, args):
   if opts.z == 0:
       peak_tot=stat[1]-bkg_tot
   else:
-      peak_tot=stat[8]/zf           
+      peak_tot=stat[8]/abs(zf)
   out = out + "peak_tot = "+str(peak_tot)+"\n"
   #                                            
   thmid_tot=stat[4];                out = out + "thmid_tot = "+str(thmid_tot)+" urad\n"   
@@ -798,17 +897,23 @@ def main(opts, args):
   #plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
   #plt.colorbar()  
   if zf == 0:
-      plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-      plt.title('peak reflectivity [n.u.]',size=20)
+      if opts.conduct == 0:   
+          plt.title('peak reflectivity [n.u.]',size=20)
+          plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+      elif opts.conduct == 1: 
+          plt.title('peak reflectivity [abs.u.]',size=20)   # because this is absolute reflectivity!!!
+          plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=0.5)
       plt.colorbar()
   elif zf == -1:
      plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-     plt.title('integrated refl. [n.u.]',size=20)
+     if opts.conduct == 0:    plt.title('integr. refl. [n.u.]',size=20)
+     elif opts.conduct == 1:  plt.title('integr. refl. [n.u.]',size=20)
      plt.colorbar()      
   else: 
       vmin0=min(peak1)/1.0e6; vmax0=max(peak1)/1.0e6
       plt.imshow(peak/1.0e6, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
-      plt.title('integrated refl. [cnt x urad x 10$^6$]',size=20)
+      if opts.conduct == 0:   plt.title('integr. refl. [cnt x urad x 10$^6$]',size=20)
+      elif opts.conduct == 1: plt.title('integr. refl. [cnt x urad x 10$^6$]',size=20)
       plt.colorbar()
   #plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')

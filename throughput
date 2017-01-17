@@ -39,7 +39,7 @@ from dtxrd.thfind import *
 from dtxrd.dtxrd2_k import *
 from dtxrd.constants import *
 
-__version__ = '0.18'
+__version__ = '0.20'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -66,6 +66,9 @@ __version__ = '0.18'
 # 0.16 additional columns in the output file (Ex(keV) or th (deg))
 # 0.17 included -n option for assigning npsi (default npsi=200 was found insufficient for large accepted divergence - Ge111)
 # 0.18 included detailed header in the output file 'param0'
+# 0.19 new conventions to calculate integrated throughput (no more average throughput - the average throughput as defined 
+#      earlier  Tpt_int dependens on integration bandwidth)
+# 0.20 a simple model for Mo-Kalpha is included
 #-------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. vector dtxrd function?
@@ -112,7 +115,7 @@ def ParseArguments(args):
         parser.add_option('-a', '--angular_scan', type='int', action='store', dest='nth', default=0,
                 help='do angular scan with nth points')
         parser.add_option('-s', '--source', type='int', action='store', dest='src', default=0,
-                help='type of spectral distribution for the source: 0 - flat (default), 1 - Cu K alpha, 9 - spectral distribution from file source_e.dat')
+                help='type of spectral distribution for the source: 0 - flat (default), 1 - Cu Kalpha, 2 - Mo Kalpha, 9 - spectral distribution from file source_e.dat')
         parser.add_option('-w', '--write', action='store', dest='write', default=None,
                 help='write data to file (default do not write)', metavar='DATAFILE')
         parser.add_option('-p', '--pi', action='store_const', const=1, dest='polarization', default=0,  
@@ -393,10 +396,14 @@ def main(opts,args):
         elif opts.src==1:
            from beams import CuKa, CuKa_hartwig_sc
            edist=CuKa_hartwig_sc(Ev)
+        elif opts.src==2:
+           from beams import CuKa, MoKa
+           edist=MoKa(Ev)
         elif opts.src==9:
            from scipy.interpolate import interp1d
            d1,d2=readFile('source_e.dat')
-           eev=1.0e3*d2[:,0]
+           #eev=1.0e3*d2[:,0] # input data in units of keV
+           eev=1.0*d2[:,0]    # input data in units of eV
            rrv=d2[:,1]
            rrf=interp1d(eev,rrv)           
            #edist=rrf(Eran*pe_w[0])
@@ -410,10 +417,13 @@ def main(opts,args):
 ####### angular divergence ###########################################################################################
         if type !='1r':           
            #npsi=200 #now 200 is default and npsi is included as -n option
-           pa=legendre(npsi); pa_w=transpose(array(pa.weights))
-           thv=3.0*dpsi*pa_w[0]  # 3.0*dpsi=0.5*(b-a) integration from -3*dpsi to 3*dpsi; for Gauss +-3*sigma - 99.7%
-           thw=pa_w[1]
-        #thva=1.0e-6*arange(-0.5*nth*ddth,0.5*nth*ddth+ddth,ddth)  # create vector of incident angles for angular scan        
+           if npsi < 1001:
+               pa=legendre(npsi); pa_w=transpose(array(pa.weights))
+               thv=3.0*dpsi*pa_w[0]  # 3.0*dpsi=0.5*(b-a) integration from -3*dpsi to 3*dpsi; for Gauss +-3*sigma - 99.7%
+               thw=pa_w[1]
+           else:
+               step5=2.0/float(npsi); thv=3.0*dpsi*arange(-1.0,1.0+step5,step5)  
+               thw=ones(len(thv))
         if type =='l':      
            bw=0.5*dpsi # lorentz
            param_l=[0.0,1.0,th1,bw]
@@ -436,8 +446,9 @@ def main(opts,args):
         else:
            fatalError('res. function type is either "l" ,"g", "1r" or "f" at the moment')        
                    
-        Norm_th=0.5*sum(thw*psiv); print "Norm_th = ", Norm_th
-        
+        Norm_th=0.5*sum(thw*psiv)
+        #Norm_th=0.5*sum(psiv) # 0.5 is to comply with 0.5 in Tpte=Tpte+[0.5*sum(thw*tpty)/Norm_th]
+        print "Norm_th = ", Norm_th        
 ############################################################################################################                                 
 ## Throughput calculation
 ############################################################################################################
@@ -632,8 +643,11 @@ def main(opts,args):
         outFile.write('Incident divergence [urad] fwhm = '+str(1.0e6*fwhm_psi)+'\n') 
         outFile.write('Cummulative dispersion rate [urad/meV] = '+str(Dout)+'\n')
 #        outFile.write('Throughput (divergent ray) = '+str(Tpt_dpsi)+'\n')
-        outFile.write('Averaged throughput  = '+str(Tpt_int)+'\n')
-        outFile.write('Integrated throughput [meV] = '+str(2.0*Eran*Tpt_int)+'\n')                
+        outFile.write('Integrated throughput [eV]  = '+str(1.0e-3*Tpt_int*2.0*Eran)+'\n')
+        #outFile.write('Integrated throughput [meV] = '+str(2.0*Eran*Tpt_int)+'\n')
+        BW = 1.0e-3/Ec # bandwidth of this calculation (representation in units of meV) 
+        BW0 = 1.0e-3   # 0.1% BW if source data is the spectral flux normalized by this
+        outFile.write('Integrated throughput [ph/s] = '+str(2.0*BW/BW0*Eran*Norm_E*Tpt_int)+'\n')                 
 #        outFile.write('--------------------------------------------------------------\n')        
 ######################################################################################################
         

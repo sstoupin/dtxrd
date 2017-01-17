@@ -23,7 +23,13 @@ from scipy.interpolate import interp1d
 from dtxrd.myio import readFile
 
 prog = os.path.basename(sys.argv[0])        
-__version__ = '0.21'
+__version__ = '0.22'
+
+########################################################################################
+## Change
+########################################################################################
+# v 0.22 - add option '-i' to calculate flux from current
+
 
 def fatalError(msg):
 	sys.stderr.write('Error: ')
@@ -44,6 +50,7 @@ def ParseArguments():
         msg3 = 'photon energy [keV] \n'
         msg4 = 'pin detector calibration file containing two columns: 1 - energy[keV] 2 - response[THz/mA] \n'
         msg5 = 'write calculated parameters to file F (defaults to stdout) \n'
+        msg6 = 'use this option if input is in units of current [fA]' 
         #
         parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter) 
         parser.add_argument('-v', '--version', action='version', version=__version__)
@@ -53,6 +60,7 @@ def ParseArguments():
         parser.add_argument('en0', action='store', type=float, nargs=1, help=msg3)
         parser.add_argument('fn', action='store', help=msg4)
         parser.add_argument('-o', '--output', action='store', dest='output', default=None, help=msg5, metavar='F')
+        parser.add_argument('-i', '--current', action='store_const', const=1, dest='cur',  default=0, help=msg6)
         #        
         return parser.parse_args()
         
@@ -61,7 +69,7 @@ def main():
         
         if stuff.output is not None:
             try:
-               outFile = open(cmd_opts.output, 'w')
+               outFile = open(stuff.output, 'w')
             except IOError, e:
                fatalIOError(e)
         else:
@@ -77,7 +85,11 @@ def main():
 #       
         r_=interp1d(en,cal)
         R=r_(en0)
-        flux=(CR*1e-5)*R*sens*1.0e12  # [Hz]
+        
+        if stuff.cur == 1:
+            flux = (CR*1.0e-12)*R*1.0e12       # [Hz]
+        else:         
+            flux = (CR*1.0e-5)*R*sens*1.0e12  # [Hz]
         ################################################################################
         ## OUTPUT      
         ################################################################################  

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 from curvestat import lorentz
 
@@ -32,6 +32,13 @@ def CuKa_berger_ss(x):
   e=[8047.838,8045.425,8027.963,8026.347]
   w=[2.28,3.1,2.70,3.2]
   q=[0.970,0.095,0.331,0.093]
+  return CuKa(e,w,q,x)
+
+
+def MoKa(x):
+  e=[17479.3,17374.3]
+  w=[6.31,6.49]
+  q=[1.0,0.5]
   return CuKa(e,w,q,x)
 
 #TEST
