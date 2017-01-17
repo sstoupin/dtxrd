@@ -8,10 +8,10 @@ documentation information for dtxrd package
 :email:  <sstoupin@gmail.com>
 '''
 
-__version__         = '1.1'
+__version__         = '1.4'
 __author__	    = 'Stanislav Stoupin'
 __email__	    = 'sstoupin@gmail.com'
 __copyright__	    = '2014'
-__description__     = 'Programs to support X-ray diffraction calculations'
+__description__     = 'Tools for X-ray diffraction evaluation of single crystals'
 __package_name__    = 'dtxrd'
 __release__         = __version__
