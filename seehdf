@@ -15,13 +15,15 @@ from pylab import *
 
 #LOCAL
 #from pyhdf import *
+#from myio import coljoin, writeFile
 
 #GLOBAL
 from dtxrd.pyhdf import *
+from dtxrd.myio import coljoin, writeFile
 
 prog = os.path.basename(sys.argv[0])
 ############################################################
-__version__='0.16'
+__version__='0.17'
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 ########################################################################################
 # v 0.12 - after pyhdf modification and convention for image transformation is adopted
@@ -29,6 +31,9 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 # v 0.14 - add -r option to plot selected region
 # v 0.15 - fix transformations for -s option 
 # v 0.16 - user_dir = os.getcwd() sys.path.append(user_dir) for ccd.py and publish.py 
+# v 0.17 - implemented argparse
+#        - slicing via integration similar to tiffview + data saving 
+
 
 def fatalError(msg):
         sys.stderr.write('Error: ')
@@ -41,182 +46,225 @@ def fatalIOError(err):
                   err = '%s: %s' % (err.strerror, err.filename)
         fatalError(err)
                                                                 
-def ParseArguments(args):
+def ParseArguments():
+        import argparse   # requires Python 2.7 or higher
+        msg = prog + '  version: ' + __version__ + '\n'*2  # + __doc__.strip()+'\n'	
+        #        	
+        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
+        parser.add_argument('-v', '--version',    action='version', version=__version__)
+        parser.add_argument('-o', '--output',     action='store', dest='output', default=None, help='write calculated parameters to file F (defaults to stdout)', metavar='F') 
+        parser.add_argument('-p', '--publish',    action='store_const', const=1, dest='publish', default=0, help='generate figures for publication')
+        parser.add_argument('-s', '--transpose',  action='store_const', const=1, dest='transpose', default=0, help='transpose image array')             
+        parser.add_argument('-w', '--write',      action='store_const', const=1, dest='write', default=0, help='write processed figures to their corresponding png files')
+        parser.add_argument('-i', '--instrument', action='store_const', const=1, dest='instrument', default=0, help='read parameters from instrument file ccd.py')
+        #parser.add_argument('-z', '--psize',   action='store', dest='psize', default=1, metavar='psize', help='pixel size [mm]')
+        parser.add_argument('-n', '--name',  action='store', dest='name', default='', metavar='name', help='sample name')
+        parser.add_argument('-r', '--range', action='store', dest='rng', default='-1 -1 -1 -1', metavar='rng', help='range of interest')
+        parser.add_argument('-x', '--xint',  action='store_const', const=1, dest='xint', default=0, help='integrate the region of interest in x and plot distribution')
+        parser.add_argument('-y', '--yint',  action='store_const', const=1, dest='yint', default=0, help='integrate the region of interest in y and plot distribution')
+        parser.add_argument('-c', '--calc',  action='store_const', const=1, dest='calc', default=0, help='calculate curve statistics on the resulting distribution')
+        parser.add_argument('filenames', action='store', nargs='+')
+
+        return parser.parse_args()
+
+def main():  
+    cmd_opts = ParseArguments()                
+    if cmd_opts.output is not None:
         try:
-                from optik import OptionParser
-        except ImportError:
-                try:
-                       from optparse import OptionParser
-                except ImportError:
-                       fatalError(
-'This program requires Optik, availible from http://optik.sourceforge.net/\n')
+            outFile = open(cmd_opts.output, 'w')
+        except IOError as e:
+            fatalIOError(e)
+    else:
+        outFile = sys.stdout
+        #######         
 
-        USAGE = '%prog [OPTIONS...] filename1 filename2 ...'
-        VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' 
-        parser = OptionParser(usage=USAGE, version=VERSION)                        
-        #
-        # Behavior
-        #
-        parser.add_option('-o', '--output',
-                action='store',
-                dest='output',
-                default=None,
-                help='write results to file F (defaults to stdout)',
-                metavar='F')
-        parser.add_option('-p', '--publish',
-                action='store_const',
-                const=1,
-                dest='publish', 
-                default=0,  
-                help='generate figures for publication')
-        parser.add_option('-s', '--transpose',
-                action='store_const',
-                const=1,
-                dest='transpose', 
-                default=0,  
-                help='transpose image matrix')                
-        parser.add_option('-i', '--instrument',
-                action='store_const',
-                const=1,
-                dest='instrument',
-                default=0,
-                help='read parameters from instrument file ccd.py')
-        parser.add_option('-r', '--range',
-                action='store',
-                dest='rng',
-                default='-1 -1 -1 -1',
-                help='map range for analysis',
-                metavar='STRING')
-        #                                                                              
-        opts, args = parser.parse_args(args)
-        if len(args) < 1:
-                parser.print_usage()
-                sys.exit(1)
-        return opts, args                
-
-
-def main(opts, args):
-  if opts.output is not None:
-     try:
-        outFile = open(opts.output, 'w')
-     except IOError, e:
-        fatalIOError(e)
-  else:
-     outFile = sys.stdout
-
-  if opts.instrument == 1:  # if instrument file ccd.py is used      
-      # import parameters from ccd.py
-      user_dir = os.getcwd()
-      sys.path.append(user_dir)          
-      from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0
-      from ccd import data_path,th_path,chi_path
-      sys.path.pop() 
-  else:
-      rbin=1
-      dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]
-      tot_range=10000.0     # upper limit for threshold processing (to exclude "dead" pixels)
-      dyn_range=10000.0      # upper limit for threshold processing (gauss)
-      fwhm_0=30.0        # expected fwhm (for fitting)
-      bkg0=2750.0        # "reasonable" background - dark current count
-      # default paths in hdf or h5 file
-      data_path='/entry/instrument/detector/data'
-      th_path='/entry/instrument/detector/NDAttributes/theta'
-      chi_path='/entry/instrument/detector/NDAttributes/chi'
-  dx=float(rbin)*dx
-  dy=float(rbin)*dy
+    if cmd_opts.instrument == 1:  # if instrument file ccd.py is used      
+        # import parameters from ccd.py
+        user_dir = os.getcwd()
+        sys.path.append(user_dir)          
+        from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0
+        from ccd import data_path,th_path,chi_path
+        sys.path.pop() 
+    else:
+        rbin=1
+        dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]
+        tot_range=10000.0     # upper limit for threshold processing (to exclude "dead" pixels)
+        dyn_range=10000.0      # upper limit for threshold processing (gauss)
+        fwhm_0=30.0        # expected fwhm (for fitting)
+        bkg0=2750.0        # "reasonable" background - dark current count
+        # default paths in hdf or h5 file
+        data_path='/entry/instrument/detector/data'
+        th_path='/entry/instrument/detector/NDAttributes/theta'
+        chi_path='/entry/instrument/detector/NDAttributes/chi'
+    
+    dx=float(rbin)*dx
+    dy=float(rbin)*dy
 #                                                    
-  outFile.write('# seehdf '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n')
-  count=1
-  ########################################################################
-  for fn in args:   
-      fn_ext=fn.split(".")[-1]
-      if fn_ext == "hdf":
-          angle, size, im = read_hdf4(fn)
-      elif fn_ext == "h5":
-          angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path)
-      else:
-          fatalError('Supported files are either hdf4 (extension .hdf) or hdf5 (extension h5)')
-      # need to do these transformations in the opposite sense to viewhdf for some reason
-      # then -s assignment matches in both programs     
-      if opts.transpose == 1:
-          im=transpose(im)
-          im=fliplr(im)
-          nx=size[1]
-          ny=size[0]
-      else:
-          nx=size[0] #;print nx
-          ny=size[1] #;print ny
-          im=flipud(im)
+    outFile.write('%prog '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n')
+    count=1
+    ########################################################################
+    for fn in cmd_opts.filenames:   
+        fn_ext=fn.split(".")[-1]
+        if fn_ext == "hdf":
+            angle, size, im = read_hdf4(fn)
+        elif fn_ext == "h5":
+            angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path)
+        else:
+            fatalError('Supported files are either hdf4 (extension .hdf) or hdf5 (extension h5)')
+        # need to do these transformations in the opposite sense to viewhdf for some reason
+        # then -s assignment matches in both programs     
+        if cmd_opts.transpose == 1:
+            im=transpose(im)
+            im=fliplr(im)
+            nx=size[1]
+            ny=size[0]
+        else:
+            nx=size[0] #;print nx
+            ny=size[1] #;print ny
+            im=flipud(im)
                                                                         
-          #im=fliplr(im)                                   
-          #nx=size[0] #;print nx
-          #ny=size[1] #;print ny    
-      ####################################################
-      ## Analyzed Area (Range)
-      ####################################################
-      step=1
-      #    
-      rangexy=opts.rng.split(' ')    
-      rngx1=float(rangexy[0]); rngy1=float(rangexy[2])
-      rngx2=float(rangexy[1]); rngy2=float(rangexy[3])
+            #im=fliplr(im)                                   
+            #nx=size[0] #;print nx
+            #ny=size[1] #;print ny    
+        ####################################################
+        ## Analyzed Area (Range)
+        ####################################################
+        step=1
+        #    
+        rangexy=cmd_opts.rng.split(' ')    
+        rngx1=float(rangexy[0]); rngy1=float(rangexy[2])
+        rngx2=float(rangexy[1]); rngy2=float(rangexy[3])
   
-      if rngx1<0:
-        indx1=0
-      else:
-        indx1=int(rngx1/dx)
-      if rngy1<0:
-        indy1=0
-      else:
-        indy1=int(rngy1/dy)
+        if rngx1<0:
+            indx1=0
+        else:
+            indx1=int(rngx1/dx)
+        if rngy1<0:
+            indy1=0
+        else:
+            indy1=int(rngy1/dy)
     #---------------------------------------  
-      if rngx2<0 or rngx2>nx*dx:
-        indx2=nx
-      else:  
-        indx2=int(rngx2/dx)
-      if rngy2<0 or rngy2>ny*dy:
-        indy2=ny
-      else:
-        indy2=int(rngy2/dy)        
+        if rngx2<0 or rngx2>nx*dx:
+            indx2=nx
+        else:  
+            indx2=int(rngx2/dx)
+        if rngy2<0 or rngy2>ny*dy:
+            indy2=ny
+        else:
+            indy2=int(rngy2/dy)        
   
-      #xrange=arange(nx-indx2,nx-indx1,step)
-      #yrange=arange(ny-indy2,ny-indy1,step) #;print yrange
-      #
-      nnx1=nx-indx2; nnx2=nx-indx1
-      nny1=ny-indy2; nny2=ny-indy1                
-      im=im[nnx1:nnx2,nny1:nny2]
-      #############################################
-      # final transformation to match topohdf
-      im=transpose(im)
-      im=fliplr(im)      
-      #############################################                                        
-      if opts.publish !=1:
-          #xyrange=(0,dx*nx,0,dy*ny)
-          xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # for some reason the arrays should be transposed 
-          plt.figure()
-          plt.imshow(im, extent=xyrange)  
-          plt.colorbar()
-          plt.title(fn)
-          plt.xlabel('x [mm]')
-          plt.ylabel('y [mm]') 
-      else:
-          user_dir = os.getcwd()             
-          sys.path.append(user_dir) 
-          from publish import figplot
-          from publish import a2urad                    
-          sys.path.pop()
-          theta = a2urad*angle
-          #indx1=0; indx2=nx
-          #indy1=0; indy2=ny 
-          print "opts.transpose", opts.transpose
-          figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,im,fn,theta)
-      count = count + 1              
-      outFile.write('# filename: '+fn+'\n')
-      outFile.write('# image: '+str(nx)+' x '+str(ny)+'\n')
-      outFile.write('angle [orig. units]  = '+str(angle)+'\n')
-      outFile.write('chi [orig. units] = '+str(chi)+'\n')
-  outFile.close  
-  plt.show()     
+        #xrange=arange(nx-indx2,nx-indx1,step)
+        #yrange=arange(ny-indy2,ny-indy1,step) #;print yrange
+        #
+        nnx1=nx-indx2; nnx2=nx-indx1
+        nny1=ny-indy2; nny2=ny-indy1                
+        im=im[nnx1:nnx2,nny1:nny2]
+        #############################################
+        # final transformation to match topohdf
+        im=transpose(im)
+        im=fliplr(im)      
+        #############################################                                        
+                        
+        if cmd_opts.publish !=1:
+            #xyrange=(0,dx*nx,0,dy*ny)
+            xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # for some reason the arrays should be transposed 
+            #nx,ny = im.shape
+            #xyrange=(0,dy*ny,0,dx*nx)
+            #xyrange=(dx*nnx1,dx*nnx2,dy*nny1,dy*nny2)            
+            #
+            fig1=plt.figure(count)
+            abs_max = im.max()
+            abs_min = im.min()
+            ax=fig1.add_subplot(111)
+            imgplot = ax.imshow(im, aspect='equal', extent=xyrange, vmin=abs_min, vmax=abs_max)
+            imgplot.set_cmap('jet')
+            plt.colorbar(imgplot)
+            plt.title(fn)
+            plt.xlabel('x [mm]')
+            plt.ylabel('y [mm]') 
+            
+            #numrows, numcols = im.shape
+            #def format_coord(x, y):
+	    #    col = int(x/dx+0.5)
+	    #    row = int(y/dy+0.5)
+	        #if col>=0 and col<numcols and row>=0 and row<numrows:
+	    #    z = im[numrows-row,col]
+	    #    return 'x=%1.4f, y=%1.4f, z=%1.4f'%(x, y, z)
+	    #else:
+	    #    return 'x=%1.4f, y=%1.4f'%(x, y)
+	    #ax.format_coord = format_coord                        	                
+        else:
+            user_dir = os.getcwd()             
+            sys.path.append(user_dir) 
+            from publish import figplot
+            from publish import a2urad                    
+            sys.path.pop()
+            theta = a2urad*angle
+            #indx1=0; indx2=nx
+            #indy1=0; indy2=ny 
+            print "cmd_opts.transpose", cmd_opts.transpose
+            figplot(cmd_opts.transpose,dx,dy,indx1,indx2,indy1,indy2,im,fn,theta)
+        ############################################################################ 
+        ## Do STUFF
+        ############################################################################
+        if cmd_opts.name !='':
+            plt.title(cmd_opts.name)
+        else:
+            plt.title(fn) # + '  '+ "%.2f" % theta +' [urad]')                
+          
+            fn_ = fn.split(".h5")[0]
+            cnt = '%02d' %count                                    
+        if cmd_opts.xint == 1 or cmd_opts.yint ==1:                
+            fig2 = plt.figure(2)                                        
+            if cmd_opts.xint == 1:
+                idata = average(im, axis=1)                                       
+                plt.xlabel('y [mm]')
+                plt.ylabel('averaged intensity [counts]')
+                crange=arange(dy*indy1,dy*indy2,dy)
+                datafile='Ydist_'+'_'+fn_+'.dat'    
+                    
+            if cmd_opts.yint == 1:
+                idata = average(im, axis=0)
+                plt.xlabel('x [mm]')
+                plt.ylabel('averaged intensity [counts]')
+                crange=arange(dx*indx1,dx*indx2,dx)
+                datafile='Xdist_'+'_'+fn_+'.dat'    
+
+            plt.plot(crange,idata,'ko')
+            plt.plot(crange,idata,'k-')
+                    
+            if cmd_opts.calc == 1:
+                bkg0 = 0.25*(idata[0]+idata[1]+idata[len(idata)-1]+idata[len(idata)-2])
+                stat0=curvestat(crange,idata,bkg0)
+                fwhm0 = stat0[5]
+                outFile.write('FWHM [z units] = '+str(fwhm0)+' \n') 
+            #######################################################################
+            ## WRITE OUTPUT
+            #######################################################################
+	    if cmd_opts.write == 1:
+            #imgfile=cnt+'_'+fn_+'.png'
+                imgfile=fn_+'.png'
+                fig1.savefig(imgfile)		    
+                   
+                if cmd_opts.xint == 1 or cmd_opts.yint ==1:
+                    header = '# '+ str(sys.argv) +'\n' \
+                            +'# version '+__version__+' by Stanislav Stoupin\n' \
+                            +'# columns: \n' \
+                            + '#coordinate integr_distribution'+'\n'
+                    try:
+                        writeFile(datafile,header,crange,idata)
+                    except IOError as e:
+                        fatalIOError(e)
+
+        count = count + 1              
+        outFile.write('# filename: '+fn+'\n')
+        outFile.write('# image: '+str(nx)+' x '+str(ny)+'\n')
+        outFile.write('angle [orig. units]  = '+str(angle)+'\n')
+        outFile.write('chi [orig. units] = '+str(chi)+'\n')
+
+
+    outFile.close  
+    plt.show()     
     
 if __name__ == '__main__':
-        options, args = ParseArguments(sys.argv[1:])
-        main(options, args)                      
+        main()                      
