@@ -41,7 +41,7 @@ from dtxrd.deriv import *
 
 
 prog = os.path.basename(sys.argv[0])
-__version__ = '0.34'
+__version__ = '0.44'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -77,6 +77,23 @@ __version__ = '0.34'
 # v 0.32 replaced optik with argparse and got rid of "division by zero" in the calculation of Dr
 # v 0.33 minor rearrangements of "prog", deleted some obsolete comments
 # v 0.34 added RC width for double-crystal symmetric configuration (sqrt(2)*dth_s)
+# v 0.35 fixed bug in the range of calculations at fixed angle (center was Eb which is Bragg energy)
+#        replaced with Ec (alternative Ex - from kinematic Bragg's law but not Eb definitely)
+# v 0.36 zachariasen theory
+#        something is wrong with sig_v calculation!
+# v 0.37 derived solution to Zachariasen's equations for general asym. case
+#        implemented in the code/tested          
+# v 0.38 added number of steps in the angular/energy interval as option
+#        now can save Rmos1 Tmos1        
+# v 0.39 -c res. function now requires an input value (in [urad] for "e" or [meV] for "a")
+# v 0.40 model for GaN (wurtzite) 
+# v 0.41 model for asym. mosaic Laue/Bragg using Dietrich et al power transfer equations
+#        Chang's solutions to equations (book) are likely incorrect
+# v 0.42 added backscattering case for moz. crystals - angular dependence very different from E dependence!
+# v 0.43 Darwin-Hamilton equations in separate subroutine     darwin_hamilton
+#        zero absorption solution also to separate subroutine dtxrd1z
+# v 0.44 new format for output of chi.py
+#        changed IOError, e: to IOError as e:
 #-------------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. draw a figure of crystal and waves
@@ -96,7 +113,7 @@ def ParseArguments():
         import argparse   # requires Python 2.7 or higher
         msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
 #        msg0 =  prog +' [OPTIONS...] crystal h k l eta phi T d flag Ex(or theta) \n'+'where:\n'
-	msg1 = 'available crystal models: C (diamond), Si, Ge, FeS2, SiC-4H, SiC-6H, Al2O3, SiO2\n' 
+	msg1 = 'available crystal models: C (diamond), Si, Ge, GaN (wurtzite), FeS2, SiC-4H, SiC-6H, Al2O3, SiO2\n' 
 	msg2 = 'Miller index\n' 
 	msg3 = 'asymmetry angle [deg] \n' 
 	msg4 = 'azimuthal angle of incidence [deg]\n' 
@@ -130,17 +147,26 @@ def ParseArguments():
                 default=0,  
                 help='pi polarization of the incident wave (default: s-polarization)')	
         parser.add_argument('-c', '--conv',
-                action='store_const',
-                const=1,
+                action='store',
                 dest='conv', 
                 default=0,  
-                help='convolve with an "ideal" 1/10 instrumental resolution function and plot')	                                
+                help='convolve with instrumental resolution function of specified width ([urad] or [meV]) and plot result')	                                
         parser.add_argument('-s', '--syield',
                 action='store',
                 dest='syield', 
                 default=-1,  
                 metavar='Ls',
                 help='calculate secondary radiation yield with escape length Ls [Angstrom]')
+        parser.add_argument('-z', '--zach',
+                action='store',
+                dest='zach', 
+                default='-1 -1',  
+                help='average thickness [um] and misorientation [urad] of mosaic crystal blocks (model of Zachariasen)')
+        parser.add_argument('-n', '--nsteps',
+                action='store',
+                dest='ns', 
+                default=1000,  
+                help='number of points in the angular/energy interval')
 #-----------------------------------------------------------------------------------------------
         parser.add_argument('crystal', action='store', nargs=1, help=msg1)
         parser.add_argument('h', action='store', type=float, nargs=1, help=msg2)
@@ -162,7 +188,7 @@ def main():
         if cmd_opts.output is not None:
                try:
                         outFile = open(cmd_opts.output, 'w')
-               except IOError, e:
+               except IOError as e:
                         fatalIOError(e)
         else:
                 outFile = sys.stdout
@@ -177,6 +203,7 @@ def main():
         flag = cmd_opts.flag[0]    #args[8]
 ######## polarization factor ############################################################################
         P=1.0   # default value (sigma) - if pi - controlled by option -p
+        nsteps = float(cmd_opts.ns)
 ######################################################################################################### 
 ## LATTICE PARAMETER AND BRAGG ENERGY
 #########################################################################################################  
@@ -213,6 +240,12 @@ def main():
             zstep=zran/float(200)
             #zv = arange(0.0,zran,zstep)            
             zv = arange(0.0,zran+zstep,zstep) #; print "zv = ", zv
+        ############################################################################################
+        # Zachariasen's model of mosaic crystal
+        ############################################################################################
+        mosaic = cmd_opts.zach.split(' ')
+        t0 = 1.0e4*float(mosaic[0])  # [Angstrom]
+        Del0 = 1.0e-6*float(mosaic[1])      # [rad]                
         #############################################################################################
         # CALCULATIONS AT FIXED GLANCING ANGLE OF INCIDENCE
         #############################################################################################
@@ -236,8 +269,8 @@ def main():
 #             print "Ec = ", Ec
              # now determine constants at Ec, thc
              crystal,flagFh=chi(cmd_opts.crystal[0],h,k,l,T,Ec)
-             [[Chi0,Chih,Chih_],dh]=crystal             
-             #
+             [[Chi0,Chih,Chih_],dh,lp,ang]=crystal             
+             ##############################################################################
              if cmd_opts.syield ==-1:
                  [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)                                       
              else:
@@ -262,16 +295,37 @@ def main():
                  plt.ylabel('Field intensity inside the crystal [n.u.]')
                  plt.xlabel('z [Angstrom]')
                  plt.legend(loc='lower right')
-             #
+             ###############################################################################    
              [eps_s,eps,eps_pr]=ep
              [dth_s,dth,dth_pr]=dt
-             ################################################             
-             E1=-5.0*eps*Eb  # eV
-             E2=5.0*eps*Eb   # eV
-             Estep=(E2-E1)/1000.0 # eV
-             ################################################             
-             Ex_v=Ec+arange(E1,E2,Estep)  # create energy vector
-             
+             ###############################################################################
+             ###############################################################################
+             # 
+             bth = abs(0.5*pi-thb)
+             omeg0=2.0*sqrt(eps_s)
+             if cmd_opts.zach != '-1 -1':
+                if bth < omeg0:
+                    th1 = -3.0*dth
+                    th2 =  3.0*dth
+                else: 
+                    th1=-5.0*Del0  # rad
+                    th2=5.0*Del0   # rad
+                thstep= (th2-th1)/nsteps # rad  ### need more steps
+                th_e=thc+arange(th1,th2,thstep)
+                
+                if bth < omeg0:  # close-to backscattering
+                    Ex_v = Ec - Ec*(th_e-thc)*(1.0 - 0.5*bth**2.0) # (-) because of diff. Bragg's law
+                else:
+                    Ex_v = Ec - Ec*(th_e-thc)/tan(thc)
+             else: 
+                 DelE = eps*Ec
+                 E1 = -5.0*DelE  
+                 E2 = 5.0*DelE
+                 Estep=(E2-E1)/nsteps # eV
+                 Ex_v=Ec+arange(E1,E2,Estep)
+             ############################################################################################
+             # Perfect crystal reflectivity/transmissivity and secondary yield
+             ###########################################################################################             
              Tplot=[]; Rplot=[]; SYplot=[]
              if cmd_opts.syield == -1:  
                  for Ex in Ex_v:
@@ -282,11 +336,45 @@ def main():
                      result2=dtxrd1_sy(thc,eta,phi,dc,Ex,P,crystal,Ls)
                      Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]]
                      SYplot=SYplot+[result2[7]]
+###          ######################################################################################
+###          # IF Mosaic crystal ##################################################################
+###          ######################################################################################
+             if cmd_opts.zach != '-1 -1': 
+                 #
+                 Wx_v = exp(-(th_e - thc)**2.0/(2.0*Del0**2.0))                                  
+                 Norm = sum(Wx_v)
+                 Wx_v = Wx_v/Norm
+                 #                                  
+                 Tplot0 = []; Rplot0 = []
+                 Tplot0z = []; Rplot0z = []                                  
+                 for thx in th_e: # this is to calculate reflectivities as function of angle distribution of subdomains thx
+                     result3=dtxrd1(thx,eta,phi,t0,Ec,P,crystal)  # non-zero absorption
+                     result4=dtxrd1z(thx,eta,phi,t0,Ec,P,crystal) # zero absorption solution                
+                     #
+                     Tplot0=Tplot0+[result3[5]]; Rplot0=Rplot0+[result3[6]]                     
+                     Tplot0z=Tplot0z+[result4[5]]; Rplot0z=Rplot0z+[result4[6]]                                                               
+                     #
+                 Tplot0 = array(Tplot0); Rplot0 = array(Rplot0)   
+                 Tplot0z = array(Tplot0z); Rplot0z = array(Rplot0z)
+                 #
+                 sig_v = 1.0/t0*convolve(Rplot0,Wx_v,'same')   # non-zero absorption 
+                 sig_vz = 1.0/t0*convolve(Rplot0z,Wx_v,'same') # zero absorption
+                 # this convoluted sig_v represents reflectivity as function of incident angle on the crystal
+                 # but through the Bragg's law can be converted to reflectivity as function of inc. photon energy
+                 ######################################################################################################
+                 stuff1 = darwin_hamilton(thc,eta,phi,dc,Ec,P,crystal,sig_vz)                                          
+                 Tpmos = stuff1[3]; Rpmos = stuff1[4]
+                 Tmos1 = stuff1[5]; Rmos1 = stuff1[6];                                     
+                 A = stuff1[0]; Gs_mu = stuff1[1]; opt_d = stuff1[2]
+                 #
+                 stuff2 = darwin_hamilton(thc,eta,phi,dc,Ec,P,crystal,sig_v)                                          
+                 #Tpmos = stuff2[3]; Rpmos = stuff1[4]; 
+                 Tmos2 = stuff2[5]; Rmos2 = stuff2[6];                                                                                
              ######################################################################################  
              # convolution to calculate FWHM for the refl. curve
              ######################################################################################
              if cmd_opts.conv != 0:
-                fwhm0=0.1*eps*Ec # FWHM estimate for instrument resolution function
+                fwhm0=1.0e-3*float(cmd_opts.conv) # FWHM [meV] estimate for instrument resolution function
                 #bw=0.5*fwhm0; b=[0.0,1.0,Ec,bw]; rf=lorentz(b,Ex_v)               # Lorentzian
                 bw=0.5*fwhm0/sqrt(log(2.0)); b=[0.0,1.0,Ec,bw]; rf=gauss(b,Ex_v)   # Gaussian
                 rf=rf/sum(rf)
@@ -298,7 +386,8 @@ def main():
              ######################################################################################
              # PLOT RESULTS                               
              ######################################################################################
-             Eplot=1.0e3*(Ex_v-Ec) # meV             
+             Eplot=1.0e3*(Ex_v-Ec) # meV      
+             #print "len(Eplot)", len(Eplot)
              outx0=1.0e-3*Ex_v     # keV
              outx1=Eplot           # meV  
              outh0='E[keV] '       # header_col0
@@ -309,6 +398,7 @@ def main():
                  plt.subplot(311)
                  plt.plot(Eplot,Rplot,'r-')
                  if cmd_opts.conv !=0: plt.plot(Eplot,rc0,'k-')
+                 #                 
                  plt.ylabel('Reflectivity')
                  #
                  plt.subplot(312)
@@ -323,14 +413,33 @@ def main():
              else:
                  SYplot=zeros(len(Rplot))
                  plt.subplot(211)
-                 plt.plot(Eplot,Rplot,'r-')
+                 plt.plot(Eplot,Rplot,'r-',label='$R_{perfect}(E -E_{c})$')
                  if cmd_opts.conv != 0: plt.plot(Eplot,rc0,'k-')
+                 if cmd_opts.zach != '-1 -1': 
+                     plt.plot(Eplot,Rpmos,'c-',label='$R_{ideal \ mos.}(E-E_{c})$')
+                     plt.plot(Eplot,Rmos1,'m--',label='$R_{mos.1 \ (zero \ abs.) \ asym.}(E-E_{c})$')
+                     plt.plot(Eplot,Rmos2,'g--',label='$R_{mos.2 \ (non-zero \ abs.}(E-E_{c})$')
+                     #plt.plot(Eplot,Rpmos,'g-',label='$R_{pmosaic}(E-E_{c})$')
+                     plt.plot(Eplot,Wx_v*Norm,'k-',label='$W(E-E_{c})$')
+                     #
+                     #plt.plot(Eplot,t0*sig_vz,'m-',label='$t_0 \\times \\sigma_z(E-E_{c})$')
+                     #plt.plot(Eplot,t0*sig_v,'g-',label='$t_0 \\times \\sigma(E-E_{c})$')
+                     plt.plot(Eplot,sig_vz/max(sig_vz),'m-',label='$\\sigma_z(E-E_{c})$ [n.u.]')
+                     plt.plot(Eplot,sig_v/max(sig_v),'g-',label='$\\sigma(E-E_{c})$ [n.u.]')
+                     #
+                     plt.legend(loc='upper right')
                  plt.ylabel('Reflectivity')
                  #
                  plt.subplot(212)
-                 plt.plot(Eplot,Tplot,'b-')
+                 plt.plot(Eplot,Tplot,'b-', label='$T_{perfect}(E-E_{c})$')
+                 if cmd_opts.zach != '-1 -1':
+                     plt.plot(Eplot,Tpmos, 'c-',  label='$T_{ideal mos.}(E-E_{c})$')
+                     plt.plot(Eplot,Tmos1,'m--', label='$T_{mos.1 (zero \ abs.) asym.}(E-E_{c})$')
+                     plt.plot(Eplot,Tmos2,'g--', label='$T_{mos.2 (non-zero \ abs.)}(E-E_{c})$')
+                     plt.legend(loc='lower right') 
+                 #                                          
                  plt.ylabel('Transmissivity')
-                 plt.xlabel('E-E0 [meV]')
+                 plt.xlabel('$E-E_{c}$ [meV]')
         ###########################################################################################
         # CALCULATIONS AT FIXED PHOTON ENERGY
         ###########################################################################################
@@ -359,7 +468,7 @@ def main():
              if cmd_opts.polarization==1:
                 P=cos(2.0*thc)
              # calculate constants at thc,Ec
-             [[Chi0,Chih,Chih_],dh]=crystal
+             [[Chi0,Chih,Chih_],dh,lp,ang]=crystal
              if cmd_opts.syield ==-1:
                  [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)
              else:
@@ -390,15 +499,21 @@ def main():
              # thc - final iteration
              thc=arcsin((Eb/Ec)*(1.0+wh))                                                                 
              #################################################
-             th1=-5.0*dth  # rad
-             th2=5.0*dth   # rad
-             thstep= (th2-th1)/10000.0 # rad
+             #################################################
+             if cmd_opts.zach != '-1 -1' and Del0 > dth/2.35:                
+                 th1 = -5.0*Del0
+                 th2 = 5.0*Del0
+                 thstep=(th2-th1)/nsteps
+             else:             
+                 th1=-5.0*dth  # rad
+                 th2=5.0*dth   # rad
+                 thstep= (th2-th1)/nsteps # rad
              #################################################
              thb_v=thc+arange(th1,th2,thstep)  # create vector of angles
-             
+             #             
              Tplot=[]; Rplot=[]; SYplot=[]             
              for thx in thb_v:
-                 if cmd_opts.polarization == 1:
+                 if cmd_opts.polarization == 1:  # this is likely overkill - for P thx is thc
                     P=cos(2.0*thx)                           
                  if cmd_opts.syield == -1:
                      result2=dtxrd1(thx,eta,phi,dc,Ec,P,crystal)  # now calculate transmissivity/reflectivity  
@@ -407,11 +522,51 @@ def main():
                      result2=dtxrd1_sy(thx,eta,phi,dc,Ec,P,crystal,Ls) 
                      Tplot=Tplot+[result2[5]]; Rplot=Rplot+[result2[6]] 
                      SYplot=SYplot+[result2[7]] 
+###          ######################################################################################                             
+###          ######################################################################################
+###          # IF Mosaic crystal ##################################################################
+###          ######################################################################################
+             if cmd_opts.zach != '-1 -1': 
+                #################################################
+                 Wx_v = exp(-(thb_v - thc)**2.0/(2.0*Del0**2.0))                 
+                 Norm = sum(Wx_v)
+                 Wx_v = Wx_v/Norm                 
+                 ############################################################
+                 ## but it is really just a convolution!                 
+                 ## and Rplot must be that of a single block t0-thick!!!
+                 ############################################################
+                 Tplot0=[]; Rplot0=[]
+                 Tplot0z=[]; Rplot0z=[]
+                 for thx in thb_v:
+                     result3=dtxrd1(thx,eta,phi,t0,Ec,P,crystal)
+		     result4=dtxrd1z(thx,eta,phi,t0,Ec,P,crystal) # zero absorption solution                
+                     #
+                     Tplot0=Tplot0+[result3[5]]; Rplot0=Rplot0+[result3[6]]                     
+                     Tplot0z=Tplot0z+[result4[5]]; Rplot0z=Rplot0z+[result4[6]]                                                               
+                     #
+                 Tplot0 = array(Tplot0); Rplot0 = array(Rplot0)   
+                 Tplot0z = array(Tplot0z); Rplot0z = array(Rplot0z)	
+                 #
+                 sig_v = 1.0/t0*convolve(Rplot0,Wx_v,'same')
+                 sig_vz = 1.0/t0*convolve(Rplot0z,Wx_v,'same')                  
+                 ############################################################################
+                 ## calculate parameters at fixed thc
+                 ## angular dependence is in sig_v, other functions are flat around thc
+                 ############################################################################
+                 stuff1 = darwin_hamilton(thc,eta,phi,dc,Ec,P,crystal,sig_vz)                                          
+                 Tpmos = stuff1[3]; Rpmos = stuff1[4]
+                 Tmos1 = stuff1[5]; Rmos1 = stuff1[6];                                     
+                 A = stuff1[0]; Gs_mu = stuff1[1]; opt_d = stuff1[2]
+                 #
+                 stuff2 = darwin_hamilton(thc,eta,phi,dc,Ec,P,crystal,sig_v)                                          
+                 #Tpmos = stuff2[3]; Rpmos = stuff1[4]; 
+                 Tmos2 = stuff2[5]; Rmos2 = stuff2[6];                     
+             ########################################################################################### 
              ###########################################################################################
              # convolution to calculate FWHM
              ###########################################################################################
              if cmd_opts.conv != 0:
-                fwhm0=0.1*dth  # FWHM estimate for instrument resolution function
+                fwhm0=1.0e-6*float(cmd_opts.conv)  # FWHM [urad] estimate for instrument resolution function
                 #bw=0.5*fwhm0; b=[0.0,1.0,thc,bw]; rf=lorentz(b,thb_v) 		# Lorentzian
                 bw=0.5*fwhm0/sqrt(log(2.0)); b=[0.0,1.0,thc,bw]; rf=gauss(b,thb_v)   # Gaussian
                 rf=rf/sum(rf)                                   
@@ -448,20 +603,47 @@ def main():
              else: 
                  SYplot=zeros(len(Rplot))
                  plt.subplot(211)
-                 plt.plot(thplot,Rplot,'r-')
+                 plt.plot(thplot,Rplot,'r-', label='$R_{perfect}(\\theta-\\theta_{c})$')
                  if cmd_opts.conv != 0: plt.plot(thplot,rc0,'k-')                        
+                 if cmd_opts.zach != '-1 -1': 
+                     plt.plot(thplot,Rpmos,'c-',     label='$R_{ideal \ mos.}(\\theta-\\theta_{c})$')
+                     plt.plot(thplot,Rmos1,'m--',   label='$R_{mos.1 \ zero \ abs.}(\\theta-\\theta_{c})$')
+                     plt.plot(thplot,Rmos2,'g--',   label='$R_{mos.2 \ non-zero \ abs.}(\\theta-\\theta_{c})$')
+                     #plt.plot(thplot,Rpmos,'g-',    label='$R_{pmosaic}(\\theta-\\theta_{c})$')                     
+                     #
+                     plt.plot(thplot,Wx_v*Norm,'k-',label='$W(\\theta-\\theta_{c})$')
+                     #
+                     plt.plot(thplot,t0*sig_vz,'m-',label='$t_0 \\times \\sigma_z(\\theta-\\theta_{c})$')
+                     plt.plot(thplot,t0*sig_v,'g-',label='$t_0 \\times \\sigma(\\theta-\\theta_{c})$')
+                     #plt.plot(thplot,sig_vz/max(sig_vz),'m-',label='$\\sigma_z(\\theta-\\theta_{c})$ [n.u.]')
+                     #plt.plot(thplot,sig_v/max(sig_v),'g-',label='$\\sigma(\\theta-\\theta_{c})$ [n.u.]')
+                     #
+                     plt.legend(loc='upper right')
                  plt.ylabel('Reflectivity')
                  plt.subplot(212)
-                 plt.plot(thplot,Tplot,'b-')
+                 plt.plot(thplot,Tplot,'b-', label='$T_{perfect}(\\theta-\\theta_{c})$')
+                 if cmd_opts.zach != '-1 -1':
+                     plt.plot(thplot,Tpmos, 'c-',  label='$T_{mos. \ sym.}(\\theta-\\theta_{c})$')
+                     plt.plot(thplot,Tmos1,'m--', label='$T_{mos.1 \ zero \ abs.}(\\theta-\\theta_{c})$')
+                     plt.plot(thplot,Tmos2,'g--', label='$T_{mos.2 \ non-zero \ abs.}(\\theta-\\theta_{c})$')
+                     plt.legend(loc='upper right')
                  plt.ylabel('Transmissivity')
-                 plt.xlabel('theta-theta0 [urad]')
+                 plt.xlabel('$\\theta-\\theta_{c}$ [urad]')
 #
         else: fatalError('flag arg[8] either a (angle) or e (energy)')
 
 ###############################################################################
 ####### CONTINUE OUTPUT
 ###############################################################################	
-
+        #######################################################################
+        # integrated reflectivities: perfect crystal and mosaic crystal
+        #######################################################################    
+        Ri_int = sum(Rplot)   # need to divide by N for normalization purposes
+        if cmd_opts.zach != '-1 -1': 
+            Rpmos_int = sum(Rpmos)  # but since N is the same omit                                                      
+            Rmos1_int = sum(Rmos1) # for asym. case #1 (incorrect formulas)
+            Rmos2_int = sum(Rmos2) # for asym. case #2
+        #----------------------------------------------------------------------
         G0=cos(thc)*sin(eta)*cos(phi)+sin(thb)*cos(eta)
         Gh=G0-2.0*sin(thb)*cos(eta)
         bh=G0/Gh 
@@ -475,8 +657,10 @@ def main():
         # for phi=0 and phi=180 represents variation of dth_pr
         # it can't be maximized by choice of phi=90 since eta < thc
         # i.e. cot(eta) is always greater than cot(thc)
-                                                   
+        #                                           
         outFile.write('bh = '+str(bh)+' asymmetry factor\n')
+        outFile.write('G0 = '+str(G0)+' direction cosine of the incident wave\n')
+        outFile.write('Gh = '+str(Gh)+' direction cosine of the reflected wave\n')
         outFile.write('##############################################################\n')
         outFile.write('# DYNAMICAL THEORY: \n')
         outFile.write('##############################################################\n')
@@ -509,7 +693,7 @@ def main():
         outFile.write('dl [um] = '+str(1.0e-4*2.0*pi*de)+' Extinction distance (Pend. length) \n')
         outFile.write('dth2 [urad] = '+str(1.0e6*dth_s*sqrt(2.0))+' double-crystal rocking curve for the symmetric reflection (sqrt(2)*dth_s) \n')
         #
-        outFile.write('#-------------------------------------------------------------\n')
+        outFile.write('#-------------------------------------------------------------\n')        
         
         if cmd_opts.conv != 0:
            outFile.write('# Widths Expected in Experiment (theory + inst.res.func.)\n')
@@ -524,17 +708,33 @@ def main():
         outFile.write('# Reflectivity/Transmissivity at Center: \n')
         outFile.write('Rc [%]  = '+str(Rc*100.0)+' Reflectivity \n')
         outFile.write('Tc [%]  = '+str(Tc*100.0)+' Transmissivity \n')
+        if cmd_opts.zach != '-1 -1':
+            outFile.write('#-------------------------------------------------------------\n')
+            outFile.write('# Integrated characteristics\n')
+            outFile.write('Ri_int = '+str(Ri_int)+' Int. Refl. perfect crystal \n')
+            outFile.write('Rmos1_int =' +str(Rmos1_int)+' Int. Refl. mosaic asym.1 crystal \n')                        
+            outFile.write('Rmos2_int =' +str(Rmos2_int)+' Int. Refl. mosaic asym.2 crystal \n')
+            outFile.write('Rpmos_int =' +str(Rpmos_int)+' Int. Refl. ideal mosaic crystal \n')
+            outFile.write('Rmos1_int/Ri_int = '+str(Rmos1_int/Ri_int)+' Ratio of integrated reflectivities\n')
+            if Gh>0:
+                outFile.write('opt_d [um] =' +str(1.0e-4*opt_d)+' optimal crystal thickness in Laue \n')
+            outFile.write('A = '+str(A)+' must be << 1 for small primary extinction \n')            
+            outFile.write('Gs_mu ='+str(Gs_mu)+' must be << 1 for small secondary extinction \n')
+        else:
+            Rmos1 = zeros(len(Rplot))
+            Tmos1 = zeros(len(Rplot))
+        #
         outFile.close
 ######################################################################################################
         if cmd_opts.write is not None:
                header = '# '+ str(sys.argv) +'\n' \
                         +'# version '+__version__+' by Stanislav Stoupin\n' \
                         +'# columns: \n' \
-                        + '# '+outh1+'Rplot Tplot SYplot rc0 '+outh0+'\n'                        
+                        + '# '+outh1+'Rplot Tplot SYplot rc0 Rmos1 Tmos1 Rmos2 Tmos2 '+outh0+'\n'                        
                try:                
-                    writeFile(cmd_opts.write,header,outx1,Rplot,Tplot,SYplot,rc0,outx0)                                        
+                    writeFile(cmd_opts.write,header,outx1,Rplot,Tplot,SYplot,rc0,Rmos1,Tmos1,Rmos2,Tmos2,outx0)
                #     
-               except IOError, e:
+               except IOError as e:
                     fatalIOError(e)            
 ###### show figures ##################################################################################                                                        
         plt.show()

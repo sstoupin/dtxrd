@@ -11,6 +11,7 @@ a subroutine to calculate statistical parameters for a reflectivity curve (FWHM,
 from numpy import *
 #from scipy.optimize import *
 #from pylab import *
+from scipy.integrate import simps
 
 def curvestat(th,r,bkg):
       # th - argument
@@ -52,10 +53,20 @@ def curvestat(th,r,bkg):
         r_eff0 = r - bkg
         r_eff = r_eff0[r_eff0 > 0] 
         th_eff = th[r_eff0 > 0]
-        com=sum(th_eff*(r_eff))/sum(r_eff)             # center of mass (mean) or  first cumulant
-        var=sum((r_eff)*(th_eff-com)**2.0)/sum(r_eff)  # variance or second cumulant
+        #        
+        #norm = simps(r_eff,th_eff)
+        #!!!!!!!!!!!! SIMPS failed on 23OCT2017 - sample NDT111-3_Bc2!!!!!!!        
+        norm = sum(r_eff)
+        com=sum(th_eff*(r_eff))/norm             # center of mass (mean) or  first cumulant
+        #com = simps(th_eff*r_eff,th_eff)/norm
+        #var=sum((r_eff)*(th_eff-com)**2.0)/sum(r_eff)  # variance or second cumulant
+        var_num = r_eff*(th_eff-com)**2.0        
+        #var = simps(var_num,th_eff)/norm        
+        #var = simps(th_eff**2.0*r_eff,th_eff)/norm - com**2.0                
         #var=abs(sum((r-bkg)*th**2.0)/sum(r-bkg)-com**2.0)  # equivalent!
-        int=sum(r_eff)*(th[len(th)-1] - th[0])/(N1-1)
+        var=sum(var_num)/norm                
+        int=norm*(th[len(th)-1] - th[0])/float((N1-1))
+        #int = norm
         #
         return [th_max,r_max,th_neg,th_pos,th_mid,fwhm,com,var,int]
 

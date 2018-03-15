@@ -39,6 +39,8 @@ def chi(element,h,k,l,T,Ex):
   if element=='Si':  
      from td_si import a_reeber
      a=a_reeber(T)
+     lp = [a,a,a]
+     ang = [90.0,90.0,90.0]
      #    
      dh=a/sqrt(h**2.0+k**2.0+l**2.0)
      Eb=0.5*hpl*cl/dh
@@ -61,6 +63,8 @@ def chi(element,h,k,l,T,Ex):
   elif element=='C': 
      from stoupin_c import a_stoupin
      a=a_stoupin(T)
+     lp = [a,a,a]
+     ang = [90.0,90.0,90.0]
      #    
      dh=a/sqrt(h**2.0+k**2.0+l**2.0)
      Eb=0.5*hpl*cl/dh
@@ -83,6 +87,8 @@ def chi(element,h,k,l,T,Ex):
   elif element=='Ge': 
      from carr_ge import a_carr
      a=a_carr(T)
+     lp = [a,a,a]
+     ang = [90.0,90.0,90.0]
      #    
      dh=a/sqrt(h**2.0+k**2.0+l**2.0)
      Eb=0.5*hpl*cl/dh
@@ -105,11 +111,13 @@ def chi(element,h,k,l,T,Ex):
   elif element=='Al2O3':           
      from lucht_sph import a_lucht, c_lucht
      a=a_lucht(T); c=c_lucht(T)               
-  
+     lp = [a,a,c]
+     ang = [90.0,90.0,120.0]
+     #
      dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
      Eb=0.5*hpl*cl/dh
      qx=0.5/dh    
-     
+     #
      f0h_Al=f0h_ICD('Al',qx); f0h_O=f0h_ICD('O',qx)
      f00_Al=f0h_ICD('Al',0.0); f00_O=f0h_ICD('O',0.0)
      expF0_Al = expFh_sph('Al',0,0,0); expF0_O = expFh_sph('O',0,0,0); 
@@ -132,6 +140,8 @@ def chi(element,h,k,l,T,Ex):
   elif element=='FeS2':
      from chrystall_pyr import a_chrystall
      a=a_chrystall(T)
+     lp = [a,a,a]
+     ang = [90.0,90.0,90.0]
      #
      dh=a/sqrt(h**2.0+k**2.0+l**2.0)
      Eb=0.5*hpl*cl/dh
@@ -155,11 +165,14 @@ def chi(element,h,k,l,T,Ex):
      Fh = sigh_Fe*(f0h_Fe+fa_Fe)*expF_Fe+sigh_S*(f0h_S+fa_S)*expF_S     
      Fh_= sigh_Fe*(f0h_Fe+fa_Fe)*expF_Fe.conjugate()+sigh_S*(f0h_S+fa_S)*expF_S.conjugate()     
      F0 = (f00_Fe+fa_Fe)*expF0_Fe+(f00_S+fa_S)*expF0_S
+     #
   #-------------------------------------------------------------------------------------------   
   elif element=='SiC-4H':           
-     from springer_sic import a_SiC4H, c_SiC4H
-     a=a_SiC4H(T); c=c_SiC4H(T)               
-  
+     from td_sic import a_SiC4H_RS, c_SiC4H_RS
+     a=a_SiC4H_RS(T); c=c_SiC4H_RS(T)                    
+     lp = [a,a,c]
+     ang = [90.0,90.0,120.0]
+     #
      dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
      Eb=0.5*hpl*cl/dh
      qx=0.5/dh    
@@ -183,8 +196,9 @@ def chi(element,h,k,l,T,Ex):
      F0 = (f00_Si+fa_Si)*expF0_Si+(f00_C+fa_C)*expF0_C
   #-------------------------------------------------------------------------------------------   
   elif element=='SiC-6H':           
-     from springer_sic import a_SiC6H, c_SiC6H
-     a=a_SiC6H(T); c=c_SiC6H(T)               
+     #from springer_sic import a_SiC6H, c_SiC6H
+     from td_sic import a_SiC6H_reeber, c_SiC6H_reeber
+     a=a_SiC6H_reeber(T); c=c_SiC6H_reeber(T)               
   
      dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
      Eb=0.5*hpl*cl/dh
@@ -265,6 +279,54 @@ def chi(element,h,k,l,T,Ex):
      Fh_= sigh_Si*(f0h_Si+fa_Si)*expF_Si.conjugate()+sigh_O*(f0h_O+fa_O)*expF_O.conjugate()
      F0 = (f00_Si+fa_Si)*expF0_Si+(f00_O+fa_O)*expF0_O
   #-------------------------------------------------------------------------------------------     
+  elif element=='GaN':           
+     from td_GaN import a_GaN_reeber, c_GaN_reeber
+     a=a_GaN_reeber(T); c=c_GaN_reeber(T)
+     #
+     dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
+     Eb=0.5*hpl*cl/dh
+     qx=0.5/dh    
+     
+     f0h_Ga = f0h_ICD('Ga',qx);  f0h_N = f0h_ICD('N',qx)
+     f00_Ga = f0h_ICD('Ga',0.0); f00_N = f0h_ICD('N',0.0)
+     
+     expF0_Ga = expFh_GaN('Ga',0,0,0); expF0_N = expFh_GaN('N',0,0,0); 
+     expF_Ga = expFh_GaN('Ga',h,k,l) #; print "expF_Al(h,k,l) =  ", expF_Al
+     expF_N = expFh_GaN('N',h,k,l)   #; print "expF_O(h,k,l)  =  ", expF_O
+     
+     if abs(expF_Ga)<epsFh and abs(expF_N)<epsFh: flagFh=0     
+     ### From Kihara EurMin90 RT  # or the second set from LePage JPCS1980 RT
+     ###
+     ind = [h,k,l]
+     lp = [a,a,c]
+     ang = [90.0,90.0,120.0]
+     # for Ga  (Schulz and Thiemann SSC 1977)
+     U11=0.0052  # Angstrom^2
+     U22=0.0052  # Angstrom^2
+     U33=0.0027  # Angstrom^2     
+     U12=0.5*U22 # Angstrom^2
+     U23=0.0000  #2.0*U13
+     U13=0.0000  #0.00008
+     #U23=2.0*U13
+     U = [U11,U22,U33,U12,U13,U23]
+     sigh_Ga = debye_tellipse(ind,lp,ang,U)  #
+     ### for N
+     U11=0.0070  # Angstrom^2
+     U22=0.0070  # Angstrom^2
+     U33=0.0024  # Angstrom^2     
+     U12=0.5*U22 # Angstrom^2
+     U13=0.0000  # Angstrom^2
+     U23=0.0000  # Angstrom^2
+     U = [U11,U22,U33,U12,U13,U23]               
+     sigh_N = debye_tellipse(ind,lp,ang,U)   #
+     #     
+     V=sqrt(3.0)/2.0*a**2.0*c
+     #
+     fa_Ga=fa_asf('Ga',Ex); fa_N=fa_asf('N',Ex)
+     Fh = sigh_Ga*(f0h_Ga+fa_Ga)*expF_Ga + sigh_N*(f0h_N+fa_N)*expF_N
+     Fh_= sigh_Ga*(f0h_Ga+fa_Ga)*expF_Ga.conjugate() + sigh_N*(f0h_N+fa_N)*expF_N.conjugate()
+     F0 = (f00_Ga+fa_Ga)*expF0_Ga + (f00_N+fa_N)*expF0_N    
+  #-------------------------------------------------------------------------------------------     
   elif element=='Be':           
      from meyerhoff_be import a_meyer, c_meyer
      a=a_meyer(T); c=c_meyer(T)               
@@ -311,5 +373,5 @@ def chi(element,h,k,l,T,Ex):
                                          
   Chi=[Chi0,Chih,Chih_]   
   
-  return [[Chi,dh],flagFh]
+  return [[Chi,dh,lp,ang],flagFh]
     

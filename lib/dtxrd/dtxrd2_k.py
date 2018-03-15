@@ -19,7 +19,7 @@ from constants import *
 
 def dtxrd0_k(k,eta,dc,Ex,P,crystalx):
     [kx,ky,kz]=k
-    [[Chi0,Chih,Chih_],dh]=crystalx
+    [[Chi0,Chih,Chih_],dh,lp,ang]=crystalx
 
 ###############################################################################
 ##  GEOMETRY
@@ -138,7 +138,7 @@ def dtxrd0_k(k,eta,dc,Ex,P,crystalx):
 def dtxrd1_k(k,eta,dc,Ex,P,crystalx):
     [kx,ky,kz]=k
 #    [a,dh,Eb,f0h,f00,expF0,expF,sigh,V,element]=crystalx
-    [[Chi0,Chih,Chih_],dh]=crystalx
+    [[Chi0,Chih,Chih_],dh,lp,ang]=crystalx
 ###############################################################################
 ##  GEOMETRY
 ############################################################################### 

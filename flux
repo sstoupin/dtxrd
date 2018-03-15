@@ -10,26 +10,15 @@ a calibration file of a PIN detector
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
-import os
+
 import sys
 from numpy import *
+#from myio import readFile
+from dtxrd.myio import *
 import scipy
 from scipy.interpolate import interp1d
 
-#LOCAL
-#from myio import readFile
-
-# GLOBAL
-from dtxrd.myio import readFile
-
-prog = os.path.basename(sys.argv[0])        
-__version__ = '0.22'
-
-########################################################################################
-## Change
-########################################################################################
-# v 0.22 - add option '-i' to calculate flux from current
-
+__version__ = '0.2'
 
 def fatalError(msg):
 	sys.stderr.write('Error: ')
@@ -42,64 +31,57 @@ def fatalIOError(err):
 		err = '%s: %s' % (err.strerror, err.filename)
 	fatalError(err)
 
-def ParseArguments():
-        import argparse   # requires Python 2.7 or higher
-        msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
-        msg1 = 'countrate from a scaler [counts/s] \n'
-        msg2 = 'pre-amp sensitivity [mA/V] \n'
-        msg3 = 'photon energy [keV] \n'
-        msg4 = 'pin detector calibration file containing two columns: 1 - energy[keV] 2 - response[THz/mA] \n'
-        msg5 = 'write calculated parameters to file F (defaults to stdout) \n'
-        msg6 = 'use this option if input is in units of current [fA]' 
-        #
-        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter) 
-        parser.add_argument('-v', '--version', action='version', version=__version__)
-        #                
-        parser.add_argument('CR', action='store', type=float, nargs=1, help=msg1)
-        parser.add_argument('sens', action='store', type=float, nargs=1, help=msg2)
-        parser.add_argument('en0', action='store', type=float, nargs=1, help=msg3)
-        parser.add_argument('fn', action='store', help=msg4)
-        parser.add_argument('-o', '--output', action='store', dest='output', default=None, help=msg5, metavar='F')
-        parser.add_argument('-i', '--current', action='store_const', const=1, dest='cur',  default=0, help=msg6)
-        #        
-        return parser.parse_args()
-        
-def main():
-        stuff = ParseArguments()
-        
-        if stuff.output is not None:
-            try:
-               outFile = open(stuff.output, 'w')
-            except IOError, e:
-               fatalIOError(e)
-        else:
-            outFile = sys.stdout
-########################################################################################                    
-        d1,d2=readFile(stuff.fn)
+def ParseArguments(args):
+	try:
+		from optik import OptionParser
+	except ImportError:
+		try:
+			from optparse import OptionParser
+		except ImportError:
+			fatalError(
+'This program requires Optik, availible from http://optik.sourceforge.net/\n')
+
+	USAGE = '%prog  COUNTRATE SENSITIVITY_[mA/V] ENERGY_[keV] pin_calibration_file'
+	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+	parser = OptionParser(usage=USAGE, version=VERSION)
+	opts, args = parser.parse_args(args)
+
+	# did we get the right number of arguments?
+	if len(args) != 4:
+		parser.print_usage()
+		sys.exit(1)
+
+	try:    
+	        for k in [0,1,2]:
+         	  test = float(args[k])
+	except ValueError:
+		fatalError('parameters must be valid numbers')
+
+	return opts, args
+
+#wavelength(Angstrom) is calculated and reported according to:
+#Energy=h_plank*frequency=momentum*c=h_bar*k*c=2*pi*h_bar*c/lamda
+
+def main(args):
+
+        fn=args[3]
+        d1,d2=readFile(fn)
         en=d2[:,0]  #; en_l=list(en)
         cal=d2[:,1] #; cal_l=list(cal)
-                
-        CR=float(stuff.CR[0])
-        sens=float(stuff.sens[0])
-        en0=float(stuff.en0[0])
-#       
-        r_=interp1d(en,cal)
-        R=r_(en0)
         
-        if stuff.cur == 1:
-            flux = (CR*1.0e-12)*R*1.0e12       # [Hz]
-        else:         
-            flux = (CR*1.0e-5)*R*sens*1.0e12  # [Hz]
-        ################################################################################
-        ## OUTPUT      
-        ################################################################################  
-        outFile.write('##############################################################\n')
-        outFile.write('##### ' + prog + ' v'+__version__+' ############################################\n')
-        outFile.write('##### Author: Stanislav Stoupin ## sstoupin@aps.anl.gov ######\n')
-        outFile.write('##############################################################\n')                                
-        outFile.write('Ex [keV] = ' + str(en0) +' photon energy \n')
-        outFile.write('R [THz/mA] = '+ str(R) + ' pin detector response \n')        
-        outFile.write('flux [Hz] = ' + '%e' %flux + ' photon flux \n')        
+        CR=float(args[0])
+        sens=float(args[1])
+        en0=float(args[2])
+#       
+        f_=interp1d(en,cal)
+        f=f_(en0)
+        print "f = ", f , " [THz/mA]"           
+        flux=(CR*1e-5)*f*sens*1.0e12  # [Hz]
+        print "flux = ", '%e' %flux, " Hz"
+                        
+#        if flag==0:
+#                print "Energy must be in 5-25 keV interval"                
                 
 if __name__ == '__main__':
-	main()
+	options, args = ParseArguments(sys.argv[1:])
+	main(args)

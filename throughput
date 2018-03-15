@@ -39,7 +39,7 @@ from dtxrd.thfind import *
 from dtxrd.dtxrd2_k import *
 from dtxrd.constants import *
 
-__version__ = '0.20'
+__version__ = '0.21'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -69,6 +69,8 @@ __version__ = '0.20'
 # 0.19 new conventions to calculate integrated throughput (no more average throughput - the average throughput as defined 
 #      earlier  Tpt_int dependens on integration bandwidth)
 # 0.20 a simple model for Mo-Kalpha is included
+# 0.21 newformat for chi.py output 
+#      changed IOError, e: to IOError as e:
 #-------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. vector dtxrd function?
@@ -142,7 +144,7 @@ def main(opts,args):
         if opts.output is not None:
                try:
                         outFile = open(opts.output, 'w')
-               except IOError, e:
+               except IOError as e:
                         fatalIOError(e)
         else:
                 outFile = sys.stdout
@@ -598,7 +600,7 @@ def main(opts,args):
                try:
                     thplot=(mean(thc_l[cr_cnt_ans])+array(thscan0))*r2d
                     writeFile(opts.write,header,1.0e6*array(thscan0),array(Tptt),thplot) 
-               except IOError, e:
+               except IOError as e:
                     fatalIOError(e)
                #-------------------------------------------     
                # progress: plot angular scan at each angle
@@ -617,7 +619,7 @@ def main(opts,args):
             else:
                try:                
                     writeFile(opts.write,header,array(Eplot),array(Tpte),1.0e-3*array(Ev)) 
-               except IOError, e:
+               except IOError as e:
                     fatalIOError(e)
                #                         
 #               plt.plot(array(Eplot),array(Tpte),'b-')

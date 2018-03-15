@@ -30,7 +30,7 @@ from dtxrd.myio import coljoin, writeFile
 from dtxrd.constants import *
 from dtxrd.chi import *
 
-__version__ = '0.05'
+__version__ = '0.06'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -40,6 +40,7 @@ __version__ = '0.05'
 # v0.03 transmission corrected for reduction due to rms gaussian surface roughness (Lengeler 1999)
 # v0.04 rms surface roughness added as input parameter
 # v0.05 reports refocused beam size, adapted to go to APSshare
+# v0.06 replaced IOError, e: with IOError as e:
 #-------------------------------------------------------------------------------------------
 #  things to do
 # 
@@ -75,8 +76,8 @@ def ParseArguments(args):
 	+'R0  - half-aperture of the lens [mm] \n' \
 	+'da  - distance between apexes of the lens [um] \n' \
 	+'N   - number of lenses in the stack [integer] \n' \
-	+'Ex  - photon energy [keV]' \
-	+'sig - rms surface roughness [um]'
+	+'Ex  - photon energy [keV] \n' \
+	+'sig - r.m.s. surface roughness [um]'
 	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
 	+'the program calculates parabolic refractive lens profile (Lengeler JAP 1998)'
 	parser = OptionParser(usage=USAGE, version=VERSION)
@@ -110,7 +111,7 @@ def main(opts,args):
         if opts.output is not None:
                try:
                         outFile = open(opts.output, 'w')
-               except IOError, e:
+               except IOError as e:
                         fatalIOError(e)
         else:
                 outFile = sys.stdout                
@@ -281,7 +282,7 @@ def main(opts,args):
                try:                
                     writeFile(opts.write,header)                                        
 
-               except IOError, e:
+               except IOError as e:
                     fatalIOError(e)
                                                         
         plt.show()

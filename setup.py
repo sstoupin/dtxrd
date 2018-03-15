@@ -21,7 +21,7 @@ install_requires = [
 
 setup(
     name = 'python-dtxrd',
-    version = '1.3',
+    version = '1.5',
     url = 'https://github.com/sstoupin/dtxrd',
     maintainer = 'Stanislav Stoupin',
     maintainer_email = 'sstoupin@gmail.com',

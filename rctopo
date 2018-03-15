@@ -16,30 +16,56 @@ import numpy
 import operator
 
 # LOCAL
-#import commands
-#cmdout=commands.getstatusoutput('echo $HOME')
-#libpath=cmdout[1]+'/bin/dtxrd/lib/dtxrd/'
-#sys.path.append(libpath)
+import commands
+cmdout=commands.getstatusoutput('echo $HOME')
+libpath=cmdout[1]+'/bin/dtxrd/lib/dtxrd/'
+sys.path.append(libpath)
 
-#from numpy import *
-#from pyhdf import *
-#from curvestat import *
-#from fit1d import *
-#from myio import *
-#from roll_zeropad import roll_zeropad
+from numpy import *
+from pyhdf import *
+from curvestat import *
+from fit1d import *
+from myio import *
+from roll_zeropad import roll_zeropad
 
 # GLOBAL
-from dtxrd.pyhdf import *
-from dtxrd.curvestat import *
-from dtxrd.fit1d import *
-from dtxrd.myio import *
-from dtxrd.roll_zeropad import roll_zeropad
+#from dtxrd.pyhdf import *
+#from dtxrd.curvestat import *
+#from dtxrd.fit1d import *
+#from dtxrd.myio import *
+#from dtxrd.roll_zeropad import roll_zeropad
 
 #from __future__ import division
-from matplotlib.patches import Patch
+#from matplotlib.patches import Patch
 import matplotlib.image as mpimg
 from pylab import *
-#from publish import *
+#
+#import matplotlib.style
+import matplotlib as mpl
+mver = mpl.__version__
+ver_check = mver.split('.')
+if float(ver_check[0]) >= 2:
+
+  #mpl.style.use('classic')
+  #-------------------------------
+  ##########################################################
+  ## to undo changes in matplotlib 2.1.0
+  ##########################################################
+  #mpl.rcParams['legend.fancybox'] = False
+  #mpl.rcParams['legend.loc'] = 'upper right'
+  #mpl.rcParams['legend.numpoints'] = 2
+  #mpl.rcParams['legend.fontsize'] = 'large'
+  #mpl.rcParams['legend.framealpha'] = None
+  #mpl.rcParams['legend.scatterpoints'] = 3
+  #mpl.rcParams['legend.edgecolor'] = 'inherit'
+  mpl.rcParams['figure.figsize'] = [8.0, 6.0]
+  mpl.rcParams['figure.dpi'] = 80
+  mpl.rcParams['savefig.dpi'] = 100
+  mpl.rcParams['font.size'] = 12
+  mpl.rcParams['legend.fontsize'] = 'large'
+  mpl.rcParams['figure.titlesize'] = 'medium'
+  mpl.rcParams['image.cmap'] = 'jet'
+  #
 ##################################################################
 ## fixed constants
 ##################################################################
@@ -48,7 +74,7 @@ fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5           # upper limit to plot fwhm distribution
 ##################################################################
 
-__version__='0.81'
+__version__='0.84'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
@@ -108,6 +134,10 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 #        with an option -c (--conduct)
 # v081   now can process sequence of tiff (or other image) files using an external angular
 #        scale from first column of a data file e.g. SPECfile.dat (-e SPECfile.dat)
+# v082   linear interpolation for the background
+# v083   found that simps failed on one of the samples NDT111-3_Bc2
+#        modified curvestat to avoid simps - just using plain sums now
+# v084   changed IOError, e: to IOError as e:
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -271,9 +301,9 @@ def ParseArguments(args):
                 metavar='CONST')                  
         parser.add_option('-e', '--external',
                 action='store',
-                dest='SPECscan',
+                dest='external',
                 default=None,
-                help='read angular steps from the first column of a SPEC scan')  
+                help='read angular steps from a SPEC scan')  
         #Parameters
         
         opts, args = parser.parse_args(args)
@@ -287,7 +317,7 @@ def main(opts, args):
   if opts.output is not None:
      try:
         outFile = open(opts.output, 'w')
-     except IOError, e:
+     except IOError as e:
         fatalIOError(e)
   else:
      outFile = sys.stdout
@@ -332,8 +362,8 @@ def main(opts, args):
   dx=float(rbin)*dx
   dy=float(rbin)*dy
   ##
-  if opts.SPECscan is not None:
-    fn_ang = str(opts.SPECscan) # read SPEC scan
+  if opts.external is not None:
+    fn_ang = str(opts.external) # read SPEC scan
     d1,d2=readFile(fn_ang)      
     angle_v = 1.0*d2[:,0] # assume it is the first column in the SPEC scan
 #---------------------------------------------------------------------------------------------  
@@ -342,6 +372,8 @@ def main(opts, args):
     fn_ext=fn.split(".")[-1]
     if fn_ext == "hdf":
       angle, size, im = read_hdf4(fn)
+      chi = -9999
+      dx=0.06; dy=0.06
     elif fn_ext == "h5":
       angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path) 
     #  
@@ -403,6 +435,8 @@ def main(opts, args):
     th=5.86*array(th_deg)                      # th_deg in microns
   elif opts.units=='volt':
     th=22.1388*array(th_deg)                      # th_deg in microns
+  else: 
+    fatalIOError("Inappropriate angular units chosen")
 
 ################################################################################
 ## theta origin is defined here as the center of the angular range in the scan 
@@ -493,6 +527,13 @@ def main(opts, args):
       #-------------------------------------------------
       if opts.bkg==-1:    
         bkg=0.25*(rcurve[0]+rcurve[1]+rcurve[len(rcurve)-2]+rcurve[len(rcurve)-1]) #; print 'bkg = ', bkg  
+        b1=0.5*(rcurve[0]+rcurve[1])
+        b2=0.5*(rcurve[len(rcurve)-2]+rcurve[len(rcurve)-1])
+        t1=th_beg
+        t2=th_end
+        A=(b2-b1)/(t2-t1)
+        B=b2-A*t2
+        bkg_lin=A*th+B
       #------------------------------------------------
       # Deglitching procedure
       #------------------------------------------------                  
@@ -510,8 +551,8 @@ def main(opts, args):
       # subtracting bkg since it can vary from pixel to pixel
       
       if opts.conduct == 1:
-          rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg)]  # TC        
-          rcurve = -1.0*(rcurve-bkg)  # TC
+          rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg_lin)]  # TC        
+          rcurve = -1.0*(rcurve-bkg_lin)  # TC
           bkgs = 0.0    # TC      
           rcmax=max(rcurve)
           rmax=rcmax       # TC
@@ -617,6 +658,10 @@ def main(opts, args):
           else:
               try: 
                 stat=curvestat(th-th0,rcurve,bkgs)
+                #print 'stat4 =' , stat[4]
+                #print 'stat5 = ', stat[5]
+                #print 'stat6 = ', stat[6]
+                #print 'stat7 = ', stat[7]
                 if opts.conduct == 0:
                   crit2 = abs(stat[1]-bkgs) < dyn_range*bkg0 and abs(stat[6]) < 0.5*abs(th_end-th_beg) and abs(stat[5]) < abs(th_end-th_beg)
                 if opts.conduct == 1:
@@ -902,7 +947,7 @@ def main(opts, args):
           plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
       elif opts.conduct == 1: 
           plt.title('peak reflectivity [abs.u.]',size=20)   # because this is absolute reflectivity!!!
-          plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=0.5)
+          plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
       plt.colorbar()
   elif zf == -1:
      plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
@@ -1103,7 +1148,7 @@ def main(opts, args):
             '# '+str_axis+' peak(norm) FWHM[urad] COM[urad] mid-point[urad] left-slope[urad] right-slope[urad] STDEV[urad]\n'
      try:                
             writeFile(opts.write,header,range_sl,peak_sl_m,fwhm_sl_m,com_sl_m,thmid_sl_m,thneg_sl_m,thpos_sl_m,stdev_sl_m)
-     except IOError, e:
+     except IOError as e:
             fatalIOError(e)                                        
                    
 if __name__ == '__main__':

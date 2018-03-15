@@ -30,7 +30,7 @@ from dtxrd.curvestat import *
 from dtxrd.deriv import *
 from dtxrd.merge_vect import *
 
-__version__='0.34'
+__version__='0.36'
 proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 
 ##############################################################################################################################
@@ -61,6 +61,8 @@ proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.go
 # v0.32 keep th0_mid = 0.0 to plot data without offset on the angular scale
 # v0.33 avoid unavailable computation of corr if gauss or lorentz fits fail
 # v0.34 add time series statistics (-s option): average and std - used only when -l option
+# v0.35 fixed color assignment bug on semilog plot
+# v0.36 changed IOError, e: to IOError as e:
 ##############################################################################################################################
 # Todo list
 # 1. interpolate data
@@ -222,7 +224,7 @@ def main(opts, args):
         if opts.output is not None:
                try:
                         outFile = open(opts.output, 'w')
-               except IOError, e:
+               except IOError as e:
                         fatalIOError(e)
         else:
                 outFile = sys.stdout
@@ -316,13 +318,14 @@ def main(opts, args):
              chisq = abs(sum((residuals1(p_fin,y,x))**2.0))
              r2 = sum(residuals1(p_fin,y,x)**2.0)/sum((r_g-p_fin[0])**2.0)
              stdv = sqrt(1.0/N1*chisq)
-             #print gaussfit[1]
-             if gaussfit[1] != None:
+             gfitcheck = array(gaussfit[1])
+             if gfitcheck.any() == None:
+                 print "Warning: fit did not converge!"
+                 uncert = [0,0,0,0]                          
+             #if gaussfit[1].any() != None:
+             else:
                  corr = stdv*sqrt(abs(gaussfit[1]))
                  uncert = diag(corr)
-             else:
-                 print "Warning: fit did not converge!"
-                 uncert = [0,0,0,0]
              u_bkg_g = uncert[0]
              u_rmax_g = uncert[1] 
              u_thmax_g = uncert[2]
@@ -349,7 +352,8 @@ def main(opts, args):
              chisq = abs(sum((residuals2(p_fin,y,x))**2.0))
              r2 = sum(residuals1(p_fin,y,x)**2.0)/sum((r_l-p_fin[0])**2.0)
              stdv = sqrt(1.0/N1*chisq)
-             if lorentzfit[1] != None:   
+             lfitcheck = array(lorentzfit[1])
+             if lfitcheck.any() != None:   
                  corr = stdv*sqrt(abs(lorentzfit[1]))
                  uncert = diag(corr)
              else:
@@ -444,15 +448,15 @@ def main(opts, args):
             # PLOT ORIG. DATA IN LIN and SEMILOG
             ######################################################
             if opts.norm==1:
-                r=r/max(r)                        
+                r=(r-bkg)/max(r-bkg)                        
             figure(101)
-            plot(cf*th,r,'o-',label=fn)
+            plot(cf*th,r,'-',label=fn)
             #plot(cf*th,r,'-')
             
             if opts.lookup !=1: 
                 figure(102)
-                semilogy(cf*th,r,'bo',label=fn)
-                semilogy(cf*th,r,'-')
+                semilogy(cf*th,r,'-',label=fn)
+                #semilogy(cf*th,r,'-')
                 axis([min(cf*th),max(cf*th),1e-6,1.1])
 #        figure(667)
 #        plot(0.024*array(range(0,count)),20.0*array(thmaxg_),'o',label='peak position')

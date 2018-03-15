@@ -19,7 +19,6 @@ from pylab import *
 
 #GLOBAL
 from dtxrd.pyhdf import *
-from dtxrd.myio import coljoin, writeFile
 
 prog = os.path.basename(sys.argv[0])
 ############################################################
