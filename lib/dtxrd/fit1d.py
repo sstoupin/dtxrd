@@ -1,18 +1,9 @@
-#!/usr/bin/env python
-
-'''
-a wrapper for leastsq (scipy)
-
-:author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
-
-:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
-:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
-'''
-
-#----------------------------------------------------------------------------------------------
+#!/usr/bin/python
+# Wrapper function for leastsq (scipy)
+# ------------------------------------------------------------ 
+# Author: Stanislav Stoupin (sstoupin@aps.anl.gov) 2011
+#-------------------------------------------------------------
 # version 0.2 
-#----------------------------------------------------------------------------------------------
 
 from numpy import *
 from scipy.optimize import *
@@ -20,7 +11,7 @@ from scipy.optimize import *
 def fit1d(residuals, p_init, x, y):
       
       N=len(x)  
-      fit=leastsq(residuals, p_init, args=(y,x), full_output=1, ftol=1e-32, xtol=1e-32)
+      fit=leastsq(residuals, p_init, args=(y,x), full_output=1, ftol=1e-10, xtol=1e-10)
       # returns:
       # [0] The solution (or the result of the last iteration for an unsuccessful call).
       # [1] Uses the fjac and ipvt optional outputs to construct an estimate of the jacobian 
@@ -34,9 +25,13 @@ def fit1d(residuals, p_init, x, y):
       r2 = sum(dte**2.0)/sum(y**2.0)   # look into IXS error standards
       sstd = sqrt(1.0/N*chisq)             # this is just definition of std
       stat=[chisq,r2,sstd]        
-
-      if fit[1] == None:
-          print fit[3]
+      
+      jacob = array(fit[1])
+      #print "status: ", status
+      if jacob.any() == None:
+      #if fit[1].any() == None:
+      #if fit[1] == None:
+          print(fit[3])
           l1=[]
           for x in p:
               l1.append('N/A')
@@ -51,4 +46,6 @@ def fit1d(residuals, p_init, x, y):
           uncert = diag(corr)
 
           return [p,uncert,dte,stat,sstd**2.0*fit[1]]
+      
+
       

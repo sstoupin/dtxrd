@@ -5,7 +5,7 @@ a program to calculate x-ray flux based on a scaler counts, detection sensitivit
 a calibration file of a PIN detector
 
 :author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+:email:     sstoupin@gmail.com
 
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
@@ -13,8 +13,7 @@ a calibration file of a PIN detector
 
 import sys
 from numpy import *
-#from myio import readFile
-from dtxrd.myio import *
+from myio import readFile
 import scipy
 from scipy.interpolate import interp1d
 
@@ -42,7 +41,7 @@ def ParseArguments(args):
 'This program requires Optik, availible from http://optik.sourceforge.net/\n')
 
 	USAGE = '%prog  COUNTRATE SENSITIVITY_[mA/V] ENERGY_[keV] pin_calibration_file'
-	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 	parser = OptionParser(usage=USAGE, version=VERSION)
 	opts, args = parser.parse_args(args)
 
@@ -75,10 +74,10 @@ def main(args):
 #       
         f_=interp1d(en,cal)
         f=f_(en0)
-        print "f = ", f , " [THz/mA]"           
+        print("f = ", f , " [THz/mA]")
         flux=(CR*1e-5)*f*sens*1.0e12  # [Hz]
-        print "flux = ", '%e' %flux, " Hz"
-                        
+        print("flux = ", '%e' %flux, " Hz")
+                                
 #        if flag==0:
 #                print "Energy must be in 5-25 keV interval"                
                 

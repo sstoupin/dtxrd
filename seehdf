@@ -4,7 +4,7 @@
 a program to view data array in hdf files as an image
 
 :author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+:email:     sstoupin@gmail.com
 
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
@@ -22,8 +22,8 @@ from dtxrd.pyhdf import *
 
 prog = os.path.basename(sys.argv[0])
 ############################################################
-__version__='0.17'
-proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+__version__='0.18'
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 ########################################################################################
 # v 0.12 - after pyhdf modification and convention for image transformation is adopted
 # v 0.13 - minor adaptation to run globally
@@ -201,7 +201,7 @@ def main():
             theta = a2urad*angle
             #indx1=0; indx2=nx
             #indy1=0; indy2=ny 
-            print "cmd_opts.transpose", cmd_opts.transpose
+            print("cmd_opts.transpose", cmd_opts.transpose)
             figplot(cmd_opts.transpose,dx,dy,indx1,indx2,indy1,indy2,im,fn,theta)
         ############################################################################ 
         ## Do STUFF
@@ -240,8 +240,8 @@ def main():
             #######################################################################
             ## WRITE OUTPUT
             #######################################################################
-	    if cmd_opts.write == 1:
-            #imgfile=cnt+'_'+fn_+'.png'
+            if cmd_opts.write == 1:
+	        #imgfile=cnt+'_'+fn_+'.png'
                 imgfile=fn_+'.png'
                 fig1.savefig(imgfile)		    
                    

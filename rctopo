@@ -1,39 +1,39 @@
 #!/usr/bin/env python
-
 '''
 a program for sequential topography/rocking curve imaging
 
 :author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+:email:     sstoupin@gmail.com
 
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
-
 
 import os, sys
 import numpy
 import operator
 
 # LOCAL
-import commands
-cmdout=commands.getstatusoutput('echo $HOME')
-libpath=cmdout[1]+'/bin/dtxrd/lib/dtxrd/'
-sys.path.append(libpath)
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#import subprocess
+#cmdout=subprocess.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/DTXRD/'
+#sys.path.append(libpath)
 
-from numpy import *
-from pyhdf import *
-from curvestat import *
-from fit1d import *
-from myio import *
-from roll_zeropad import roll_zeropad
+#from numpy import *
+#from pyhdf import *
+#from curvestat import *
+#from fit1d import *
+#from myio import *
+#from roll_zeropad import roll_zeropad
 
 # GLOBAL
-#from dtxrd.pyhdf import *
-#from dtxrd.curvestat import *
-#from dtxrd.fit1d import *
-#from dtxrd.myio import *
-#from dtxrd.roll_zeropad import roll_zeropad
+from dtxrd.pyhdf import *
+from dtxrd.curvestat import *
+from dtxrd.fit1d import *
+from dtxrd.myio import *
+from dtxrd.roll_zeropad import roll_zeropad
 
 #from __future__ import division
 #from matplotlib.patches import Patch
@@ -45,38 +45,37 @@ import matplotlib as mpl
 mver = mpl.__version__
 ver_check = mver.split('.')
 if float(ver_check[0]) >= 2:
-
-  #mpl.style.use('classic')
-  #-------------------------------
-  ##########################################################
-  ## to undo changes in matplotlib 2.1.0
-  ##########################################################
-  #mpl.rcParams['legend.fancybox'] = False
-  #mpl.rcParams['legend.loc'] = 'upper right'
-  #mpl.rcParams['legend.numpoints'] = 2
-  #mpl.rcParams['legend.fontsize'] = 'large'
-  #mpl.rcParams['legend.framealpha'] = None
-  #mpl.rcParams['legend.scatterpoints'] = 3
-  #mpl.rcParams['legend.edgecolor'] = 'inherit'
-  mpl.rcParams['figure.figsize'] = [8.0, 6.0]
-  mpl.rcParams['figure.dpi'] = 80
-  mpl.rcParams['savefig.dpi'] = 100
-  mpl.rcParams['font.size'] = 12
-  mpl.rcParams['legend.fontsize'] = 'large'
-  mpl.rcParams['figure.titlesize'] = 'medium'
-  mpl.rcParams['image.cmap'] = 'jet'
-  #
+    #mpl.style.use('classic')
+    #-------------------------------
+    ##########################################################
+    ## to undo changes in matplotlib 2.1.0
+    ##########################################################
+    #mpl.rcParams['legend.fancybox'] = False
+    #mpl.rcParams['legend.loc'] = 'upper right'
+    #mpl.rcParams['legend.numpoints'] = 2
+    #mpl.rcParams['legend.fontsize'] = 'large'
+    #mpl.rcParams['legend.framealpha'] = None
+    #mpl.rcParams['legend.scatterpoints'] = 3
+    #mpl.rcParams['legend.edgecolor'] = 'inherit'
+    mpl.rcParams['figure.figsize'] = [8.0, 6.0]
+    mpl.rcParams['figure.dpi'] = 80
+    mpl.rcParams['savefig.dpi'] = 100
+    mpl.rcParams['font.size'] = 12
+    mpl.rcParams['legend.fontsize'] = 'large'
+    mpl.rcParams['figure.titlesize'] = 'medium'
+    mpl.rcParams['image.cmap'] = 'jet'
 ##################################################################
 ## fixed constants
 ##################################################################
 r2d=180.0/pi
 fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
-fwhm_r=1.5           # upper limit to plot fwhm distribution
+fwhm_r=1.5          # upper limit to plot fwhm distribution
+ftsize = 18         # fiture title font size 
 ##################################################################
 
-__version__='0.84'
+__version__='0.88'
 prog = os.path.basename(sys.argv[0])
-proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
 #######################################################################################
 # HISTORY
@@ -138,6 +137,11 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
 # v083   found that simps failed on one of the samples NDT111-3_Bc2
 #        modified curvestat to avoid simps - just using plain sums now
 # v084   changed IOError, e: to IOError as e:
+# v085   now rcurve_tot calculated after pixel rejection which is more correct 
+#        the result is less dependent on the choice of region
+# v086   making cosmetic changes, adapting for python3
+# v087   transition from ancient optik parser to argparse
+# v088   write processed data to h5 file "-j" option
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -160,160 +164,72 @@ def fatalIOError(err):
                   err = '%s: %s' % (err.strerror, err.filename)
         fatalError(err)
                                                                 
-def ParseArguments(args):
-        try:
-                from optik import OptionParser
-        except ImportError:
-                try:
-                       from optparse import OptionParser
-                except ImportError:
-                       fatalError(
-'This program requires Optik, availible from http://optik.sourceforge.net/\n')
+def ParseArguments():
+        import argparse   # requires Python 2.7 or higher
+        msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
 
-        USAGE = prog + ' [OPTIONS...] filename1 filename2 ... \n' \
-        +'the program computes and displays rocking curve maps using a series of CCD \n' \
-        +'images taken at different angles on the rocking curve of a crystal\n' \
-        +'for options type: rctopo -h \n' \
-        +'Cheers!'
-        VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' 
-        parser = OptionParser(usage=USAGE, version=VERSION)                        
-        #
-        # Behavior
-        #
+        #USAGE = prog + ' [OPTIONS...] filename1 filename2 ... \n' \
+        #+'the program computes and displays rocking curve maps using a series of CCD \n' \
+        #+'images taken at different angles on the rocking curve of a crystal\n' \
+        #+'for options type: rctopo -h \n' \
+        #+'Cheers!'
+        #VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' 
+        #parser = OptionParser(usage=USAGE, version=VERSION)                        
+        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
+        parser.add_argument('-v', '--version', action='version', version=__version__)
         
-        #Output
-        parser.add_option('-o', '--output',
-                action='store',
-                dest='output',
-                default=None,
-                help='write calculated parameters to file F (defaults to stdout); also, write output for 1pix_total.dat',
-                metavar='F')
-        parser.add_option('-w', '--write',
-                action='store',
-                dest='write',
-                default=None,
-                help='write data to file D (default: do not write) - reserved for slice data',
-                metavar='D')        
-        parser.add_option('-t', '--threshold',
-                action='store',
-                dest='tr',
-                default=1.05,
-                help='processing threshold in reflectivity to define the crystal boundaries',
-                metavar='CONST')
-        parser.add_option('-b', '--background',
-                action='store',
-                dest='bkg',
-                default=-1,
-                help='background from CCD',
-                metavar='CONST')
-                #
-        parser.add_option('-a', '--ashift',
-                action='store',
-                dest='ashift',
-                default=0,
-                help='compensate beam shift in the imaging plane at a distance CONST [m]',
-                metavar='CONST')
-                #
-        parser.add_option('-r', '--range',
-                action='store',
-                dest='rng',
-                default='-1 -1 -1 -1',
-                help='map range for analysis',
-                metavar='STRING')
-        parser.add_option('-x', '--xslice',
-                action='store',
-                dest='xsl',
-                default=-1,
-                help='slice and plot distribution at a fixed coordinate X',
-                metavar='CONST')
-        parser.add_option('-y', '--yslice',
-                action='store',
-                dest='ysl',
-                default=-1,
-                help='slice and plot distribution at a fixed coordinate Y',
-                metavar='CONST')
-        parser.add_option('-n', '--name',
-                action='store',
-                dest='nm',
-                default='',
-                help='sample name',
-                metavar='STRING')                
-        parser.add_option('-f', '--factor',
-                action='store',
-                dest='f',
-                default=1.0,
-                help='factor*fwhm_aver defines range of colormap on peak/slope position images',
-                metavar='CONST')  
-        parser.add_option('-m', '--magnify',
-                action='store',
-                dest='m',
-                default=1.0,
-                help='shirks colormap range for fwhm by this factor',
-                metavar='CONST')  
-        parser.add_option('-d', '--deglitch',
-                action='store',
-                dest='degl',
-                default=-1.0,
-                help='deglitch data',
-                metavar='CONST')
-        parser.add_option('-g', '--gaussian',
-                action='store_const',
-                const=1,
-                dest='stat',
-                default=0,
-                help='do gaussian curve fitting - for noisy data')
-        parser.add_option('-s', '--trasnpose',
-                action='store_const',
-                const=1,
-                dest='transpose',
-                default=0,
+        parser.add_argument('-o', '--output', action='store', dest='output', default=None, metavar='F',
+                help='write calculated parameters to file F (defaults to stdout); also, write output for 1pix_total.dat')
+        parser.add_argument('-w', '--write', action='store', dest='write', default=None, metavar='D',
+                help='write data to file D (default: do not write) - reserved for slice data')
+        parser.add_argument('--hdf5', action='store', dest='hdf5', default=None, metavar='D',
+                         help='write data to hdf5 file D (default: do not write)')                                 
+        parser.add_argument('-t', '--threshold', action='store', dest='tr', default=1.05, metavar='CONST',
+                help='processing threshold for reflectivity to define the boundaries of the crystal')
+        parser.add_argument('-b', '--background', action='store', dest='bkg', default=-1, metavar='CONST',
+                help='background from CCD')
+        parser.add_argument('-a', '--ashift', action='store', dest='ashift', default=0, metavar='CONST',
+                help='compensate beam shift in the imaging plane at a distance CONST [m] (untested option)')
+        parser.add_argument('-r', '--range', action='store', dest='rng', default='-1 -1 -1 -1', metavar='STRING',
+                help='range selected for analysis STRING=\'x1 x2 y1 y2\' ')
+        parser.add_argument('-x', '--xslice', action='store', dest='xsl', default=-1, metavar='CONST',
+                help='slice and plot distribution at a fixed coordinate X')
+        parser.add_argument('-y', '--yslice', action='store', dest='ysl', default=-1, metavar='CONST',
+                help='slice and plot distribution at a fixed coordinate Y')
+        parser.add_argument('-n', '--name', action='store', dest='nm', default='', metavar='STRING',
+                help='sample name')
+        parser.add_argument('-f', '--factor', action='store', dest='f', default=1.0, metavar='CONST',
+                help='factor*fwhm_aver defines range of colormap on peak/slope position images')
+        parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0,
+                help='expand/shrink colormap range for fwhm by this factor')
+        parser.add_argument('-d', '--deglitch', action='store', dest='degl', default=-1.0, metavar='CONST',
+                help='deglitch data')
+        parser.add_argument('-g', '--gaussian', action='store_const', const=1, dest='stat', default=0,
+                help='do gaussian curve fitting (can help with noisy data)')
+        parser.add_argument('-s', '--trasnpose', action='store_const', const=1, dest='transpose', default=0,
                 help='transpose images for plotting')
-        parser.add_option('-u', '--units',
-                action='store',
-                dest='units',
-                default='deg',
-                help='angular units: deg, arcsec, urad',
-                metavar='STRING')
-        parser.add_option('-p', '--publish',
-                action='store_const',
-                const=1,
-                dest='publish',
-                default=0,
-                help='generate figures for publication')
-        parser.add_option('-c', '--conduct',
-                action='store_const',
-                const=1,
-                dest='conduct',
-                default=0,
-                help='process forward diffraction data')
-        parser.add_option('-i', '--instrument',
-                action='store_const',
-                const=1,
-                dest='instrument',
-                default=0,
+        parser.add_argument('-u', '--units', action='store', dest='units', default='deg', metavar='STRING',
+                help='angular units: deg, arcsec, urad')
+        parser.add_argument('-p', '--publish', action='store_const', const=1, dest='publish', default=0,
+                help='generate figures for publication (execute instructions in file figures.py)')
+        parser.add_argument('-c', '--conduct', action='store_const', const=1, dest='conduct', default=0,
+                help='process diffraction images collected in transmission')
+        parser.add_argument('-i', '--instrument', action='store_const', const=1, dest='instrument', default=0,
                 help='read parameters from instrument file ccd.py')                                                                       
-        parser.add_option('-z', '--integrate',
-                action='store',
-                dest='z',
-                default=0,
-                help='integrate reflectivity and normalize by theoretical angular acceptance for perfect crystal (input value) \n' 
-                + 'hint: z == 0 - do not integrate (default), z != 0 - integrate , z ==-1 - integrate and normalize by max. value',
-                metavar='CONST')                  
-        parser.add_option('-e', '--external',
-                action='store',
-                dest='external',
-                default=None,
-                help='read angular steps from a SPEC scan')  
-        #Parameters
-        
-        opts, args = parser.parse_args(args)
-        if len(args) < 1:
-                parser.print_usage()
-                sys.exit(1)
-        return opts, args                
-###############################################################################                                
-                                
-def main(opts, args):
+        parser.add_argument('-z', '--integrate', action='store', dest='z', default=0, metavar='CONST',
+                help='presentation of reflectivity data: \n'
+                + 'z == 0  - plot peak reflectivity normalized by max. value (default) \n'
+                + 'z == -1 - plot integrated reflectivity normalized by max. value \n'
+                + 'z !=0 and z !=-1 - normalize reflectivity data by input parameter CONST')
+        parser.add_argument('-e', '--external', action='store', dest='external', default=None, metavar='FILENAME',
+                help='read angular steps from 1st column of an ASCII file (e.g., SPEC scan)')
+        #
+        parser.add_argument('input_files',nargs='+',
+                help='list of input filenames')
+        return parser.parse_args()
+###############################################################################                                                                
+def main():
+  opts = ParseArguments()
   if opts.output is not None:
      try:
         outFile = open(opts.output, 'w')
@@ -322,8 +238,8 @@ def main(opts, args):
   else:
      outFile = sys.stdout
   
-  nall = len(sys.argv)-len(args)
-  param = sys.argv[0:nall]
+  #nall = len(sys.argv)-len(args)
+  param = sys.argv #[0:nall]
   param = ' '.join(param)  
   outFile.write(param + '\n')                    
   #outFile.write(str(opts)+' '+str(args)+'\n')
@@ -336,12 +252,12 @@ def main(opts, args):
   alldata=[]
   data=[]
   th_deg=[]
-  tr=float(opts.tr);   print "Threshold (tr) = ", tr
-  df=float(opts.degl); print "Deglitching factor (df) = ", df
-  sf=float(opts.f);    print "Limit scale factor for plotting (sf) = ", sf
-  mf=float(opts.m);    print "Shrink FWHM colormap range", mf
-  nf=len(args);	       print "Number of files to analyze = ", nf
-  zf=int(opts.z);      print "integrate reflectivity (==0 no, !=0 yes, ==-1 normalize)", zf
+  tr=float(opts.tr);   print("Threshold (tr) = ", tr)
+  df=float(opts.degl); print("Deglitching factor (df) = ", df)
+  sf=float(opts.f);    print("Limit scale factor for plotting (sf) = ", sf)
+  mf=float(opts.m);    print("Shrink FWHM colormap range", mf)
+  nf=len(opts.input_files);  print("Number of files to analyze = ", nf)
+  zf=float(opts.z);    print("integrate reflectivity (==0 no, !=0 yes, ==-1 normalize)", zf)
   #-------------------------------------------------------------------------------------------
   if opts.instrument == 1:  # if instrument file ccd.py is used
     user_dir = os.getcwd()
@@ -363,12 +279,16 @@ def main(opts, args):
   dy=float(rbin)*dy
   ##
   if opts.external is not None:
-    fn_ang = str(opts.external) # read SPEC scan
-    d1,d2=readFile(fn_ang)      
-    angle_v = 1.0*d2[:,0] # assume it is the first column in the SPEC scan
+    fn_ang = str(opts.external) # read scan ascii file (SPEC scan or other)
+    d1,d2=readFile(fn_ang)
+    checkext = fn_ang.split('.')
+    if checkext[1] == 'asc':
+        angle_v = 1.0*d2[:,1]
+    else:
+        angle_v = 1.0*d2[:,0]
 #---------------------------------------------------------------------------------------------  
   fn_count = 0 
-  for fn in args:   
+  for fn in opts.input_files:   
     fn_ext=fn.split(".")[-1]
     if fn_ext == "hdf":
       angle, size, im = read_hdf4(fn)
@@ -384,7 +304,8 @@ def main(opts, args):
             (ny,nx) =  shape0
             res = 1
         elif len(shape0) == 3:
-            (ny,nx,res) = shape0        
+            (ny,nx,res) = shape0
+            im = im[:,:,0] # added for Merlin        
         chi = -9999
         angle = angle_v[fn_count]
         ######################
@@ -410,10 +331,10 @@ def main(opts, args):
         ny=size[1] #;print ny            
         im=flipud(im)
 #  print im.dtype
-    print "filename: ", fn
-    print "fn_count: ", fn_count    
-    print "theta = ", angle
-    print "chi = ", chi        
+    print("filename: ", fn)
+    print("fn_count: ", fn_count)
+    print("theta = ", angle)
+    print("chi = ", chi)
 ### sorting data by angle #######################
     data_fn=[angle,im]
     alldata=alldata+[data_fn]
@@ -447,8 +368,8 @@ def main(opts, args):
   th0=0.5*(th_beg+th_end)  
   th0_deg=1.0e-6*r2d*th0
   
-  print "###########################################"
-  print "th0 (initial) = ", th0
+  print("###########################################")
+  print("th0 (initial) = ", th0)
 
   if opts.ashift == 0:
      for x in alldata:
@@ -459,9 +380,9 @@ def main(opts, args):
      for (t,x) in map(None,th,alldata): 
         imdist = float(opts.ashift) # [m]
         imsh = 1.0e-6*(t-th0)*imdist*1.0e3 # image shift [mm]
-        print "applied shifts [mm] =  ", imsh
-        print "th0 [urad] = ", th0
-        rind = int(imsh/dy); print "rind = ", rind 
+        print("applied shifts [mm] =  ", imsh)
+        print("th0 [urad] = ", th0)
+        rind = int(imsh/dy); print("rind = ", rind)
         #sarray = roll(x[1],-rind,axis=0)
         sarray = roll_zeropad(x[1],-rind,axis=0)        
         data = data +[sarray]                                                 
@@ -511,11 +432,11 @@ def main(opts, args):
 #-------------------------------------------------------  
   if opts.bkg > 0:
     bkg=float(opts.bkg)
-    print "bkg is assigned through option, bkg = ", bkg
+    print("bkg is assigned through option, bkg = ", bkg)
   else:
-    print "bkg approximated by the endpoints"  
+    print("bkg approximated by the endpoints")
 #-------------------------------------------------------  
-  abs_max=data.max(); print 'abs_max = ', abs_max
+  abs_max=data.max(); print ('abs_max = ', abs_max)
 #-------------------------------------------------------  
 # Main stuff
 #-------------------------------------------------------
@@ -545,20 +466,18 @@ def main(opts, args):
           mean=0.25*(rcurve[k-2]+rcurve[k-1]+rcurve[k+1]+rcurve[k+2])
           if y > df*mean or y < (2.0-df)*mean:
             rcurve[k]=mean
-            print "X= ", dx*i, "Y= ",dy*j, " glitch found"   
+            print("X= ", dx*i, "Y= ",dy*j, " glitch found")   
       #---------------------------------------------------------------------------------------
-      # add rcurve to rcurve_tot - afer deglitching if it is activated
-      # subtracting bkg since it can vary from pixel to pixel
-      
+      # subtracting bkg since it can vary from pixel to pixel            
       if opts.conduct == 1:
-          rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg_lin)]  # TC        
+          #rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg_lin)]  # TC        
           rcurve = -1.0*(rcurve-bkg_lin)  # TC
           bkgs = 0.0    # TC      
           rcmax=max(rcurve)
           rmax=rcmax       # TC
           #rmax=bkg        # TC
       if opts.conduct == 0:
-          rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
+          #rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
           bkgs = bkg  #RC
           rcmax=max(rcurve)
           rmax=rcmax-bkg # RC     
@@ -575,19 +494,19 @@ def main(opts, args):
       indy0=int(0.5*(yrange[0]+yrange[len(yrange)-1]))
       #--------------------------------------------------------
       if (i==indx0) and (j==indy0):
-            print "thi0 = ", thi0
+            print("thi0 = ", thi0)
             ugol=th-th0 #th_deg    
             p0=[bkgs,rcmax,thi0,fwhm_0] #bkg max center
             p, unc, dte, stat, cov = fit1d(residuals,p0,ugol,rcurve) 
-            com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0]); print "com = ", com0
-            print '--------------------------------------------------------------------------'
-            print 'Gaussian fit at the central pixel'
-            print 'X0 [mm] = ', float(xrange[0] + indx0)*dx
-            print 'Y0 [mm] = ', float(yrange[0] + indy0)*dy
-            print 'bkg  = ', bkg
-            print 'bkgs = ', bkgs
-            print 'p = ', p
-            print "FWHM =", 2.0*abs(p[3])*sqrt(log(2)), " urad"
+            com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0]); print("com = ", com0)
+            print('--------------------------------------------------------------------------')
+            print('Gaussian fit at the central pixel')
+            print('X0 [mm] = ', float(xrange[0] + indx0)*dx)
+            print('Y0 [mm] = ', float(yrange[0] + indy0)*dy)
+            print('bkg  = ', bkg)
+            print('bkgs = ', bkgs)
+            print('p = ', p)
+            print('FWHM =', 2.0*abs(p[3])*sqrt(log(2)), ' urad')
             #--------------------------------------------------
             # assign rcurve from pixel for output
             # subtract background 
@@ -620,14 +539,24 @@ def main(opts, args):
       #if bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0:  #RC
       #if bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0 and bkg>bkg0:            #TC 
       if crit1 == True:
-              
+          # add rcurve to rcurve_tot - afer deglitching if it is activated
+          # AND after pixel rejection criteria
+          # subtracting bkg since it can vary from pixel to pixel      
+          if opts.conduct == 1:
+              rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg_lin)]  # TC        
+          #rmax=bkg        # TC
+          if opts.conduct == 0:
+              rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
+          ##################################################################################
+          # extracting curve parameters if the pixel complies with the criterion
+          ##################################################################################                        
           if opts.stat==1:
                 p0=[bkgs,rcmax,thi0,fwhm_0]
                 p, unc, dte, stat, cov = fit1d(residuals,p0,th-th0,rcurve)
                 if opts.conduct == 0: #RC
-                  crit2 = abs(p[0]) < dyn_range*bkg0 and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg)  # and cov !='NA' # as an option
+                  crit2 = abs(p[1]) < dyn_range*bkg0 and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg)  # and cov !='NA' # as an option
                 elif opts.conduct == 1: #TC  
-                  crit2 = abs(p[0]) < dyn_range*bkg0 and abs(p[1])>tr*bkg and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg)
+                  crit2 = abs(p[1]) < dyn_range*bkg0 and abs(p[1])>tr*bkg and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg)
                 #if abs(p[0]) < dyn_range*bkg0 and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg):  # and cov !='NA' # as an option
                 #if abs(p[0]) < dyn_range*bkg0 and abs(p[1])>tr*bkg and abs(p[2]) < 0.5*abs(th_end-th_beg) and abs(p[3]) < abs(th_end-th_beg):  # TC 
                 if crit2 == True:
@@ -724,7 +653,7 @@ def main(opts, args):
 #  print "blah"
 #  print peak1
   norm=max(peak1)  
-  print "norm = ", norm
+  print("norm = ", norm)
 
   if opts.conduct == 0:
     if zf == 0 or zf == -1:
@@ -781,7 +710,7 @@ def main(opts, args):
   rcurve_tot = array(rcurve_tot)
   trcurve =  sum(rcurve_tot,axis=0)/len(rcurve_tot)
   # Stats:
-  bkg_tot=0.25*(trcurve[0]+trcurve[1]+trcurve[len(trcurve)-2]+trcurve[len(trcurve)-1]) ; print 'bkg_tot = ', bkg_tot
+  bkg_tot=0.25*(trcurve[0]+trcurve[1]+trcurve[len(trcurve)-2]+trcurve[len(trcurve)-1]) ; print('bkg_tot = ', bkg_tot)
   stat=curvestat(th-th0,trcurve,bkg_tot)
   #
   fwhm_tot=stat[5];                 out = out + "fwhm_tot = "+str(fwhm_tot)+" urad\n"
@@ -820,9 +749,9 @@ def main(opts, args):
   outFile.close
     
   if opts.output is not None:
-      header="# RC from the selected pixel and total rocking curve over selected region \n# columns: ugol prcurve trcurve\n"
+      header="# RC from the selected pixel and total rocking curve over selected region \n# columns: angle intensity\n"
       writeFile("prcurve.dat", header, ugol, prcurve)                                                   
-      header="# RC total rocking curve over selected region \n# columns: ugol trcurve\n"
+      header="# RC total rocking curve over selected region \n# columns: angle trcurve\n"
       writeFile("trcurve.dat", header, ugol, trcurve)                                                   
 ##################################################################################  
 ##  Plot results
@@ -925,40 +854,47 @@ def main(opts, args):
   
   f2=plt.figure(2)
   if opts.stat==1:
-    sbtitle='Gaussian curve fit.'
+    sbtitle='Gaussian curve fitting.'
   else:
-    sbtitle='No fitting.'
+    sbtitle='No curve fitting.'
     
   sbtitle='Rocking curve topographs: '+sbtitle
         
   if opts.nm != '':
     sbtitle=sbtitle+' Sample: '+opts.nm  #+'\n' + param  
-  plt.suptitle(sbtitle, size=20)  
+  plt.suptitle(sbtitle, size=ftsize)  
   
   gca().set_position((.1, .1, .1, .1))
   figtext(0.1,0.025,param)
   
   plt.subplot(331)
-  #plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-  #plt.colorbar()  
+  peak_m = ma.array(peak,mask=peak>1.0e8/norm)
   if zf == 0:
-      if opts.conduct == 0:   
-          plt.title('peak reflectivity [n.u.]',size=20)
-          plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-      elif opts.conduct == 1: 
-          plt.title('peak reflectivity [abs.u.]',size=20)   # because this is absolute reflectivity!!!
-          plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+      plt.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+      if opts.conduct == 0:   plt.title('Peak Reflectivity [n.u.]',size=ftsize)
+      elif opts.conduct == 1: plt.title('Peak Reflectivity [abs.u.]',size=ftsize)   # because this is absolute reflectivity!!!
       plt.colorbar()
   elif zf == -1:
-     plt.imshow(peak, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-     if opts.conduct == 0:    plt.title('integr. refl. [n.u.]',size=20)
-     elif opts.conduct == 1:  plt.title('integr. refl. [n.u.]',size=20)
+     plt.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+     if opts.conduct == 0:    plt.title('Integrated Refl. [n.u.]',size=ftsize)
+     elif opts.conduct == 1:  plt.title('Integrated Refl. [n.u.]',size=ftsize)
      plt.colorbar()      
   else: 
-      vmin0=min(peak1)/1.0e6; vmax0=max(peak1)/1.0e6
-      plt.imshow(peak/1.0e6, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
-      if opts.conduct == 0:   plt.title('integr. refl. [cnt x urad x 10$^6$]',size=20)
-      elif opts.conduct == 1: plt.title('integr. refl. [cnt x urad x 10$^6$]',size=20)
+      if opts.conduct == 0:   
+          plt.title('Integr. refl. [cnt x $\mu$rad$^{-1}$ x 10$^3$]',size=ftsize)
+          vmin0=min(peak1)/1.0e3; vmax0=max(peak1)/1.0e3
+          peak_tr = 1.0e8/1.0e3/abs(zf) #; print ('peak tr = ', peak_tr)          
+          peak2 = peak/1.0e3
+          peak_m2 = ma.array(peak2,mask=peak2>peak_tr)            
+          plt.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)      
+      elif opts.conduct == 1: 
+          plt.title('Integr. refl. [cnt x $\mu$rad$^{-1}$ x 10$^3$]',size=ftsize)
+          vmin0=min(peak1)/1.0e3; vmax0=max(peak1)/1.0e3
+          peak_tr = 1.0e8/1.0e3/abs(zf)/bkg #; print ('peak tr = ', peak_tr)
+          peak2 = peak/1.0e3
+          peak_m2 = ma.array(peak2,mask=peak2>peak_tr)  
+          plt.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
+      
       plt.colorbar()
   #plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
@@ -970,9 +906,10 @@ def main(opts, args):
   if vmin0 < 0: vmin0 = 0
   
   plt.subplot(332)
-  plt.imshow(fwhm, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
+  fwhm_m = ma.array(fwhm,mask=fwhm>1.0e8)
+  plt.imshow(fwhm_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
   plt.colorbar()
-  plt.title('FWHM [urad]',size=20)
+  plt.title('FWHM [$\mu$rad]',size=ftsize)
   #plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
   #grid(True)
@@ -982,9 +919,10 @@ def main(opts, args):
   if vmin0 < 0: vmin0 = 0
     
   plt.subplot(333)
-  plt.imshow(stdev, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
+  stdev_m = ma.array(stdev,mask=stdev>1.0e8)
+  plt.imshow(stdev_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
   plt.colorbar()
-  plt.title('STDEV [urad]',size=20)
+  plt.title('STDEV [$\mu$rad]',size=ftsize)
   plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
   #grid(True)
@@ -993,9 +931,10 @@ def main(opts, args):
   vmax0=round(com0+sf*fwhm0)
   
   plt.subplot(334)
-  plt.imshow(com, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=com.min(),vmax=com.max())
+  com_m = ma.array(com,mask=com>1.0e8)
+  plt.imshow(com_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=com.min(),vmax=com.max())
   plt.colorbar()
-  plt.title('COM (angle) [urad]',size=20)
+  plt.title('COM [$\mu$rad]',size=ftsize)
   #plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
 
@@ -1003,9 +942,10 @@ def main(opts, args):
   vmax0=round(thmid0+sf*fwhm0)
   
   plt.subplot(335)
-  plt.imshow(thmid, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thmid.min(),vmax=thmid.max())
+  thmid_m = ma.array(thmid,mask=thmid>1.0e8)
+  plt.imshow(thmid_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thmid.min(),vmax=thmid.max())
   plt.colorbar()
-  plt.title('mid-point (angle) [urad]',size=20)
+  plt.title('Midpoint [$\mu$rad]',size=ftsize)
   #plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
 
@@ -1013,9 +953,10 @@ def main(opts, args):
   vmax0=round(thmid0)
   
   plt.subplot(337)
-  plt.imshow(thneg, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thneg.min(),vmax=thneg.max())
+  thneg_m = ma.array(thneg,mask=thneg>1.0e8)
+  plt.imshow(thneg_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thneg.min(),vmax=thneg.max())
   plt.colorbar()
-  plt.title('left slope (angle) [urad]',size=20)
+  plt.title('Left Slope [$\mu$rad]',size=ftsize)
   plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
   
@@ -1024,9 +965,10 @@ def main(opts, args):
   vmax0=round(thpos0+1.0*sf*fwhm0)
   
   plt.subplot(338)
-  plt.imshow(thpos, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thpos.min(),vmax=thpos.max())
+  thpos_m = ma.array(thpos,mask=thpos>1.0e8)
+  plt.imshow(thpos_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thpos.min(),vmax=thpos.max())
   plt.colorbar()
-  plt.title('right slope (angle) [urad]',size=20)
+  plt.title('Right Slope [$\mu$rad]',size=ftsize)
   plt.xlabel('x [mm]')
   plt.ylabel('y [mm]')
 
@@ -1081,6 +1023,22 @@ def main(opts, args):
     figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com_exp,thmid_exp,thneg_exp,thpos_exp)
     sys.path.pop()
 
+  if opts.hdf5 is not None:
+    hf = h5py.File(opts.hdf5, 'w')
+    hf.create_dataset('dx',data = dx)
+    hf.create_dataset('dy',data = dy)
+    hf.create_dataset('indx1',data = indx1)
+    hf.create_dataset('indx2',data = indx2)
+    hf.create_dataset('indy1',data = indy1)
+    hf.create_dataset('indy2',data = indy2)
+    hf.create_dataset('peak',data=array(peak))
+    hf.create_dataset('fwhm',data=array(fwhm))
+    hf.create_dataset('stdev',data=array(stdev))
+    hf.create_dataset('com',data=array(com))
+    hf.create_dataset('thmid',data=array(thmid))
+    hf.create_dataset('thneg',data=array(thneg))
+    hf.create_dataset('thpos',data=array(thpos))
+    hf.close()
 ########################################################################################
 ## PLOT SLICES AND WRITE FILE
 ########################################################################################
@@ -1090,51 +1048,51 @@ def main(opts, args):
       f3=plt.figure(3)         
       plt.suptitle(sbtitle0+sbtitle, size=20)  
       plt.subplot(331)
-      peak_sl_m=np.ma.array(peak_sl,mask=peak_sl>100.0)
+      peak_sl_m=np.ma.array(peak_sl,mask=peak_sl>10.0*max(peak1))
       plt.plot(range_sl,peak_sl_m)
-      plt.title('normalized reflectivity',size=20)
+      plt.title('Reflectivity',size=ftsize)
       #plt.xlabel('x [mm]')
       #plt.ylabel('y [mm]')
 
       plt.subplot(332)
       fwhm_sl_m=np.ma.array(fwhm_sl,mask=fwhm_sl>100.0*fwhm0)
       plt.plot(range_sl,fwhm_sl_m)
-      plt.title('FWHM [urad]',size=20)
+      plt.title('FWHM [$\mu$rad]',size=ftsize)
       #plt.xlabel('x [mm]')
       #plt.ylabel('y [mm]')
 
       plt.subplot(333)
       stdev_sl_m=np.ma.array(stdev_sl,mask=stdev_sl>100.0*stdev0)
       plt.plot(range_sl,stdev_sl_m)
-      plt.title('STDEV [urad]',size=20)
+      plt.title('STDEV [$\mu$rad]',size=ftsize)
       #plt.xlabel('x [mm]')
       #plt.ylabel('y [mm]')
 
       plt.subplot(334)
       com_sl_m=np.ma.array(com_sl,mask=com_sl>1.0e6)
       plt.plot(range_sl,com_sl_m)
-      plt.title('COM (angle) [urad]',size=20)
+      plt.title('COM [$\mu$rad]',size=ftsize)
       #plt.xlabel('x [mm]')
       #plt.ylabel('y [mm]')
 
       plt.subplot(335)
       thmid_sl_m=np.ma.array(thmid_sl,mask=thmid_sl>1.0e6)
       plt.plot(range_sl,thmid_sl_m)
-      plt.title('mid-point (angle) [urad]',size=20)
+      plt.title('Midpoint [$\mu$rad]',size=ftsize)
       plt.xlabel(str_axis)
       #plt.ylabel('y [mm]')
 
       plt.subplot(336)
       thneg_sl_m=np.ma.array(thneg_sl,mask=thneg_sl>1.0e6)
       plt.plot(range_sl,thneg_sl_m)
-      plt.title('left slope (angle) [urad]',size=20)
+      plt.title('Left Slope [$\mu$rad]',size=ftsize)
       plt.xlabel(str_axis)
       #plt.ylabel('y [mm]')
 
       plt.subplot(337)
       thpos_sl_m=np.ma.array(thpos_sl,mask=thpos_sl>1.0e6)
       plt.plot(range_sl,thpos_sl_m)
-      plt.title('right slope (angle) [urad]',size=20)
+      plt.title('Right Slope [$\mu$rad]',size=ftsize)
       plt.xlabel(str_axis)
       #plt.ylabel('y [mm]')
       
@@ -1152,5 +1110,4 @@ def main(opts, args):
             fatalIOError(e)                                        
                    
 if __name__ == '__main__':
-        options, args = ParseArguments(sys.argv[1:])
-        main(options, args)                      
+        main()                      

@@ -20,7 +20,7 @@ def curvestat(th,r,bkg):
       
       N1=len(th); N2=len(r)
       if N1 !=N2:
-        print 'Error: length of data vector does not match that of the argument!'
+        print('Error: length of data vector does not match that of the argument!')
       else: 
         th_l=list(th); r_l=list(r)
         i_max=r_l.index(max(r))                                              
@@ -71,9 +71,14 @@ def curvestat(th,r,bkg):
         return [th_max,r_max,th_neg,th_pos,th_mid,fwhm,com,var,int]
 
 def gauss(a,x):
+    # here the input a[3] = sqrt(2.0)*sigma 
+    # usually fwhm = 2.0*sqrt(2.0 * log(2.0))*sigma
+    # a[3] = sqrt(2.0) * fwhm/(2.0*sqrt(2.0 * log(2.0)) = 0.5*fwhm/(sqrt(log(2.0))
+    ###########################
     a0=abs(a[0])
     return a0+(a[1]-a0)*exp(-(x-a[2])**2.0/a[3]**2.0)
 
 def lorentz(b,x):
+    # fwhm = 2*b[3]
     b0=abs(b[0])
     return b0+(b[1]-b0)/(1+(x-b[2])**2.0/b[3]**2.0)

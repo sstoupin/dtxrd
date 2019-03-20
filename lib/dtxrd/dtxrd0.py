@@ -110,7 +110,7 @@ def dtxrd(element,h,k,l,thb,eta,phi,a,dh,T,dc,Ex,P):
           de=1.0/(abs(real(kap1-kap2)))              # extinction length ("precise")
 
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")
         
         Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
         Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
@@ -225,7 +225,7 @@ def dtxrd0(thb,eta,phi,dc,Ex,P,crystalx):
           de=1.0/(abs(real(kap1-kap2)))              # extinction length ("precise")
 
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")   
         
         Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
         Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
@@ -327,7 +327,7 @@ def dtxrd1(thb,eta,phi,dc,Ex,P,crystalx):
 #          de=0.5/pi*lamx*sqrt(G0*abs(Gh))/abs(Chih)   # Authier p. 102 - same result!      01/25/2015
           
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")   
         
         Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
         Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
@@ -450,7 +450,7 @@ def dtxrd1z(thb,eta,phi,dc,Ex,P,crystalx):
 #          de=0.5/pi*lamx*sqrt(G0*abs(Gh))/abs(Chih)   # Authier p. 102 - same result!      01/25/2015
           
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")
         
         Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
         Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
@@ -550,6 +550,97 @@ def darwin_hamilton(thc,eta,phi,dc,Ec,P,crystalx,sig_v):
         return [A,Gs_mu,opt_d,Tpmos,Rpmos,Tmos,Rmos]        
 ##############################################################################################################################################################
 ##############################################################################################################################################################
+def bragg_laue(thb,eta,phi,dc,Ex,P,crystalx,t):  # t- distance from entrance point to lateral crystal face
+        [[Chi0,Chih,Chih_],dh,lp,ang]=crystalx 
+###############################################################################
+##  GEOMETRY
+############################################################################### 
+        Eb=0.5*hpl*cl/dh
+        lamx=hpl*cl/Ex
+        K0=2.0*pi/lamx   # ; print "K0 = ", K0
+        H0=2.0*pi/dh     # ; print "H0 = ", H0
+        G0=cos(thb)*sin(eta)*cos(phi)+sin(thb)*cos(eta) #; print "G0 = ", G0
+        Gh=G0-H0/K0*cos(eta)			        #; print "Gh = ", Gh
+#        Gh=G0-2.0*sin(thb)*cos(eta)                    #; print "Gh = ", Gh # same actually
+        bh=G0/Gh
+        #
+        delta = -0.5*real(Chi0)
+        beta=0.5*imag(Chi0)
+        mu0 = 2.0*beta*K0  #[Angstrom]         
+        
+        # calculate deviation parameter
+        K0_v=2.0*pi/(hpl*cl/Ex)
+        alphah=H0/K0_v*(H0/K0_v-2.0*sin(thb))                                
+        alpha_pr=0.5*(alphah*bh+Chi0*(1.0-bh))
+        
+        #---------------------------------------------------------------
+                                
+        #wh_s=-2.0*real(Chi0)*(dh/lamx)**2.0  #; print "wh(s) = ", wh_s #wh_s=average(wh_s)        
+        #wh=0.5*wh_s*(bh-1.0)/bh              #; print "wh    = ", wh                
+        # energy width for thick non-absorbing crystal (2.119)
+        #eps_s=4.0*dh**2.0/(lamx)**2.0*abs(P*Chih)
+        #eps=eps_s/sqrt(abs(bh))                        
+                
+        #now !!!important!!! need to choose the sign of coren so that imag(eps1-eps2)>0
+        coren=sqrt(alpha_pr**2.0+P**2.0*bh*Chih*Chih_) #; print "imag(coren) ", imag(coren)        
+
+        if imag(coren)<=0: 
+            coren=-coren
+                                                    
+        eps1=Chi0-alpha_pr+coren #; print eps1
+        eps2=Chi0-alpha_pr-coren #; print eps2        
+        kap1=0.5*eps1*K0/G0    #; print kap1
+        kap2=0.5*eps2*K0/G0    #; print kap2
+        R1=(eps1-Chi0)/(P*Chih_) #; print R1
+        R2=(eps2-Chi0)/(P*Chih_) #; print R2
+        
+#        print "dc = ", dc
+        Delta=(kap1-kap2)*dc        #; print dkap                        
+        
+        if Gh<0:
+#          print "Bragg case"
+          den0=R2-R1*exp(1.0j*Delta)  #; print den0
+          t00=exp(1.0j*kap1*dc)*(R2-R1)/den0           #; print t00        
+          r0h=R1*R2*(1.0-exp(1.0j*Delta))/den0  #; print r0h
+                   
+#        den0=R2*exp(-1.0j*Delta)-R1  #; print den0
+#        t00=exp(1.0j*kap2*dc)*(R2-R1)/den0             #; print t00        
+#        r0h=R1*R2*(exp(-1.0j*Delta)-1.0)/den0  #; print r0h        
+          de=1.0/(imag(kap1-kap2))              # extinction length ("precise")          
+#          de=0.5/pi*lamx*sqrt(G0*abs(Gh))/abs(Chih) #*Chih_)  # Authier p. 102 - same result ! 01/25/2015
+
+        elif Gh>0:
+#          print "Laue case"
+          den0=R1-R2
+#          t00=exp(1.0j*kap2*dc)*(R1-R2*exp(1.0j*Delta))/den0
+#          r0h=R1*R2*exp(1.0j*kap2*dc)*(1.0-exp(1.0j*Delta))/den0
+          t00=(R1*exp(1.0j*kap2*dc)-R2*exp(1.0j*kap1*dc))/den0
+          r0h=R1*R2*(exp(1.0j*kap2*dc)-exp(1.0j*kap1*dc))/den0
+          de=1.0/(abs(real(kap1-kap2)))              # extinction length ("precise")
+#          de=0.5/pi*lamx*sqrt(G0*abs(Gh))/abs(Chih)   # Authier p. 102 - same result!      01/25/2015
+          
+        else:
+          print("Gh = 0, check input parameters")   
+        
+        
+        # reduced deviation parameter:        
+        deny=2.0*abs(P*Chih)*sqrt(abs(bh))        
+        y=alphah*bh+Chi0*(1.0-bh)/deny
+        # Authier 5.46 #################################################
+        lam0 = lamx*sqrt(G0*abs(Gh))/(P*sqrt(Chih*Chih_))
+        mu_e = mu0 + 2.0*pi*G0*imag((y + sqrt(y**2.0 - 1.0))/lam0)
+        
+        T_a=(abs(t00))**2.0          #t00*t00.conjugate()
+        R_a = (abs(r0h))**2.0/abs(bh)  # refl. on entrance face
+        angle = (thb+eta)/r2d
+        R_d = arctan(angle)*Gh*abs(r0h)**2.0*exp(-mu_e*t/G0) #????
+        T_d = arctan(angle)*G0/sin(thb/r2d+eta/r2d)*exp(-mu_e*t/G0)  #????
+        #                                
+        return [T_a,R_a,T_d,R_d] 
+########################################################################################################################################################
+########################################################################################################################################################
+########################################################################################################################################################
+########################################################################################################################################################
 # RETURNS FIELD inside the crystal along z
 # from z=0 to z=d in ns+1 steps
 ###############################################################################
@@ -620,7 +711,7 @@ def dtxrd1_D0Dh(thb,eta,phi,dc,Ex,P,crystalx,zv):
           Dh = R1*R2*(exp(1.0j*kap2*zv)-exp(1.0j*kap1*zv))/denD
           #
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")
         
         Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
         Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
@@ -746,7 +837,7 @@ def dtxrd1_sy(thb,eta,phi,dc,Ex,P,crystalx,Ls):
           Dh = R1*R2*(exp(1.0j*kap2*zv)-exp(1.0j*kap1*zv))/denD
           #
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")   
         ##################################################################################
         # REFLECTIVITY AND TRANSMISSIVITY
         ##################################################################################

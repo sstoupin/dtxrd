@@ -1,17 +1,19 @@
 # Name: myio/__init__.py
+# Purpose: Simple I/O procedure
+# Author: Stanislav Stoupin <sstoupin@gmail.com>
+#
+# Copyright 2012 Argonne National Laboratory
+#
+# See the file "LICENSE" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-'''
-simple I/O procedure
+"""Read and write text files and header.
 
-:author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+"""
 
-:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
-:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
-'''
 
-#import os
-#import re
+import os
+import re
 from numpy import *
 
 #import sys
@@ -21,7 +23,40 @@ from numpy import *
 #sys.path.append(libpath0)
 #libpath1=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath1)
+
+#__all__ = ['SffFieldError', 'Sff', 'readSffFile', 'Xafs', 'readXafsFile',
+#    'Text', 'readTextFile', 'readFile', 'writeFile']
+
+#class Data(ndarray):
+#    """
+#    Store columns of data and their associated names.
+#
+#    These columns can be maniplulated by the get(), ?add()?, and ?set()?
+#    methods or by accessing the columns as though they are attributes of the
+#    object.
+#
+#    """
+#    def __init__(self, name):
+#        """
+#        Create an empty dataset.
+#        """
+#        self.name = name
+#        self.__columns = {}
+#        self.__columnNames = []
+                
+#    def get(self, arg):
+#        """
+#        Retrieve a column's data.        
+#        """
+#        try: 
+#            index=int(arg)-1
+#        except ValueError:
+#            return None
+#        else: 
+#            matrix=self.data
+#            return matrix[:,index]
         
+
 def readFile(fileName):
     """Read experiment data and metadata from a file.
 
@@ -39,16 +74,45 @@ def readFile(fileName):
     while 1:
         line=input.readline()
         char1=line[0:1]
-        if char1=='#' or char1=='!' or char1==';':
+        if char1=='#' or char1=='!' or char1==';' or char1=='{' or char1=='}':
             header=header+line
         elif not(line):
             break
         else:
             line1=line.split()
-            if line1!=[]: data=data+[line1] 
+            if line1!=[] and len(line1)>1: data=data+[line1] 
                         
     data2=array(data, dtype=float)                
     return header, data2
+
+def readFile1(fileName):
+    """Read experiment data and metadata from a file.
+
+    @param fileName: file to open
+
+    @return: header and data
+    @rtype:  C{2-tuple} of the form C{(header, data)}
+
+    @raise IOError: could not guess the file format, or open, read, or parse
+                    the file
+    """    
+    header=''
+    data=[]    
+    input = open(fileName, 'r')
+    while 1:
+        line=input.readline()
+        char1=line[0:1]
+        if char1=='#' or char1=='!' or char1==';' or char1=='{' or char1=='}' or char1==' ' or char1=='\t':
+            header=header+line
+        elif not(line):
+            break
+        else:
+            line1=line.split()
+            if line1!=[] and len(line1)>1: data=data+[line1] 
+                        
+    data2=array(data, dtype=float)                
+    return header, data2
+
 
 def readCrystal(fileName):
     header=''

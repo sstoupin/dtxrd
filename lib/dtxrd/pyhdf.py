@@ -51,6 +51,7 @@ def read_hdf4(fileName):
     #########################################################################
     im=array(data2, dtype=float) 
     #print im.dtype
+    im = flipud(im)
  
     return [th,[nx,ny],im]
 
@@ -70,7 +71,7 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         msg = 'datapath not found in HDF5 file:'
         msg += '\n  file: ' + fileName
         msg += '\n  path: ' + data_path
-        raise IOError, msg
+        raise IOError(msg)
     #image_data = numpy.ma.masked_less_equal(ds.value, bkg)
     #image_data = image_data.filled(image_data.min())                                              
     im = ds.value
@@ -85,11 +86,11 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         msg = 'data of unknown structure:'
         msg +='\n file: ' +fileName        
         msg += '\n  path: ' + data_path
-        raise IOError, msg
+        raise IOError(msg)
 
     # REBIN DATA                         
-    print "nx = ", nx
-    print "ny = ", ny
+    print("nx = ", nx)
+    print("ny = ", ny)
     # rebin 
     shape1 = (ny//rbin,nx//rbin)
     im = rebin(im,shape1)
@@ -103,7 +104,7 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         msg = 'datapath not found in HDF5 file:'
         msg += '\n  file: ' + fileName
         msg += '\n  path: ' + th_path
-        raise IOError, msg
+        raise IOError(msg)
     th = float(thentry.value)
     #
     try:
@@ -112,7 +113,7 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         msg = 'datapath not found in HDF5 file:'
         msg += '\n  file: ' + fileName
         msg += '\n  path: ' + chi_path
-        raise IOError, msg
+        raise IOError(msg)
     chi = float(chientry.value)
                          
     return [th,chi,[nx,ny],im]

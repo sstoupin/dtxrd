@@ -4,7 +4,7 @@
 a program to calculate throughput of a multicrystal configuration
 
 :author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+:email:     sstoupin@gmail.com
 
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
@@ -15,8 +15,8 @@ from scipy.special import legendre
 from pylab import *
 
 # TO RUN LOCALLY:
-#import commands
-#cmdout=commands.getstatusoutput('echo $HOME')
+#import subprocess
+#cmdout=subprocess.getstatusoutput('echo $HOME')
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
 #from numpy import *
@@ -39,7 +39,9 @@ from dtxrd.thfind import *
 from dtxrd.dtxrd2_k import *
 from dtxrd.constants import *
 
-__version__ = '0.21'
+__version__ = '0.22'
+prog = os.path.basename(sys.argv[0])
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -71,6 +73,7 @@ __version__ = '0.21'
 # 0.20 a simple model for Mo-Kalpha is included
 # 0.21 newformat for chi.py output 
 #      changed IOError, e: to IOError as e:
+# 0.22 cosmetic changes, improve interactive plotting, optik to argparse transition, adapting for p3
 #-------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. vector dtxrd function?
@@ -90,57 +93,41 @@ def fatalIOError(err):
 	fatalError(err)
 
 
-def ParseArguments(args):
-	try:
-		from optik import OptionParser
-	except ImportError:
-		try:
-			from optparse import OptionParser
-		except ImportError:
-			fatalError(
-'This program requires Optik, availible from http://optik.sourceforge.net/\n')
-
-	USAGE = '%prog [OPTIONS...] func dpsi Ec dEx ne crystals_input_file \n'+'where:\n' \
-	+'func - angular divergence distribution function for incoming - g(gaussian), l(lorentzian)\n' \
-	+'dpsi - angular dispersion g - rms [urad] l - fwhm [urad] \n' \
-	+'Ec - central energy [keV] \n' \
-	+'dEx - energy range [meV] \n' \
-	+'ne  - number of energy steps \n' \
-	+'crystals_input_file - input file containing crystal parameters\n' 
-#
-	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
-	+'the program calculates throughput of a multicrystal system described in crystals_input_file'
-	parser = OptionParser(usage=USAGE, version=VERSION)
+def ParseArguments():
+        import argparse   # requires Python 2.7 or higher
+        msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
+        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
+        parser.add_argument('-v', '--version', action='version', version=__version__)	
 #----------------------------------------------------------------------------------------------
-        parser.add_option('-o', '--output', action='store', dest='output', default=None,
-                help='write results to file F (defaults to stdout)', metavar='OUTFILE')
-        parser.add_option('-a', '--angular_scan', type='int', action='store', dest='nth', default=0,
-                help='do angular scan with nth points')
-        parser.add_option('-s', '--source', type='int', action='store', dest='src', default=0,
-                help='type of spectral distribution for the source: 0 - flat (default), 1 - Cu Kalpha, 2 - Mo Kalpha, 9 - spectral distribution from file source_e.dat')
-        parser.add_option('-w', '--write', action='store', dest='write', default=None,
-                help='write data to file (default do not write)', metavar='DATAFILE')
-        parser.add_option('-p', '--pi', action='store_const', const=1, dest='polarization', default=0,  
-                help='-p - pi polarization of the incident waves')	
-        parser.add_option('-n', '--npsi', type='int', action='store', dest='npsi', default=200,  
-                help='-n - number of points in the angular grid (nmax = 1000) ')	 
+        parser.add_argument('-o', '--output', action='store', dest='output', default=None,
+                help='write results to file F (defaults to stdout)', metavar='F')
+        parser.add_argument('-a', '--ascan', type=int, action='store', dest='nth', default=0,
+                help='do angular scan with N points', metavar='N')
+        parser.add_argument('-s', '--source', type=int, action='store', dest='src', default=0, metavar='S',
+                help='type of spectral distribution for the source: S=0 - flat (default), S=1 - Cu Kalpha, S=2 - Mo Kalpha, S=9 - spectral distribution from file source_e.dat')
+        parser.add_argument('-w', '--write', action='store', dest='write', default=None,
+                help='write data to file D (default - do not write)', metavar='D')
+        parser.add_argument('-p', '--pi', action='store_const', const=1, dest='polarization', default=0,  
+                help='perform calculation for pi polarization of the incident waves (default sigma-polarization)')	
+        parser.add_argument('-n', '--npsi', type=int, action='store', dest='npsi', default=200, metavar='NPSI',
+                help='number of points in the angular grid (default NPSI=200) ')	 
+        # 
+        parser.add_argument('func', action='store', nargs=1, 
+                help='angular divergence distribution function for incoming radiation - g(gaussian), l(lorentzian)')
+        parser.add_argument('dpsi', action='store', nargs=1,
+                help='angular divergence: for g - r.m.s. [urad], for l - fwhm [urad]')
+        parser.add_argument('Ec', action='store', nargs=1,
+                help='central photon energy [keV]')
+        parser.add_argument('dEx', action='store', nargs=1,
+                help='photon energy half-range [meV] around the central energy')
+        parser.add_argument('ne', action='store', nargs=1,
+                help='number of steps in photon energy')                        
+        parser.add_argument('input_file',nargs=1, 
+                help='input file containing crystal parameters')
+        return parser.parse_args()
 #-----------------------------------------------------------------------------------------------
-	opts, args = parser.parse_args(args)
-	if len(args) != 6:
-		parser.print_usage()
-		sys.exit(1)
-
-	try:
-		args[1] = float(args[1])
-
-	except ValueError:
-		fatalError('dpsi must be a valid number')
-		
-	return opts, args
-
-
-def main(opts,args):
-
+def main():
+        opts = ParseArguments()
         if opts.output is not None:
                try:
                         outFile = open(opts.output, 'w')
@@ -149,24 +136,25 @@ def main(opts,args):
         else:
                 outFile = sys.stdout
 ######## define header line with input parameters ################################################
-        nall = len(sys.argv) #-len(args) need to include input file too unlike in rctopo!
-        param0 = sys.argv[0:nall]
+        #nall = len(sys.argv) #-len(args) need to include input file too unlike in rctopo!
+        param0 = sys.argv #[0:nall]
         param0 = ' '.join(param0)                    
 ######## read input parameters ###################################################################
-        type=args[0]
-        dpsi=1.0e-6*float(args[1])  # rms value - in my gauss sigma=sqrt(2)*dpsi then
-        Ec=1.0e3*float(args[2]) # central energy converted to [eV]
-        dEx=float(args[3])  # energy range to evaluate [meV]
-        ne=int(args[4]) # number of steps in energy
+        type=opts.func[0]
+        dpsi=1.0e-6*float(opts.dpsi[0])  # rms value - in my gauss sigma=sqrt(2)*dpsi then
+        Ec=1.0e3*float(opts.Ec[0]) # central energy converted to [eV]
+        dEx=float(opts.dEx[0])  # energy range to evaluate [meV]
+        ne=int(opts.ne[0]) # number of steps in energy
+        # optional arguments
         nth=opts.nth
         npsi=opts.npsi        
 ######## IF FIXED ENERGY SOURCE - ASSIGN ENERGY #######################################################
         if opts.src==1:   # Cu Kalpha1
             Ec=8047.84
-            print "performing angular alignment at Cu Kalpha1 energy [keV] ", Ec*1.0e-3            
+            print("performing angular alignment at Cu Kalpha1 energy [keV] ", Ec*1.0e-3)            
         #                       
 ######## READ CRYSTAL DATA ############################################################################
-        filein=args[5]
+        filein=opts.input_file[0]
         header,crdata=readCrystal(filein)        
         items=range(0,len(crdata),1)
         pairs=range(0,len(crdata)-1,1)                
@@ -192,15 +180,15 @@ def main(opts,args):
               #          P=cos(2.0*thb)
               #else: P=1.0
               #-------------------------------              
-              print "thr = ", thr*r2d
-              print "Er [keV] = ", Er*1.0e-3
+              print("thr = ", thr*r2d)
+              print("Er [keV] = ", Er*1.0e-3)
               Ec=Er                          
 #              th_in=thr-1.0e-6*ddth   ; print "th_in = ", th_in*r2d#
 #              if opts.polarization==1: P=cos(2.0*th_in)                            
 #              result0=dtxrd(el,h,k,l,th_in,eta,phi,a,dh,T,dc,Ec,P)
 #              wh=result0[4]
 #              Ec=Eb*(1.0+wh)/sin(th_in)                                          
-              print "performing angular optimization at energy Ec [keV] = ", Ec*1.0e-3
+              print("performing angular optimization at energy Ec [keV] = ", Ec*1.0e-3)
               ebbcard=1              
 ####################################################################################
 ######## FILL LISTS TO STORE CRYSTAL PARAMETERS
@@ -213,7 +201,7 @@ def main(opts,args):
         Dr_l=[]
         #ans_l=[]        
         if ebbcard==0:
-           print "performing angular optimization at energy Ec [keV] = ", Ec*1.0e-3
+           print("performing angular optimization at energy Ec [keV] = ", Ec*1.0e-3)
         cr_cnt=0; cr_cnt_l=[cr_cnt]
         for crx in crdata:           
            el=crx[0];                el_l=el_l+[el]
@@ -243,7 +231,7 @@ def main(opts,args):
            if nth==0:
               ans=0
               #anr=0.0
-           print "Crystal "+str(entity)+' , structure '+str(el)
+           print("Crystal "+str(entity)+' , structure '+str(el))
            ################################################################################################################### 
            ##  Find optimal angle at the given energy
            ###################################################################################################################
@@ -306,8 +294,8 @@ def main(opts,args):
            #----------------------------------------------------------------------------
            elif ebb==1 or ebb==2 or ebb==9:
               thr,Er=thr_find(el,h,k,l,eta,phi,T,dc,Ec)
-              thcx=thr;                   print "thr = ", thr*r2d
-              bthr=0.5*pi-thr;            print "bthr [urad] = ", bthr*1.0e6
+              thcx=thr;                   print("thr = ", thr*r2d)
+              bthr=0.5*pi-thr;            print("bthr [urad] = ", bthr*1.0e6)
               th_in=thcx-1.0e-6*ddth
               Dr=-2.0e3*ss/(cos(phi)/tan(th_in)-1.0/tan(eta))/Ec # disp. rate using (2.138)
               if opts.polarization==1: P=cos(2.0*th_in)
@@ -316,8 +304,8 @@ def main(opts,args):
               thcxx_pr=arcsin(k_out[2]) #; print "thcxx_pr = ", thcxx_pr*r2d
               #--------------------------------
               # Reflected big theta tilda (from virtual planes)
-              oth_red=(pi-thr-thcxx_pr); print "oth_red [urad] ", 1.0e6*oth_red
-              oth_blue=(thr-thcxx_pr); print "oth_blue [urad] ", 1.0e6*oth_blue
+              oth_red=(pi-thr-thcxx_pr); print("oth_red [urad] ", 1.0e6*oth_red)
+              oth_blue=(thr-thcxx_pr); print("oth_blue [urad] ", 1.0e6*oth_blue)
               #--------------------------------
               # Choosing whether it is beyond bthr or not
               # only need to do this for the central angle which is dtxrd calculated!!!
@@ -347,17 +335,17 @@ def main(opts,args):
            Ty=Ty+[Tyxx]; Ry=Ry+[Ryxx]
            Dr_l=Dr_l+[Dr]  # dispersion rates
 #           Chi_=Chi_+[Chixx]                                        
-           print "thva [deg] ", thva*r2d                      
+           print("thva [deg] ", thva*r2d)
            cr_cnt=cr_cnt+1; cr_cnt_l=cr_cnt_l+[cr_cnt]
 #################################################################################
 ########### ENTITY ##############################################################
 #################################################################################
         tmp=[]
-        for (x,i) in map(None,entity_l,items):
+        for (x,i) in zip(entity_l,items):
            if tmp.__contains__(x):
               gamma=pi-mean(thc_pr_l[i-1])-mean(thc_l[i-1])
-              if flag_l[i-2]=='T': gamma=-gamma; print "YES"   # to account for T->ebb->R case 
-              print 'gamma [urad] = ', gamma*1.0e6
+              if flag_l[i-2]=='T': gamma=-gamma; print("YES")   # to account for T->ebb->R case 
+              print('gamma [urad] = ', gamma*1.0e6)
               th_in=mean(thc_pr_l[i-2])-float(ss_l[i-1])*gamma 
               if opts.polarization==1: P=cos(2.0*thv_in)
               k_in=[cos(th_in)*cos(phi_l[i]),cos(th_in)*sin(phi_l[i]),-sin(th_in)]
@@ -373,15 +361,15 @@ def main(opts,args):
 ########  CALCULATE THROUGHPUT IN OPTIMAL GEOMETRY ############################################
 ###############################################################################################
         for i in items:
-           if flag_l[i]=='T': Tpt0=Tpt0*Ty[i]; print "Ty = ", Ty[i]
-           else:	      Tpt0=Tpt0*Ry[i]; print "Ry = ", Ry[i]
+           if flag_l[i]=='T': Tpt0=Tpt0*Ty[i]; print("Ty = ", Ty[i])
+           else:	      Tpt0=Tpt0*Ry[i]; print("Ry = ", Ry[i])
                                             
 ####### find total energy acceptance of the first crystal #####################################
         th1=mean(thc_l[0]); eta1=eta_l[0]; phi1=phi_l[0]; dc1=dc_l[0]
-        eps1=eps_l[0]; dE1=1.0e3*Ec*eps1; print "Energy acceptance region of cr1 [meV] = ", dE1
+        eps1=eps_l[0]; dE1=1.0e3*Ec*eps1; print("Energy acceptance region of cr1 [meV] = ", dE1)
         dedth=1.0e-3*Ec/tan(th1) #meV/urad
         dE1psi=dedth*1.0e6*dpsi  # meV
-        dE1tot=sqrt(dE1**2.0+dE1psi**2.0); print "Energy acceptance total cr1 [meV] = ", dE1tot                
+        dE1tot=sqrt(dE1**2.0+dE1psi**2.0); print("Energy acceptance total cr1 [meV] = ", dE1tot)
 ###############################################################################################
 ## create array of energies and angular divergence
 ###############################################################################################          
@@ -415,7 +403,7 @@ def main(opts,args):
 #           plot(Eran*pe_w[0],edist,'b-')
 #           show()
 #                      
-        Norm_E=0.5*sum(Ew*edist); print "Norm_E = ", Norm_E        
+        Norm_E=0.5*sum(Ew*edist); print("Norm_E = ", Norm_E)
 ####### angular divergence ###########################################################################################
         if type !='1r':           
            #npsi=200 #now 200 is default and npsi is included as -n option
@@ -450,7 +438,7 @@ def main(opts,args):
                    
         Norm_th=0.5*sum(thw*psiv)
         #Norm_th=0.5*sum(psiv) # 0.5 is to comply with 0.5 in Tpte=Tpte+[0.5*sum(thw*tpty)/Norm_th]
-        print "Norm_th = ", Norm_th        
+        print("Norm_th = ", Norm_th)
 ############################################################################################################                                 
 ## Throughput calculation
 ############################################################################################################
@@ -464,8 +452,8 @@ def main(opts,args):
         thc_a=array(thc_l)*array(ass) # array of thc values taken with an appropriate crystal sign          
         thc_pr_a=array(thc_pr_l)*array(ass)        
         # DIAGNOSTICS
-        for (th_in,th_out) in map(None,thc_a,thc_pr_a):
-            print th_in*r2d, th_out*r2d
+        for (th_in,th_out) in zip(thc_a,thc_pr_a):
+            print(th_in*r2d, th_out*r2d)
             
 #        print thc_a*r2d 
 #        print thc_pr_a*r2d 
@@ -483,7 +471,7 @@ def main(opts,args):
                 if ss_l[i]==1: ydir[i]=-1
                 else:          ydir[i]=1
             else: 	       ydir[i]=1 
-        print ydir                    
+        print(ydir)
         
         for i in pairs:
             #---------------------------------------------------
@@ -514,7 +502,7 @@ def main(opts,args):
                 tr_xx=tr_xx+[dot(bonus,try_xx)]                                
 #            print tr_xx
             tr=tr+[tr_xx]
-        print "------------------------------------------------"                       
+        print("------------------------------------------------")
 ################################################################################################################
 ###  MAIN LOOP
 ################################################################################################################        
@@ -523,17 +511,17 @@ def main(opts,args):
         if opts.write is not None:
            if opts.nth !=0:
                header = '#'+ param0 +'\n' \
-                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@aps.anl.gov\n' \
+                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n' \
                         +'# columns: (th-thc)[urad] Tptt th[deg]\n' \
                         + '# \n'
                fig0 = plt.figure(0)
-               ion() 
-               plt.ylabel('Througput [norm.u.]')
-               plt.xlabel('angle [urad]')
+               #ion() 
+               plt.ylabel('Througput [n.u.]')
+               plt.xlabel('$\\theta - \\theta_{c}$ [$\mu$rad]')
 
            else:
                header = '#'+ param0 +'\n' \
-                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
+                        +'# version '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n' \
                         +'# columns: (E-Ec)[meV] Tpte Ex[keV]\n' \
                         + '# \n'                        
                plt.xlabel('Energy [meV]')
@@ -543,16 +531,16 @@ def main(opts,args):
         Tptt=[]
         thscan0=[]
 #        count=0
-        for (thax,thscanx,trax) in map(None,thc_l[0],thscan,tra):   # ANGULAR SCAN
+        for (thax,thscanx,trax) in zip(thc_l[0],thscan,tra):   # ANGULAR SCAN
 #         print "thax = ", thax*r2d
 #         print "trax " , trax
-         print "rocking angle [urad] ", thscanx*1.0e6
+         print('rocking angle [urad] %7.2f' %(thscanx*1.0e6))
          Tpte=[]
          Eplot=[]
-         for (ex,edx) in map(None,Ev,edist): 
+         for (ex,edx) in zip(Ev,edist): 
             #-----------------------------------------------------------------------------------
             tpty=[]
-            for (thx,psix) in map(None,thv,psiv): # take each ray and propagate
+            for (thx,psix) in zip(thv,psiv): # take each ray and propagate
 #                print "thx = ", thx
                 k1=[cos(thx+thax)*cos(phi1),cos(thx+thax)*sin(phi1),-sin(thx+thax)]                 
                 if opts.polarization==1:
@@ -605,7 +593,7 @@ def main(opts,args):
                #-------------------------------------------     
                # progress: plot angular scan at each angle
                #-------------------------------------------
-               fig0.clear()
+               #fig0.clear()
                plt.plot(1.0e6*array(thscan0),array(Tptt),'b-')
                #-------------------------------------------              
                # diagnostics: plot thruput at each angle
@@ -615,7 +603,8 @@ def main(opts,args):
                #plt.axis([-Eran,Eran,1e-20,1.0])
                #plt.legend(loc='upper right')
                #-------------------------------------------
-               plt.draw()
+               #plt.draw()
+               plt.pause(0.05)
             else:
                try:                
                     writeFile(opts.write,header,array(Eplot),array(Tpte),1.0e-3*array(Ev)) 
@@ -628,17 +617,17 @@ def main(opts,args):
         ## Calculate cummulative dispersion rate
         ##########################################################################
         Din=0.0
-        print "asym. factors: ", bh_l
-        print "Dispersion rates [urad/meV]: ", Dr_l
-        for (bh,Dr) in map(None,bh_l,Dr_l):
+        print("asym. factors: ", bh_l)
+        print("Dispersion rates [urad/meV]: ", Dr_l)
+        for (bh,Dr) in zip(bh_l,Dr_l):
             Dout=bh*Din+Dr
-            print "Dout = ", Dout
+            print("Dout = ", Dout)
             Din=Dout        
          
 ######  BEGIN OUTPUT #############################################################
         outFile.write('##############################################################\n')
         outFile.write('##### THROUGHPUT v'+__version__+' ################################\n')
-        outFile.write('##### Author: Stanislav Stoupin ## sstoupin@aps.anl.gov ######\n')
+        outFile.write('##### Author: Stanislav Stoupin ## sstoupin@gmail.com ######\n')
         outFile.write('##############################################################\n')
         outFile.write('Throughput (monochromatic ray) = '+str(Tpt0)+'\n')
         outFile.write('Incident divergence [urad] rms = '+str(1.0e6*dpsi)+'\n')
@@ -664,21 +653,29 @@ def main(opts,args):
 # Plot the result
 #######################################################################################################
 ####### log Y ###################################
-        f1=plt.figure(101)
+        f1=figure(101)
+        ax1=f1.add_subplot(111)
         if opts.nth !=0: 
-           plt.semilogy(1.0e6*thscan,Tptt,'r-') 
+           ax1.semilogy(1.0e6*thscan,Tptt,'r-') 
+           ax1.set_xlabel('$\\theta - \\theta_{c}$ [$\mu$rad]')
+           ax1.set_ylabel('Throughput [n.u.]')
         else: 
-           plt.semilogy(Eplot,Tpte,'r-')
-           plt.axis([-Eran,Eran,1e-5,1.0])
+           ax1.semilogy(Eplot,Tpte,'r-')
+           ax1.axis([-Eran,Eran,1e-5,1.0])
+           ax1.set_xlabel('$E - E_{c}$ [meV]')
+           ax1.set_ylabel('Throughput [n.u.]')
 ######## linear Y ##############################        
-        f2=plt.figure(102)
+        f2=figure(102)
+        ax2=f2.add_subplot(111)
         if opts.nth !=0:
-           plt.plot(1.0e6*thscan,Tptt,'r-')        
+           ax2.plot(1.0e6*thscan,Tptt,'r-')
+           ax2.set_xlabel('$\\theta - \\theta_{c}$ [$\mu$rad]')        
+           ax2.set_ylabel('Throughput [n.u.]')
         else:
-           plt.plot(Eplot,Tpte,'r-')
+           ax2.plot(Eplot,Tpte,'r-')
+           ax2.set_xlabel('$E - E_{c}$ [meV]')
+           ax2.set_ylabel('Throughput [n.u.]')
 #                                                 
-        plt.show()        
-
 #######  CURVE STATISTICS ##############################################################################
 #        try:
         if opts.nth !=0:
@@ -699,9 +696,10 @@ def main(opts,args):
 #           fatalError('FWHM not found - failed to find peak')     
         
         outFile.close
+        show()
         
 if __name__ == '__main__':
-	options, args = ParseArguments(sys.argv[1:])
-	main(options,args)
+#	options, args = ParseArguments(sys.argv[1:])
+	main()
 
 

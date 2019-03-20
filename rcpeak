@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 '''
-plotting and analysis of curve's statistics 
+data plotting and analysis of curve statistics 
 
 :author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+:email:     sstoupin@gmail.com
 
 :copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
@@ -17,6 +17,11 @@ from numpy import *
 from scipy.optimize import *
 from pylab import *
 from scipy.interpolate import interp1d
+#
+#import matplotlib.style
+#import matplotlib as mpl
+#mpl.style.use('classic')
+
 
 #LOCAL
 #from myio import *
@@ -30,8 +35,9 @@ from dtxrd.curvestat import *
 from dtxrd.deriv import *
 from dtxrd.merge_vect import *
 
-__version__='0.36'
-proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+__version__='0.37'
+prog = os.path.basename(sys.argv[0])
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
 ##############################################################################################################################
 # modifications:
@@ -63,6 +69,7 @@ proginfo = 'peak v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.go
 # v0.34 add time series statistics (-s option): average and std - used only when -l option
 # v0.35 fixed color assignment bug on semilog plot
 # v0.36 changed IOError, e: to IOError as e:
+# v0.37 adapting for python3, minor code improvements, optik->argparse
 ##############################################################################################################################
 # Todo list
 # 1. interpolate data
@@ -91,136 +98,57 @@ def fatalIOError(err):
                   err = '%s: %s' % (err.strerror, err.filename)
         fatalError(err)
                                                                 
-def ParseArguments(args):
-        try:
-                from optik import OptionParser
-        except ImportError:
-                try:
-                       from optparse import OptionParser
-                except ImportError:
-                       fatalError(
-'This program requires Optik, availible from http://optik.sourceforge.net/\n')
-
-        USAGE = '%prog [OPTIONS...] FILENAME1 FILENAME2'
-        VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
-        +'the program performs characterization of reflectivity curve\n' \
-        +'returning various peak and curve width parameters'
-        parser = OptionParser(usage=USAGE, version=VERSION)                        
+def ParseArguments():
+        import argparse   # requires Python 2.7 or higher
+        msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
+        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
 #################################################################################################
-        # Behavior
-#################################################################################################
-        
-        #Output
-        parser.add_option('-o', '--output',
-                action='store',
-                dest='output',
-                default=None,
-                help='write results to file F (defaults to stdout)',
-                metavar='F')
-        parser.add_option('-p', '--plot',
-                action='store_const',
-                const=1,
-                dest='plotting', 
-                default=0,  
+        parser.add_argument('-v', '--version', action='version', version=__version__)
+        #        
+        parser.add_argument('-o', '--output', action='store', dest='output', default=None, metavar='F',
+                help='write results to file F (defaults to stdout)')
+        parser.add_argument('-p', '--plot', action='store_const', const=1, dest='plotting', default=0,  
                 help='plot results')
-        parser.add_option('-c', '--contrast',
-                action='store_const',
-                const=1,
-                dest='cntr', 
-                default=0,  
+        parser.add_argument('-c', '--contrast', action='store_const', const=1, dest='cntr', default=0,  
                 help='calculate spectral contrast at 1.578 fwhm')
-        parser.add_option('-u', '--unit',
-                action='store',
-                type='float',
-                dest='unit', 
-                default='1',  
+        parser.add_argument('-u', '--unit', action='store', dest='unit', default='1',  
                 help='conversion factor for x-axis (th)',
                 metavar='unit')
-        parser.add_option('-m', '--mult',
-                action='store',
-                type='float',
-                dest='mult', 
-                default='1.0',  
+        parser.add_argument('-m', '--mult', action='store', dest='mult', default='1.0',  
                 help='conversion factor for y-axis (r)',
                 metavar='mult')
-        parser.add_option('-x', '--name_x',
-                action='store',
-                dest='nx',
-                default='t [raw u.]',
-                help='x-axis label/unit',
-                metavar='F')                                                                                                    
-        parser.add_option('-y', '--name_y',
-                action='store',
-                dest='ny',
-                default='r [raw u.]',
-                help='y-axis label/unit',
-                metavar='F')                                                                                                            
-        parser.add_option('-b', '--bkg',
-                action='store',
-                type='float',
-                dest='bkg', 
-                default='-1',  
+        parser.add_argument('-x', '--name_x', action='store', dest='nx', default='t [raw u.]', metavar='X',
+                help='x-axis label/unit')
+        parser.add_argument('-y', '--name_y', action='store', dest='ny', default='r [raw u.]', metavar='Y',
+                help='y-axis label/unit')
+        parser.add_argument('-b', '--bkg', action='store', dest='bkg', default='-1',  
                 help='user defined background for calculation of fwhm',
                 metavar='bkg')
-        parser.add_option('-l', '--lookup',
-                action='store_const',
-                const=1,
-                dest='lookup', 
-                default=0,  
+        parser.add_argument('-l', '--lookup', action='store_const', const=1, dest='lookup', default=0,  
                 help='only look at the data - curve statistics is not calculated',
                 metavar='lookup')
-        parser.add_option('-t','--th',
-                action='store',
-                type='string',
-                dest='n_th',  
-                default='1',
+        parser.add_argument('-t','--theta', action='store', dest='n_th', default='1',
                 help='th values are in column number n_th',
                 metavar='n_th')
-        parser.add_option('-r','--r',
-                action='store',
-                type='string',
-                dest='n_r',  
-                default='2',
+        parser.add_argument('-r','--refl', action='store', dest='n_r', default='2',
                 help='intensity values are in column number n_r',
                 metavar='n_r')
-        parser.add_option('-d', '--deriv',
-                action='store',
-                type='int',
-                dest='nder', 
-                default='-1',  
+        parser.add_argument('-d', '--deriv', action='store', dest='nder', default='-1',  
                 help='interpolation + derivative',
                 metavar='nder')
-        parser.add_option('-n', '--normalize',
-                action='store_const',
-                const=1,
-                dest='norm', 
-                default=0,  
+        parser.add_argument('-n', '--normalize', action='store_const', const=1, dest='norm', default=0,  
                 help='normalize for plotting',
                 metavar='norm')
-        parser.add_option('-s', '--stat',
-                action='store_const',
-                const=1,
-                dest='stat', 
-                default=0,  
+        parser.add_argument('-s', '--stat', action='store_const', const=1, dest='stat', default=0,  
                 help='do time series statistics',
                 metavar='stat')
-        ##########################################################################################    
-        #Parameters
-        ##########################################################################################
-        opts, args = parser.parse_args(args)
-        if len(args) < 1:
-                parser.print_usage()
-                sys.exit(1)
-#        elif len(args) > 1:
-#                parser.print_usage()
-#                sys.exit(1)                
-        return opts, args                
-##################################################################################################
-## Main stuff
+        ###        
+        parser.add_argument('input_files',nargs='+', help='list of input filenames')
+        return parser.parse_args()
 ##################################################################################################
         
-def main(opts, args):
-        
+def main():
+        opts = ParseArguments()
         if opts.output is not None:
                try:
                         outFile = open(opts.output, 'w')
@@ -230,20 +158,18 @@ def main(opts, args):
                 outFile = sys.stdout
         #--------------------------------------------------------                
         # initialize variables :
-        #--------------------------------------------------------        
-        
+        #--------------------------------------------------------                
         count=0
-        cf=opts.unit
+        cf=float(opts.unit)
         nder=int(opts.nder)        
         outFile.write('conversion factor for th units = '+str(cf)+'\n')
-        #--------------------------------------------------------
+        #---------------------------------------------------------------
         # do stuff
-        #--------------------------------------------------------
+        #---------------------------------------------------------------
         fwhm_=[]; com_=[]
 #        c_pos=[]; c_neg=[]        
-
-        for fn in args:
-                    
+        #---------------------------------------------------------------
+        for fn in opts.input_files:                    
             outFile.write('filename: '+fn+'\n')            
             count=count+1
             d1,d2=readFile(fn)
@@ -320,7 +246,7 @@ def main(opts, args):
              stdv = sqrt(1.0/N1*chisq)
              gfitcheck = array(gaussfit[1])
              if gfitcheck.any() == None:
-                 print "Warning: fit did not converge!"
+                 print("Warning: fit did not converge!")
                  uncert = [0,0,0,0]                          
              #if gaussfit[1].any() != None:
              else:
@@ -357,7 +283,7 @@ def main(opts, args):
                  corr = stdv*sqrt(abs(lorentzfit[1]))
                  uncert = diag(corr)
              else:
-                 print "Warning: fit did not converge!"
+                 print("Warning: fit did not converge!")
                  uncert = [0,0,0,0]          
              outFile.write('-------------------------------------------------------------------\n')
              outFile.write('Lorentzian fit: \n')
@@ -403,6 +329,8 @@ def main(opts, args):
             #--------------------------------------------------------------
             th=th-th0_mid
             thint=thint-th0_mid
+            #th=th-th_mid            
+            #thint=thint-th_mid
             if opts.plotting == 1 and opts.lookup == 0:
                 fig = plt.figure(count)
                 #plt.title('Peak')
@@ -453,11 +381,15 @@ def main(opts, args):
             plot(cf*th,r,'-',label=fn)
             #plot(cf*th,r,'-')
             
-            if opts.lookup !=1: 
+            if opts.plotting == 1 and opts.lookup == 0: 
                 figure(102)
-                semilogy(cf*th,r,'-',label=fn)
+                semilogy(cf*th,r/max(r),'b-',label=fn)
+                semilogy(cf*thint,r_g/r_max_g, color='r', label='Gaussian')
+                semilogy(cf*thint,r_l/r_max_l, color='g', label='Lorentzian')
                 #semilogy(cf*th,r,'-')
-                axis([min(cf*th),max(cf*th),1e-6,1.1])
+                axis([min(cf*th),max(cf*th),1e-8,1.1])
+                legend(loc='upper right')
+                title('logY plot of normalized data')
 #        figure(667)
 #        plot(0.024*array(range(0,count)),20.0*array(thmaxg_),'o',label='peak position')
 #        plot(0.024*array(range(0,count)),20.0*array(fwhmg_),'o',label='FWHM')        
@@ -486,13 +418,12 @@ def main(opts, args):
             ylabel('Derivative, [raw u.]')
         else:        
             ylabel(opts.ny)
-        title('Common plot')                        
-        legend(loc='upper right')
+        title('')                        
+        #legend(loc='upper right')
         
                                  
         show()
                              
 if __name__ == '__main__':
-        options, args = ParseArguments(sys.argv[1:])
-        main(options, args)                      
+        main()                      
         

@@ -1,6 +1,6 @@
 # Name: dtxrd/__init__.py
 # Purpose: Main module for the DTXRD package
-# Author: Stanislav Stoupin <sstoupin@aps.anl.gov>
+# Author: Stanislav Stoupin <sstoupin@gmail.com>
 #
 # Copyright 2014
 #

@@ -32,7 +32,7 @@ def dtxrd0_k(k,eta,dc,Ex,P,crystalx):
     wh_s=-2.0*real(Chi0)*(dh/lamx)**2.0  #; print "wh(s) = ", wh_s #wh_s=average(wh_s)        
     
     if Ex < 0.9*Eb: #*(1.0+wh_s):   # 1 beam case  (p.58)
-        print " 1-beam case"
+        print(" 1-beam case")
 #       print "K0 = ", K0
 #       print "Chi0 = ", Chi0
 #       print "dc = ", dc
@@ -102,7 +102,7 @@ def dtxrd0_k(k,eta,dc,Ex,P,crystalx):
           t00=(R1*exp(1.0j*kap2*dc)-R2*exp(1.0j*kap1*dc))/den0
           r0h=R1*R2*(exp(1.0j*kap2*dc)-exp(1.0j*kap1*dc))/den0
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")
                 
         Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
         Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)
@@ -150,7 +150,7 @@ def dtxrd1_k(k,eta,dc,Ex,P,crystalx):
 #
     Eb=0.5*hpl*cl/dh 
     if Ex < 0.9*Eb:  #*(1.0+wh_s):   # 1 beam case  (p.58)
-        print " 1-beam case"
+        print(" 1-beam case")
         kap0=0.5*K0*Chi0/abs(G0)  #abs(G0) needs to be used - look (2.52) ;print "kap0 = ", kap0
         kx_pr=kx; ky_pr=ky; kz_pr=kz #+kap0       
         t00=exp(1.0j*kap0*dc)
@@ -202,7 +202,7 @@ def dtxrd1_k(k,eta,dc,Ex,P,crystalx):
           t00=(R1*exp(1.0j*kap2*dc)-R2*exp(1.0j*kap1*dc))/den0
           r0h=R1*R2*(exp(1.0j*kap2*dc)-exp(1.0j*kap1*dc))/den0
         else:
-          print "Gh = 0, check input parameters"   
+          print("Gh = 0, check input parameters")
 #                
         Tplot=(abs(t00))**2.0          #t00*t00.conjugate()
         Rplot=(abs(r0h))**2.0/abs(bh)  #;print 'R = ', Rplot #r0h*r0h.conjugate()/abs(bh)        

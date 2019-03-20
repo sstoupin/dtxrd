@@ -3,6 +3,7 @@
 ####################################
 from numpy import *
 from scipy import integrate
+from scipy import interpolate
 from scipy.optimize import *
 from scipy.interpolate import interp1d
 
@@ -51,7 +52,8 @@ def alpha_carr(x):
   data=transpose(array(data))
   t0=data[0]
   alp0=1.0e-8*data[1]  
-  alpha=interp1d(t0,alp0)
+  #alpha=interp1d(t0,alp0)
+  alpha=interpolate.InterpolatedUnivariateSpline(t0,alp0)
 #  print " Temperature = ", x, " K"
 #  print " Thermal expansion coeff. = ", alpha, " K-1"  
   result=float(alpha(x))

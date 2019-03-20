@@ -18,6 +18,10 @@ def sortar_pair(ar1,ar2):
   ind=ar1.argsort()
   return ar1[ind], ar2[ind]    
 
+def sortar_3(ar1,ar2,ar3):
+  ind=ar1.argsort()
+  return ar1[ind], ar2[ind], ar3[ind]
+
 def mergel_same(lista,listb):
   d={}
   for a,b in zip(lista,listb):

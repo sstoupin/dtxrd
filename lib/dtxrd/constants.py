@@ -12,4 +12,7 @@ qe=1.60217653e-19     # [C] Electron charge
 me=9.0193897e-31     # [kg] mass of electron
 cl=299792458.0e10      # [Angstrom/s] speed of light 
 re=2.8179402894e-5  #[A] classical radius of electron
+Na=6.02214129e23    #mol-1 Avogadro constant
+eps_0 = 8.854187817e-12 # [F/m] or C/V/m
+kb = 8.6173303e-5 # [eV K-1] Boltzmann constant
 #----------------------------------------------------------------------

@@ -20,7 +20,6 @@ from numpy import *
 #from carr_ge import *
 #from lucht_sph import *
 from fh import *
-
 from dtxrd0 import *
 from dtxrd2_k import *
 from constants import *
@@ -47,7 +46,7 @@ def thc_find(Ex,eta,phi,dc,crystal,P):
    while (ee > 1.0e-6):
       i=i+1                       #; print i
       if i > imax: 
-         print ('thc_find convergence problem!')
+         print('thc_find convergence problem!')
          break
       else:      
         k=[cos(thc)*cos(phi),cos(thc)*sin(phi),-sin(thc)]
@@ -82,7 +81,7 @@ def thmax_find(Ex,eta,phi,dc,crystal,P,flag):
    thv=array(thv); R=array(R); T=array(T)  
    if flag=='R':   stat1=curvestat(thv,R,0.0)
    elif flag=='T': stat1=curvestat(thv,T,0.0)
-   else: stat1=0; print " flag input error "
+   else: stat1=0; print(" flag input error ")
    
    thmax=stat1[0]
    k=[cos(thmax)*cos(phi),cos(thmax)*sin(phi),-sin(thmax)]
@@ -104,7 +103,7 @@ def thr_find(el,h,k,l,eta,phi,T,dc,Ex):
          print ('thr_find convergence problem!')
          break
       else:   
-         [[Chi0,Chih,Chih_],dh],flagFh=chi(el,h,k,l,T,E0)
+         [[Chi0,Chih,Chih_],dh,lp,ang],flagFh=chi(el,h,k,l,T,E0)
          #                  
          lam0=hpl*cl/E0
          wh_s=-2.0*real(Chi0)*(dh/lam0)**2.0  #; print 'wh_s = ', wh_s

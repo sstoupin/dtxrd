@@ -5,7 +5,7 @@ a program to calculate profiles of parabolic CRLs
 based on refocusing geometry requirements
 
 :author:    Stanislav Stoupin
-:email:     sstoupin@aps.anl.gov
+:email:     sstoupin@gmail.com
 
 :copyright: Copyright 2015 by XSD, Advanced Photon Source, Argonne National Laboratory
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
@@ -19,6 +19,8 @@ from pylab import *
 # LOCAL
 #import commands
 #cmdout=commands.getstatusoutput('echo $HOME')
+#import subprocess
+#cmdout=subprocess.getstatusoutput('echo $HOME')
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
 #from myio import coljoin, writeFile
@@ -30,7 +32,8 @@ from dtxrd.myio import coljoin, writeFile
 from dtxrd.constants import *
 from dtxrd.chi import *
 
-__version__ = '0.06'
+prog = os.path.basename(sys.argv[0])
+__version__ = '0.07'
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -41,90 +44,76 @@ __version__ = '0.06'
 # v0.04 rms surface roughness added as input parameter
 # v0.05 reports refocused beam size, adapted to go to APSshare
 # v0.06 replaced IOError, e: with IOError as e:
+# v0.07 adaptation for p3, optik->argparse
 #-------------------------------------------------------------------------------------------
 #  things to do
 # 
-
 def fatalError(msg):
-	sys.stderr.write('Error: ')
-	sys.stderr.write(str(msg))
-	sys.stderr.write('\n')
-	sys.exit(1)
+        sys.stderr.write('Error: ')
+        sys.stderr.write(str(msg))
+        sys.stderr.write('\n')
+        sys.exit(1)
 
 def fatalIOError(err):
-	if issubclass(err.__class__, IOError) and err.strerror and err.filename:
-		err = '%s: %s' % (err.strerror, err.filename)
-	fatalError(err)
+        if issubclass(err.__class__, IOError) and err.strerror and err.filename:
+            err = '%s: %s' % (err.strerror, err.filename)
+        fatalError(err)
 
-
-def ParseArguments(args):
-	try:
-		from optik import OptionParser
-	except ImportError:
-		try:
-			from optparse import OptionParser
-		except ImportError:
-			fatalError(
-'This program requires Optik, availible from http://optik.sourceforge.net/\n')
-
-	USAGE = '%prog [OPTIONS...] element S1 S2 sh sv R0 da N Ex sig \n'+'where:\n' \
-	+'element - Be, C (diamond), Si, Ge, Al2O3 \n' \
-	+'S1 - source-to-lens distance [m] \n' \
-	+'S2  - lens to image distance [m] \n' \
-	+'sh  - horizontal source size FWHM [um] \n' \
-	+'sv  - vertical source size FWHM [um]   \n'  \
-	+'R0  - half-aperture of the lens [mm] \n' \
-	+'da  - distance between apexes of the lens [um] \n' \
-	+'N   - number of lenses in the stack [integer] \n' \
-	+'Ex  - photon energy [keV] \n' \
-	+'sig - r.m.s. surface roughness [um]'
-	VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
-	+'the program calculates parabolic refractive lens profile (Lengeler JAP 1998)'
-	parser = OptionParser(usage=USAGE, version=VERSION)
+def ParseArguments():
+        import argparse   # requires Python 2.7 or higher
+        msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
+        #
+        msg1 = 'element: Be, C (diamond), Si, Ge, Al2O3 \n' 
+        msg2 = 'S1 - source-to-lens distance [m] \n' 
+        msg3 = 'S2  - lens to image distance [m] \n' 
+        msg4 = 'sh  - horizontal source size FWHM [um] \n' 
+        msg5 = 'sv  - vertical source size FWHM [um]   \n'  
+        msg6 = 'R0  - half-aperture of the lens [mm] \n' 
+        msg7 = 'da  - distance between apexes of the lens [um] \n' 
+        msg8 = 'N   - number of lenses in the stack [integer] \n' 
+        msg9 = 'Ex  - photon energy [keV] \n' 
+        msg10 = 'sig - r.m.s. surface roughness [um]'
+        #
+        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
 #----------------------------------------------------------------------------------------------
-        parser.add_option('-o', '--output',
-                action='store',
-                dest='output',
-                default=None,
-                help='write results to file F (defaults to stdout)',
-                metavar='F')
-        parser.add_option('-w', '--write',
-                action='store',
-                dest='write',
-                default=None,
-                help='write data to file (default do not write)',
-                metavar='D')
+        parser.add_argument('-o', '--output', action='store', dest='output', default=None, metavar='F', 
+                help='write results to file F (defaults to stdout)')
+        parser.add_argument('-w', '--write', action='store', dest='write', default=None, metavar='D',
+                help='write data to file (default do not write)')                
 #-----------------------------------------------------------------------------------------------
-	opts, args = parser.parse_args(args)
-	if len(args) != 10:
-		parser.print_usage()
-		sys.exit(1)
-	try:
-		args[8] = float(args[8])
-	except ValueError:
-		fatalError('Ex(keV)  must be a valid number')
-		
-	return opts, args
+        parser.add_argument('element', action='store', nargs=1, help=msg1)
+        parser.add_argument('S1', action='store', type=float, nargs=1, help=msg2)               
+        parser.add_argument('S2', action='store', type=float, nargs=1, help=msg3)
+        parser.add_argument('sh', action='store', type=float, nargs=1, help=msg4)
+        parser.add_argument('sv', action='store', type=float, nargs=1, help=msg5)
+        parser.add_argument('R0', action='store', type=float, nargs=1, help=msg6)               
+        parser.add_argument('da', action='store', type=float, nargs=1, help=msg7)
+        parser.add_argument('N', action='store', type=float, nargs=1, help=msg8)
+        parser.add_argument('Ex', action='store', type=float, nargs=1, help=msg9)
+        parser.add_argument('sig', action='store', type=float, nargs=1, help=msg10)               
+        #
+        return parser.parse_args()
 #-----------------------------------------------------------------------------------------------
-def main(opts,args):
-
+def main():
+        opts = ParseArguments()
+        #
         if opts.output is not None:
                try:
                         outFile = open(opts.output, 'w')
                except IOError as e:
                         fatalIOError(e)
         else:
-                outFile = sys.stdout                
+                outFile = sys.stdout 
 ########
-        S1 = float(args[1])  #[m]
-        S2 = float(args[2])  #[m]
-        sh = float(args[3])  #[um]
-        sv = float(args[4])  #[um]
-        R0 = float(args[5])  #[mm]
-        da = float(args[6])  #[um]
-        N  = float(args[7])  # dimless
-        Ex = 1.0e3*float(args[8])   #[eV]
-        sig = float(args[9])        #[um]
+        S1 = float(opts.S1[0])  #[m]
+        S2 = float(opts.S2[0])  #[m]
+        sh = float(opts.sh[0])  #[um]
+        sv = float(opts.sv[0])  #[um]
+        R0 = float(opts.R0[0])  #[mm]
+        da = float(opts.da[0])  #[um]
+        N  = float(opts.N[0])  # dimless
+        Ex = 1.0e3*float(opts.Ex[0])  #[eV]
+        sig = float(opts.sig[0])      #[um]
 #####################################################################################
         f = S1*S2/(S1+S2)
         demag = f/(S1-f)
@@ -136,7 +125,7 @@ def main(opts,args):
         lamx=hpl*cl/Ex  # wavelength
         kx=2.0*pi/lamx  # wavevector
         
-        [[Chi0,Chih,Chih_],dh],flagFh=chi(args[0],0,0,12,300.0,Ex)
+        [[Chi0,Chih,Chih_],dh,lp,ang],flagFh=chi(opts.element[0],0,0,12,300.0,Ex)
         
         delta=-0.5*real(Chi0)
         beta=0.5*imag(Chi0)
@@ -155,7 +144,7 @@ def main(opts,args):
         outFile.write(param + '\n')
         outFile.write('##############################################################\n')
         outFile.write('##### CRL v'+__version__+' ############################################\n')
-        outFile.write('##### Author: Stanislav Stoupin ## sstoupin@aps.anl.gov ######\n')
+        outFile.write('##### Author: Stanislav Stoupin ## sstoupin@gmail.com ######\n')
         outFile.write('##############################################################\n')
         outFile.write('lamx [Anstrom] = '+str(lamx)+' Wavelength\n')
         outFile.write('demagnification ratio = '+str(demag)+'\n')
@@ -287,7 +276,6 @@ def main(opts,args):
                                                         
         plt.show()
 if __name__ == '__main__':
-	options, args = ParseArguments(sys.argv[1:])
-	main(options,args)
+	main()
 
 

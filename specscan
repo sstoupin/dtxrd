@@ -2,7 +2,7 @@
 #############################################################
 # A program to extract a scan from a multi-scan SPEC file
 # ----------------------------------------------------------- 
-# Copyright: Stanislav Stoupin (sstoupin@aps.anl.gov) 2012
+# Copyright: Stanislav Stoupin (sstoupin@gmail.com) 2012
 # Advanced Photon Source, Argonne National Laboratory 
 #------------------------------------------------------------
 import sys
@@ -15,14 +15,15 @@ from numpy import *
 #from scipy.optimize import *
 #from pylab import *
 
-__version__='0.02'
-proginfo = 'specscan v' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>'
+__version__='0.03'
+proginfo = 'specscan v' + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
 ########################################################################
 # modifications:
 ########################################################################
 #v0.02  now writes data only upon request (-w option)
 #       by default only prints columns
+#v0.03  now compatible with python3
 #---------------------------------------------------
 # Functions
 #---------------------------------------------------
@@ -53,7 +54,7 @@ def ParseArguments(args):
 'This program requires Optik, availible from http://optik.sourceforge.net/\n')
 
         USAGE = '%prog [OPTIONS...] scan_numbers FILENAME'
-        VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' \
+        VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>\n' \
         +'the program performs extraction of scans with numbers scan_numbers from a SPEC file (FILENAME)\n' \
         +'returning individual files with headers'
         parser = OptionParser(usage=USAGE, version=VERSION)                        
@@ -111,7 +112,7 @@ def main(opts, args):
                 if line[0:2]=='#S':                
                     splitline=line.split()                    
                     if splitline[1]==str(fn):
-                        print line
+                        print(line)
                         header=header+line
                         #                        
                         while 2:
@@ -125,16 +126,16 @@ def main(opts, args):
                             elif char1=='#':
                                 header=header+line1 
                                 if lst1[0]=='#L':
-                                    print 'columns in the scan:'
+                                    print('columns in the scan:')
                                     names=lst1[1:]
                                     numbers=range(1,len(names)+1)
-                                    for (i,x) in map(None,numbers,names):
-                                        print 'col '+str(i)+': '+x
+                                    for (i,x) in zip(numbers,names):
+                                        print('col '+str(i)+': '+x)
                             else:
                                 data=data+line1 
             
             if opts.write==1:
-             outFile=open(fn+'.dat', 'w'); print "writing extracted scan into a file"            
+             outFile=open(fn+'.dat', 'w'); print("writing extracted scan into a file")
              outFile.write(header)
              outFile.write(data)
              outFile.close()

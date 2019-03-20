@@ -91,8 +91,8 @@ def f0h_waasmaier(atom,qx):
     f0q=[]
     for q in qx:
       f0q=f0q+[sum(a*exp(-b*q**2.0))+c]  
-    print len(qx)
-    print len(f0q)
+    print(len(qx))
+    print(len(f0q))
     return array(f0q)
 
 ## TEST
@@ -407,6 +407,24 @@ def expFh_pyr(elem,h,k,l):   # Bailyss AM 1977
       r[5]=array([0.88540,0.38180,0.11490])
       r[6]=array([0.11470,0.88560,0.38410])
       r[7]=array([0.38570,0.11610,0.88420])
+      
+    Fh=0
+    for x in r:
+        Fh=Fh+exp(1j*sum(H*x))      
+    return Fh
+# ---------------------------------------------------------------------
+def expFh_GaN(elem,h,k,l):   # wurtzite - Wyckoff positions 2b
+    
+    H=2.0*pi*array([h,k,l])    
+                
+    if elem=='Ga':
+        z = 0.00                    
+    elif elem=='N':
+        z = 0.377    # Schulz and Thiemann SSC 1977
+    
+    r=[[]]*2
+    r[0]=array([1.0/3.0,2.0/3.0,z])
+    r[1]=array([2.0/3.0,1.0/3.0,z+0.5])
       
     Fh=0
     for x in r:
