@@ -21,12 +21,12 @@ import operator
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
 
-from numpy import *
-from pyhdf import *
-from curvestat import *
-from fit1d import *
-from myio import *
-from roll_zeropad import roll_zeropad
+#from numpy import *
+#from pyhdf import *
+#from curvestat import *
+#from fit1d import *
+#from myio import *
+#from roll_zeropad import roll_zeropad
 
 # GLOBAL
 from dtxrd.pyhdf import *
