@@ -62,7 +62,7 @@ if float(ver_check[0]) >= 2:
     mpl.rcParams['figure.dpi'] = 80
     mpl.rcParams['savefig.dpi'] = 100
     mpl.rcParams['font.size'] = 12
-    mpl.rcParams['legend.fontsize'] = 'large'
+    mpl.rcParams['legend.fontsize'] = 'small'
     mpl.rcParams['figure.titlesize'] = 'medium'
     mpl.rcParams['image.cmap'] = 'jet'
 ##################################################################
@@ -71,7 +71,7 @@ if float(ver_check[0]) >= 2:
 r2d=180.0/pi
 fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
 fwhm_r=1.5          # upper limit to plot fwhm distribution
-ftsize = 18         # fiture title font size 
+ftsize = 18         # figure title font size 
 ##################################################################
 
 __version__='0.92'
@@ -518,24 +518,15 @@ def main():
             prcurve = rcurve - bkgs               
             ##################################################################################              
             # start plotting things ----------------------------------
-            mpl.rcParams['font.size'] = 12
-            mpl.rcParams['legend.fontsize'] = 'small'
-            mpl.rcParams['figure.titlesize'] = 'medium'
+            mpl.rcParams.update({'font.size': 12})
             f1=plt.figure(figsize=(8.0,7.0))
             plt.plot(ugol,prcurve, 'bo',label="local RC") 
             plt.plot(ugol,prcurve, 'b-')
             ugol_g=arange(ugol[0],ugol[len(ugol)-1]+0.1,0.1)
             plt.plot(ugol_g,gauss(p,ugol_g)-p[0],'b--',label="Gauss. fit for local RC")            
-            plt.title ('pixel location [mm]: X ='+str(round((nx-i)*dx,3))+', Y = '+str(round((ny-j)*dy,3))) 
-            plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size='x-large')
-            plt.ylabel('Counts', size='x-large')
-            #ax = plt.gca()
-            #fontsize=12
-            #for tick in ax.xaxis.get_major_ticks():
-            #    tick.label1.set_fontsize(fontsize)
-            #for tick in ax.yaxis.get_major_ticks():
-                #tick.label1.set_fontsize(fontsize)
-                            
+            plt.title ('pixel location [mm]: X ='+str(round((nx-i)*dx,3))+', Y = '+str(round((ny-j)*dy,3)),size=16) 
+            plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size=16)
+            plt.ylabel('Counts', size=16)                                        
 ################################################################################################################## 
 ####### PIXEL REJECTION CRITERIA ################################################################################# 
 ##################################################################################################################  
@@ -745,7 +736,7 @@ def main():
   thpos_tot=stat[3];                out = out + "thpos_tot = "+str(thpos_tot)+" urad\n"       
   plt.plot(ugol,trcurve, 'ro',label="total RC")
   plt.plot(ugol,trcurve, 'r-')
-  plt.legend(loc='upper right')
+  plt.legend(loc='upper right',fontsize=10)
 ##################################################################################
 ## Write output									
 ##################################################################################
@@ -1021,15 +1012,13 @@ def main():
       #----------------------------------------------
       # plot local rocking curve
       #----------------------------------------------
-      mpl.rcParams['font.size'] = 12
-      mpl.rcParams['legend.fontsize'] = 'small'
-      mpl.rcParams['figure.titlesize'] = 'medium'
+      mpl.rcParams.update({'font.size': 12})
       fig=plt.figure(figsize=(8.0,7.0))
       rcurve0=data[:,idy,idx]
       bkg0=0.25*(rcurve0[0]+rcurve0[1]+rcurve0[-2]+rcurve0[-1])
       print('bkg (from tails) = %f' % bkg0)
       # begin plotting:
-      plt.title ('pixel location [mm]: X ='+str(round(xdata,3))+', Y = '+str(round(ydata,3))) 
+      plt.title ('pixel location [mm]: X ='+str(round(xdata,3))+', Y = '+str(round(ydata,3)),size=16) 
       plt.plot(ugol,rcurve0,'b-')
       plt.plot(ugol,rcurve0,'bo',label='local RC')
       plt.plot(ugol,bkg0+ugol*0, color='k', label='background')
@@ -1065,9 +1054,9 @@ def main():
         plt.plot(ugol,0.5*(r_max+bkg0)+ugol*0, linestyle='--', color='k', label='half max.')
       except: 
         print('Curve statistics unobtainable')
-      plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size='x-large')
-      plt.ylabel('Counts', size='x-large')
-      plt.legend(loc='upper left')
+      plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size=16)
+      plt.ylabel('Counts', size=16)
+      plt.legend(loc='upper left',fontsize=10)
       plt.show()
   #
   fig.canvas.mpl_connect('button_press_event', onpick)
