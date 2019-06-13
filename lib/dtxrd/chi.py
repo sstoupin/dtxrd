@@ -10,9 +10,10 @@ a subroutine to calculate susceptibility(Chi) for a Bragg reflection
 :license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
 '''
 ###########################################################################################
-# v 0.05 ##################################################################################
+# v 0.06 ##################################################################################
 ###########################################################################################
 # 0.05 updated texpan of Si to Reeber's expression
+# 0.06 updated texpan of C to new Jacobson&Stoupin formula
 ###########################################################################################
 from numpy import *
 from fh import *
@@ -61,8 +62,10 @@ def chi(element,h,k,l,T,Ex):
      if abs(expF) < epsFh: flagFh = 0
   #----------------------------------------------------------------------------   
   elif element=='C': 
-     from stoupin_c import a_stoupin
-     a=a_stoupin(T)
+     #from stoupin_c import a_stoupin
+     #a=a_stoupin(T)
+     from td_c import a_JS1
+     a=a_JS1(T) 
      lp = [a,a,a]
      ang = [90.0,90.0,90.0]
      #    

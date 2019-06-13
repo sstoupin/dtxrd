@@ -21,12 +21,12 @@ import operator
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
 
-#from numpy import *
-#from pyhdf import *
-#from curvestat import *
-#from fit1d import *
-#from myio import *
-#from roll_zeropad import roll_zeropad
+from numpy import *
+from pyhdf import *
+from curvestat import *
+from fit1d import *
+from myio import *
+from roll_zeropad import roll_zeropad
 
 # GLOBAL
 from dtxrd.pyhdf import *
@@ -41,6 +41,7 @@ import matplotlib.image as mpimg
 from pylab import *
 #
 #import matplotlib.style
+#import matplotlib.pyplot as plt
 import matplotlib as mpl
 mver = mpl.__version__
 ver_check = mver.split('.')
@@ -73,7 +74,7 @@ fwhm_r=1.5          # upper limit to plot fwhm distribution
 ftsize = 18         # fiture title font size 
 ##################################################################
 
-__version__='0.88'
+__version__='0.92'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -142,11 +143,15 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 # v086   making cosmetic changes, adapting for python3
 # v087   transition from ancient optik parser to argparse
 # v088   write processed data to h5 file "-j" option
+# v089   remove integration for z = 1 (or z >1) option - to plot raw peak reflectivity counts
+# v090   remove list of input files from "param" and write it to h5 file
+# v091   began attempt to onclick local rocking curve
+# v092   finalize onclick - now working
 #######################################################################################
 #  TODO LIST
 #######################################################################################
 # 0. improve comput. speed?
-# 1. need mouse click access to each point on the maps
+# 1. need mouse click access to each point on the maps - done v 0.92
 # 2. figure out how to handle image rotations (reference)
 ####################################################################################### 
 
@@ -220,7 +225,7 @@ def ParseArguments():
                 help='presentation of reflectivity data: \n'
                 + 'z == 0  - plot peak reflectivity normalized by max. value (default) \n'
                 + 'z == -1 - plot integrated reflectivity normalized by max. value \n'
-                + 'z !=0 and z !=-1 - normalize reflectivity data by input parameter CONST')
+                + 'z !=0 and z !=-1 - raw reflectivity data normalized by input parameter CONST')
         parser.add_argument('-e', '--external', action='store', dest='external', default=None, metavar='FILENAME',
                 help='read angular steps from 1st column of an ASCII file (e.g., SPEC scan)')
         #
@@ -238,10 +243,10 @@ def main():
   else:
      outFile = sys.stdout
   
-  #nall = len(sys.argv)-len(args)
-  param = sys.argv #[0:nall]
-  param = ' '.join(param)  
-  outFile.write(param + '\n')                    
+  nall = len(sys.argv)-len(opts.input_files)
+  param = sys.argv[0:nall]  
+  param = ' '.join(param)
+  outFile.write(str(param) + '\n')                    
   #outFile.write(str(opts)+' '+str(args)+'\n')
   outFile.write(prog + ' v '+__version__+'\n')
   outFile.write('range (x1 x2 y1 y2): '+opts.rng+'\n')
@@ -363,11 +368,11 @@ def main():
 ## theta origin is defined here as the center of the angular range in the scan 
 ################################################################################
   th_beg=th[0]
-  th_end=th[len(th)-1]
-#  th0=0.5*(th[0]+th[len(th)-1])
+  th_end=th[-1]
   th0=0.5*(th_beg+th_end)  
   th0_deg=1.0e-6*r2d*th0
-  
+  #
+  ugol=th-th0  
   print("###########################################")
   print("th0 (initial) = ", th0)
 
@@ -495,7 +500,7 @@ def main():
       #--------------------------------------------------------
       if (i==indx0) and (j==indy0):
             print("thi0 = ", thi0)
-            ugol=th-th0 #th_deg    
+            #ugol=th-th0 #th_deg    
             p0=[bkgs,rcmax,thi0,fwhm_0] #bkg max center
             p, unc, dte, stat, cov = fit1d(residuals,p0,ugol,rcurve) 
             com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0]); print("com = ", com0)
@@ -513,20 +518,23 @@ def main():
             prcurve = rcurve - bkgs               
             ##################################################################################              
             # start plotting things ----------------------------------
-            f1=plt.figure()
-            plt.plot(ugol,prcurve, 'bo',label="pixel RC") 
+            mpl.rcParams['font.size'] = 12
+            mpl.rcParams['legend.fontsize'] = 'small'
+            mpl.rcParams['figure.titlesize'] = 'medium'
+            f1=plt.figure(figsize=(8.0,7.0))
+            plt.plot(ugol,prcurve, 'bo',label="local RC") 
             plt.plot(ugol,prcurve, 'b-')
             ugol_g=arange(ugol[0],ugol[len(ugol)-1]+0.1,0.1)
-            plt.plot(ugol_g,gauss(p,ugol_g)-p[0],'b--',label="Gaussian/pixel RC")            
-            plt.title ('pixel location [mm]: X ='+str((nx-i)*dx)+', Y = '+str((ny-j)*dy))  
+            plt.plot(ugol_g,gauss(p,ugol_g)-p[0],'b--',label="Gauss. fit for local RC")            
+            plt.title ('pixel location [mm]: X ='+str(round((nx-i)*dx,3))+', Y = '+str(round((ny-j)*dy,3))) 
             plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size='x-large')
-            plt.ylabel('Counts [a.u.]', size='x-large')
-            ax = plt.gca()
-            fontsize=12
-            for tick in ax.xaxis.get_major_ticks():
-                tick.label1.set_fontsize(fontsize)
-            for tick in ax.yaxis.get_major_ticks():
-                tick.label1.set_fontsize(fontsize)
+            plt.ylabel('Counts', size='x-large')
+            #ax = plt.gca()
+            #fontsize=12
+            #for tick in ax.xaxis.get_major_ticks():
+            #    tick.label1.set_fontsize(fontsize)
+            #for tick in ax.yaxis.get_major_ticks():
+                #tick.label1.set_fontsize(fontsize)
                             
 ################################################################################################################## 
 ####### PIXEL REJECTION CRITERIA ################################################################################# 
@@ -563,12 +571,17 @@ def main():
                   #
                   fwhm_g=2.0*abs(p[3])*sqrt(log(2.0))
                   fwhm[i,j]=fwhm_g;   fwhm1=fwhm1+[fwhm[i,j]]                  
-                  if opts.z == 0: 
+                  if zf == 0: 
                       if opts.conduct == 0:    peak[i,j] = p[1]      #RC
                       elif opts.conduct == 1:  peak[i,j] = p[1]/bkg  #TC                 
-                  else:
+                  elif zf == -1:
                       if opts.conduct == 0: peak[i,j] = abs(p[1])*abs(p[3])*sqrt(pi)/abs(zf)
                       if opts.conduct == 1: peak[i,j] = abs(p[1])*abs(p[3])*sqrt(pi)/abs(zf)/bkg
+                  else:
+                      peak[i,j] = p[1]/abs(zf)
+                      #if opts.conduct == 0:    peak[i,j] = p[1]      #RC
+                      #elif opts.conduct == 1:  peak[i,j] = p[1]/bkg  #TC  
+                  ##---------------------------------------------------------    
                   peak1=peak1+[peak[i,j]]   # p[1] - in gauss function background already subtracted               
                   thmid[i,j]=p[2];       thmid1=thmid1+[thmid[i,j]]
                   #com[i,j]=sum((rcurve-p[0])*(th-th0))/sum(rcurve-p[0]); com1=com1+[com[i,j]]                                    
@@ -599,12 +612,16 @@ def main():
                 if crit2 == True:
                   fwhm[i,j]=stat[5];         fwhm1=fwhm1+[fwhm[i,j]]
                   
-                  if opts.z == 0:
+                  if zf == 0:
                       if opts.conduct == 0:   peak[i,j]=stat[1]-bkgs   #RC
                       elif opts.conduct == 1: peak[i,j]=stat[1]/bkg    #TC
-                  else:
+                  elif zf == -1:
                       if opts.conduct == 0:   peak[i,j]=stat[8]/abs(zf)
                       elif opts.conduct == 1: peak[i,j]=stat[8]/abs(zf)/bkg   
+                  else: 
+                      peak[i,j]=stat[1]/abs(zf)
+                      #if opts.conduct == 0:   peak[i,j]=stat[1]/abs(zf)   #RC
+                      #elif opts.conduct == 1: peak[i,j]=stat[1]/abs(zf)   #TC
                       #                                            
                   peak1=peak1+[peak[i,j]]    # peak intensity                 
                   thmid[i,j]=stat[4];        thmid1=thmid1+[thmid[i,j]]
@@ -851,8 +868,7 @@ def main():
 ###################################################################################
 ## NOW PLOT EVERYTHING
 ###################################################################################
-  
-  f2=plt.figure(2)
+  fig=plt.figure(figsize=(22.0,12.2))
   if opts.stat==1:
     sbtitle='Gaussian curve fitting.'
   else:
@@ -864,40 +880,40 @@ def main():
     sbtitle=sbtitle+' Sample: '+opts.nm  #+'\n' + param  
   plt.suptitle(sbtitle, size=ftsize)  
   
-  gca().set_position((.1, .1, .1, .1))
-  figtext(0.1,0.025,param)
+  #plt.gca().set_position((.1, .1, .1, .1)) # used to be here - now producing weird empty subplot - actually not needed
+  plt.figtext(0.1,0.025,param)
   
-  plt.subplot(331)
+  ax1 = fig.add_subplot(331)
   peak_m = ma.array(peak,mask=peak>1.0e8/norm)
   if zf == 0:
-      plt.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-      if opts.conduct == 0:   plt.title('Peak Reflectivity [n.u.]',size=ftsize)
-      elif opts.conduct == 1: plt.title('Peak Reflectivity [abs.u.]',size=ftsize)   # because this is absolute reflectivity!!!
-      plt.colorbar()
+      imgplot = ax1.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+      if opts.conduct == 0:   ax1.set_title('Peak Reflectivity [n.u.]',size=ftsize)
+      elif opts.conduct == 1: ax1.set_title('Peak Reflectivity [abs.u.]',size=ftsize)   # because this is absolute reflectivity!!!
+      fig.colorbar(imgplot, ax=ax1)
   elif zf == -1:
-     plt.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-     if opts.conduct == 0:    plt.title('Integrated Refl. [n.u.]',size=ftsize)
-     elif opts.conduct == 1:  plt.title('Integrated Refl. [n.u.]',size=ftsize)
-     plt.colorbar()      
+     imgplot = ax1.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+     if opts.conduct == 0:    ax1.set_title('Integrated Refl. [n.u.]',size=ftsize)
+     elif opts.conduct == 1:  ax1.set_title('Integrated Refl. [n.u.]',size=ftsize)
+     fig.colorbar(imgplot, ax=ax1)      
   else: 
       if opts.conduct == 0:   
-          plt.title('Integr. refl. [cnt x $\mu$rad$^{-1}$ x 10$^3$]',size=ftsize)
+          ax1.set_title('Intensity [cnt x 10$^3$]',size=ftsize)
           vmin0=min(peak1)/1.0e3; vmax0=max(peak1)/1.0e3
-          peak_tr = 1.0e8/1.0e3/abs(zf) #; print ('peak tr = ', peak_tr)          
+          peak_tr = 66000.0/1.0e3/abs(zf) #; print ('peak tr = ', peak_tr)          
           peak2 = peak/1.0e3
           peak_m2 = ma.array(peak2,mask=peak2>peak_tr)            
-          plt.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)      
+          imgplot = ax1.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)      
       elif opts.conduct == 1: 
-          plt.title('Integr. refl. [cnt x $\mu$rad$^{-1}$ x 10$^3$]',size=ftsize)
+          plt.title('Intensity [cnt x 10$^3$]',size=ftsize)
           vmin0=min(peak1)/1.0e3; vmax0=max(peak1)/1.0e3
-          peak_tr = 1.0e8/1.0e3/abs(zf)/bkg #; print ('peak tr = ', peak_tr)
+          peak_tr = 1.0e8/1.0e3/abs(zf) #; print ('peak tr = ', peak_tr)
           peak2 = peak/1.0e3
           peak_m2 = ma.array(peak2,mask=peak2>peak_tr)  
-          plt.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
+          imgplot = ax1.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
       
-      plt.colorbar()
+      fig.colorbar(imgplot, ax=ax1)
   #plt.xlabel('x [mm]')
-  plt.ylabel('y [mm]')
+  ax1.set_ylabel('y [mm]')
 
 #  vmin0=round(fwhm_l*fwhm0,-1)
 #  vmax0=round(fwhm_r*fwhm0,-1)
@@ -905,72 +921,74 @@ def main():
   vmax0=round(fwhm0*(1.0+mf*sf))
   if vmin0 < 0: vmin0 = 0
   
-  plt.subplot(332)
+  ax2 = fig.add_subplot(332)
   fwhm_m = ma.array(fwhm,mask=fwhm>1.0e8)
-  plt.imshow(fwhm_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
-  plt.colorbar()
-  plt.title('FWHM [$\mu$rad]',size=ftsize)
-  #plt.xlabel('x [mm]')
-  plt.ylabel('y [mm]')
-  #grid(True)
+  imgplot = ax2.imshow(fwhm_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #, picker=1) #vmin=fwhm.min(),vmax=fwhm.max())
+  fig.colorbar(imgplot, ax=ax2)
+  ax2.set_title('FWHM [$\mu$rad]',size=ftsize)
+  #ax2.set_xlabel('x [mm]')
+  ax2.set_ylabel('y [mm]')
 
   vmin0=round(stdev0*(1.0-mf*sf))
   vmax0=round(stdev0*(1.0+mf*sf))
   if vmin0 < 0: vmin0 = 0
     
-  plt.subplot(333)
+  ax3 = fig.add_subplot(333)
   stdev_m = ma.array(stdev,mask=stdev>1.0e8)
-  plt.imshow(stdev_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
-  plt.colorbar()
-  plt.title('STDEV [$\mu$rad]',size=ftsize)
-  plt.xlabel('x [mm]')
-  plt.ylabel('y [mm]')
+  imgplot = plt.imshow(stdev_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
+  plt.colorbar(imgplot, ax=ax3)
+  ax3.set_title('STDEV [$\mu$rad]',size=ftsize)
+  ax3.set_xlabel('x [mm]')
+  ax3.set_ylabel('y [mm]')
   #grid(True)
 
   vmin0=round(com0-sf*fwhm0)
   vmax0=round(com0+sf*fwhm0)
   
-  plt.subplot(334)
+  ax4 = fig.add_subplot(334)
   com_m = ma.array(com,mask=com>1.0e8)
-  plt.imshow(com_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=com.min(),vmax=com.max())
-  plt.colorbar()
-  plt.title('COM [$\mu$rad]',size=ftsize)
+  imgplot = plt.imshow(com_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=com.min(),vmax=com.max())
+  plt.colorbar(imgplot, ax=ax4)
+  ax4.set_title('COM [$\mu$rad]',size=ftsize)
   #plt.xlabel('x [mm]')
-  plt.ylabel('y [mm]')
+  ax4.set_ylabel('y [mm]')
 
   vmin0=round(thmid0-sf*fwhm0)
   vmax0=round(thmid0+sf*fwhm0)
   
-  plt.subplot(335)
+  ax5 = fig.add_subplot(335)
   thmid_m = ma.array(thmid,mask=thmid>1.0e8)
-  plt.imshow(thmid_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thmid.min(),vmax=thmid.max())
-  plt.colorbar()
-  plt.title('Midpoint [$\mu$rad]',size=ftsize)
+  imgplot = plt.imshow(thmid_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thmid.min(),vmax=thmid.max())
+  plt.colorbar(imgplot, ax=ax5)
+  ax5.set_title('Midpoint [$\mu$rad]',size=ftsize)
   #plt.xlabel('x [mm]')
-  plt.ylabel('y [mm]')
+  ax5.set_ylabel('y [mm]')
+  
+  #ax6 = fig.add_subplot(336)
+  #ax6.axis('off')
 
   vmin0=round(thneg0-1.0*sf*fwhm0)
   vmax0=round(thmid0)
   
-  plt.subplot(337)
+  ax7 = fig.add_subplot(337)
   thneg_m = ma.array(thneg,mask=thneg>1.0e8)
-  plt.imshow(thneg_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thneg.min(),vmax=thneg.max())
-  plt.colorbar()
-  plt.title('Left Slope [$\mu$rad]',size=ftsize)
-  plt.xlabel('x [mm]')
-  plt.ylabel('y [mm]')
+  imgplot = plt.imshow(thneg_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thneg.min(),vmax=thneg.max())
+  plt.colorbar(imgplot, ax=ax7)
+  ax7.set_title('Left Slope [$\mu$rad]',size=ftsize)
+  ax7.set_xlabel('x [mm]')
+  ax7.set_ylabel('y [mm]')
   
 #  vmin0=round(com0-(sf-1.0)*fwhm0,-1)
   vmin0=round(thmid0)
   vmax0=round(thpos0+1.0*sf*fwhm0)
   
-  plt.subplot(338)
+  ax8 = fig.add_subplot(338)
   thpos_m = ma.array(thpos,mask=thpos>1.0e8)
-  plt.imshow(thpos_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thpos.min(),vmax=thpos.max())
-  plt.colorbar()
-  plt.title('Right Slope [$\mu$rad]',size=ftsize)
-  plt.xlabel('x [mm]')
-  plt.ylabel('y [mm]')
+  imgplot = plt.imshow(thpos_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thpos.min(),vmax=thpos.max())
+  plt.colorbar(imgplot, ax=ax8)
+  ax8.set_title('Right Slope [$\mu$rad]',size=ftsize)
+  ax8.set_xlabel('x [mm]')
+  ax8.set_ylabel('y [mm]')
 
   #plt.subplot(333) 
   #axis('off')
@@ -980,10 +998,79 @@ def main():
   #                        )
   #plt.annotate('horizontal', xy=(1.0,0.5), xytext=(0.0,0.5),
   #            arrowprops=dict(facecolor='black', shrink=0.05),
-  #                        )
-  plt.subplot(339)
-  axis('off')
-  plt.text(0,0,out,size=13)  
+  ##                        )
+  ax9 = fig.add_subplot(339)
+  ax9.axis('off')
+  ax9.text(0,-0.2,out,size=13)  
+  #---------------------------------------------
+  ############################################################
+  # picker attempt:    
+  ############################################################
+  def onpick(event):
+    if event.button == 3:
+      xdata = event.xdata
+      ydata = event.ydata
+      #ind = event.ind
+      xydata = (xdata, ydata) 
+      print('--------------------------------------------------------------------------') 
+      print('Local RC:')  
+      print('onpick data:', xydata)
+      idx = nx-int(round(xdata/dx))
+      idy = ny-int(round(ydata/dy))
+      print('onpick indicies:', (idx,idy))
+      #----------------------------------------------
+      # plot local rocking curve
+      #----------------------------------------------
+      mpl.rcParams['font.size'] = 12
+      mpl.rcParams['legend.fontsize'] = 'small'
+      mpl.rcParams['figure.titlesize'] = 'medium'
+      fig=plt.figure(figsize=(8.0,7.0))
+      rcurve0=data[:,idy,idx]
+      bkg0=0.25*(rcurve0[0]+rcurve0[1]+rcurve0[-2]+rcurve0[-1])
+      print('bkg (from tails) = %f' % bkg0)
+      # begin plotting:
+      plt.title ('pixel location [mm]: X ='+str(round(xdata,3))+', Y = '+str(round(ydata,3))) 
+      plt.plot(ugol,rcurve0,'b-')
+      plt.plot(ugol,rcurve0,'bo',label='local RC')
+      plt.plot(ugol,bkg0+ugol*0, color='k', label='background')
+      #Generic FWHM
+      try: 
+        result=curvestat(ugol,rcurve0,bkg0)
+        th_max=result[0]; r_max=result[1]
+        th_neg=result[2]; th_pos=result[3]; th_mid=result[4]
+        fwhm=result[5]; com=result[6]
+        stdev=sqrt(abs(result[7]))
+        print('Generic FWHM/COM:')
+        print('r_max [ct] =  %f' % r_max)
+        print('th_max [urad] = %f' % th_max)
+        print('th_mid [urad] = %f' % th_mid)
+        print('com [urad] = %f' % com)
+        print('stdev [urad] =  %f' % stdev)
+        print('fwhm [urad] = %f'   %fwhm)
+        # Gaussian fit
+        p0=[bkg0,r_max,com,sqrt(2.0)*(fwhm/2.355)] #bkg max center
+        p, unc, dte, stat, cov = fit1d(residuals,p0,ugol,rcurve0) 
+        #com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0])
+        stdev0 = abs(p[3])/sqrt(2.0)
+        fwhm0 = 2.0*abs(p[3])*sqrt(log(2.0))      
+        #
+        print('Gaussian fit:')
+        print('r_max_g [ct] =  %f' % p[1])
+        print('th_max_g [urad] = %f' % p[2])
+        print('stdev_g [urad] =  %f' % stdev0)
+        print('fwhm_g [urad] = %f'   %fwhm0)
+        print('--------------------------------------------------------------------------')    
+        ugol_g=arange(ugol[0],ugol[-1]+0.1,0.1)
+        plt.plot(ugol_g,gauss(p,ugol_g),'b--',label="Gauss. fit") 
+        plt.plot(ugol,0.5*(r_max+bkg0)+ugol*0, linestyle='--', color='k', label='half max.')
+      except: 
+        print('Curve statistics unobtainable')
+      plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size='x-large')
+      plt.ylabel('Counts', size='x-large')
+      plt.legend(loc='upper left')
+      plt.show()
+  #
+  fig.canvas.mpl_connect('button_press_event', onpick)
 #  plt.show()
   ################################
   # output for GLE
@@ -1024,7 +1111,13 @@ def main():
     sys.path.pop()
 
   if opts.hdf5 is not None:
+    com_exp = array(com)-com0
+    thmid_exp=array(thmid)-thmid0
+    thneg_exp=array(thneg)-thneg0
+    thpos_exp=array(thpos)-thpos0
+    #
     hf = h5py.File(opts.hdf5, 'w')
+    hf.attrs['cmd'] = param
     hf.create_dataset('dx',data = dx)
     hf.create_dataset('dy',data = dy)
     hf.create_dataset('indx1',data = indx1)
@@ -1034,10 +1127,10 @@ def main():
     hf.create_dataset('peak',data=array(peak))
     hf.create_dataset('fwhm',data=array(fwhm))
     hf.create_dataset('stdev',data=array(stdev))
-    hf.create_dataset('com',data=array(com))
-    hf.create_dataset('thmid',data=array(thmid))
-    hf.create_dataset('thneg',data=array(thneg))
-    hf.create_dataset('thpos',data=array(thpos))
+    hf.create_dataset('com',data=array(com_exp))
+    hf.create_dataset('thmid',data=array(thmid_exp))
+    hf.create_dataset('thneg',data=array(thneg_exp))
+    hf.create_dataset('thpos',data=array(thpos_exp))
     hf.close()
 ########################################################################################
 ## PLOT SLICES AND WRITE FILE

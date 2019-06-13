@@ -16,6 +16,7 @@ from scipy import *
 from numpy import *
 from scipy.optimize import *
 from pylab import *
+from matplotlib import pyplot as plt
 from scipy.interpolate import interp1d
 #
 #import matplotlib.style
@@ -119,6 +120,10 @@ def ParseArguments():
                 metavar='mult')
         parser.add_argument('-x', '--name_x', action='store', dest='nx', default='t [raw u.]', metavar='X',
                 help='x-axis label/unit')
+        parser.add_argument('--xr', action='store', dest='xr', default='-1 -1', metavar='STRING',
+                help='xrange for plotting STRING=\'x1 x2\' ')
+        parser.add_argument('--yr', action='store', dest='yr', default='-1 -1', metavar='STRING',
+                help='yrange for plotting STRING=\'y1 y2\' ')
         parser.add_argument('-y', '--name_y', action='store', dest='ny', default='r [raw u.]', metavar='Y',
                 help='y-axis label/unit')
         parser.add_argument('-b', '--bkg', action='store', dest='bkg', default='-1',  
@@ -332,15 +337,16 @@ def main():
             #th=th-th_mid            
             #thint=thint-th_mid
             if opts.plotting == 1 and opts.lookup == 0:
-                fig = plt.figure(count)
+                fig = plt.figure(count,figsize=(6,6))
                 #plt.title('Peak')
                 ax1=fig.add_subplot(111)
                 ###########################################################
                 # assign labels
+                fn_ = fn.split('.') 
                 if nder > 0:
-                    label0='der. '+fn                    
+                    label0='der. '+fn_[0]                    
                 else:	
-                    label0=fn                    
+                    label0=fn_[0]                    
                 ###########################################################                    
                 ax1.plot(cf*th,r,'bo',label=label0)
                 ax1.plot(cf*thint,r_g, color='r', label='Gaussian')
@@ -349,8 +355,14 @@ def main():
                 ax1.plot(cf*th,0.5*(r_max+bkg)+th*0, linestyle='--', color='k', label='half max.')
                 #
                 ax1.legend(loc='upper left')
-                ax1.set_xlabel(opts.nx, size=20)
-                ax1.set_ylabel(opts.ny, size=20)
+                ax1.set_xlabel(opts.nx, size=16)
+                ax1.set_ylabel(opts.ny, size=16)
+                if opts.xr != '-1 -1':
+                    rx = opts.xr.split(' ')
+                    ax1.set_xlim(float(rx[0]),float(rx[1]))
+                elif opts.yr != '-1 -1':
+                    ry = opts.yr.split(' ')
+                    ax1.set_ylim(float(ry[0]),float(ry[1]))                     
                 ###########################################################
                 # plot original data if derivative was taken
                 if nder > 0:

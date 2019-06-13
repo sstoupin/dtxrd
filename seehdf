@@ -12,6 +12,7 @@ a program to view data array in hdf files as an image
 import os, sys
 from numpy import *
 from pylab import *
+from matplotlib.colors import LogNorm
 
 #LOCAL
 #from pyhdf import *
@@ -22,7 +23,7 @@ from dtxrd.pyhdf import *
 
 prog = os.path.basename(sys.argv[0])
 ############################################################
-__version__='0.18'
+__version__='0.19'
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 ########################################################################################
 # v 0.12 - after pyhdf modification and convention for image transformation is adopted
@@ -32,7 +33,7 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 # v 0.16 - user_dir = os.getcwd() sys.path.append(user_dir) for ccd.py and publish.py 
 # v 0.17 - implemented argparse
 #        - slicing via integration similar to tiffview + data saving 
-
+# v 0.19 - add limits control on colorbar
 
 def fatalError(msg):
         sys.stderr.write('Error: ')
@@ -62,6 +63,8 @@ def ParseArguments():
         parser.add_argument('-x', '--xint',  action='store_const', const=1, dest='xint', default=0, help='integrate the region of interest in x and plot distribution')
         parser.add_argument('-y', '--yint',  action='store_const', const=1, dest='yint', default=0, help='integrate the region of interest in y and plot distribution')
         parser.add_argument('-c', '--calc',  action='store_const', const=1, dest='calc', default=0, help='calculate curve statistics on the resulting distribution')
+        parser.add_argument('-z', '--zrange', action='store', dest='zrng', default='-1 -1', metavar='rng', help='z range of interest (limits on the colorbar)')
+        parser.add_argument('-l', '--log',  action='store_const', const=1, dest='logp', default=0, help='plot image on log scale')
         parser.add_argument('filenames', action='store', nargs='+')
 
         return parser.parse_args()
@@ -98,7 +101,11 @@ def main():
     
     dx=float(rbin)*dx
     dy=float(rbin)*dy
-#                                                    
+#   
+    rangez=cmd_opts.zrng.split(' ')
+    zmin=float(rangez[0])
+    zmax=float(rangez[1])                                                 
+    #
     outFile.write('%prog '+__version__+' by Stanislav Stoupin <sstoupin@gmail.com>\n')
     count=1
     ########################################################################
@@ -175,7 +182,18 @@ def main():
             abs_max = im.max()
             abs_min = im.min()
             ax=fig1.add_subplot(111)
-            imgplot = ax.imshow(im, aspect='equal', extent=xyrange, vmin=abs_min, vmax=abs_max)
+            if cmd_opts.logp == 1:
+                    if zmin<0: vmin0=1.0e0
+                    else:      vmin0=zmin
+                    if zmax<0: vmax0=1.0e6
+                    else:      vmax0=zmax
+                    imgplot = ax.imshow(im, aspect='equal', extent=xyrange, norm=LogNorm(), vmin=vmin0, vmax=vmax0)
+            else:
+		    if zmin<0: vmin0=0.0
+	            else:      vmin0=zmin
+	            if zmax<0: vmax0=abs_max
+	            else:      vmax0=zmax
+                    imgplot = ax.imshow(im, aspect='equal', extent=xyrange, vmin=vmin0, vmax=vmax0)
             imgplot.set_cmap('jet')
             plt.colorbar(imgplot)
             plt.title(fn)
