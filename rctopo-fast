@@ -1,0 +1,1278 @@
+#!/usr/bin/env python
+'''
+a program for sequential topography/rocking curve imaging
+
+:author:    Stanislav Stoupin
+:email:     sstoupin@gmail.com
+
+:copyright: Copyright 2014 by XSD, Advanced Photon Source, Argonne National Laboratory
+:license:   UChicago Argonne, LLC Open Source License, see LICENSE for details.
+'''
+
+import os, sys
+import numpy as np
+import scipy as sp
+import operator
+import time
+
+# LOCAL
+#import commands
+#cmdout=commands.getstatusoutput('echo $HOME')
+#import subprocess
+#cmdout=subprocess.getstatusoutput('echo $HOME')
+#libpath=cmdout[1]+'/bin/DTXRD/'
+#sys.path.append(libpath)
+
+#from numpy import *
+#from pyhdf import *
+#from curvestat import *
+#from fit1d import *
+#from myio import *
+#from roll_zeropad import roll_zeropad
+###################################################
+from scipy.linalg import lstsq
+##from scipy.signal import savgol_filter
+
+# GLOBAL
+from dtxrd.pyhdf import *
+from dtxrd.curvestat import *
+from dtxrd.fit1d import *
+from dtxrd.myio import *
+from dtxrd.roll_zeropad import roll_zeropad
+
+#from __future__ import division
+#from matplotlib.patches import Patch
+import matplotlib.image as mpimg
+from pylab import *
+#
+#import matplotlib.style
+#import matplotlib.pyplot as plt
+import matplotlib as mpl
+mver = mpl.__version__
+ver_check = mver.split('.')
+if float(ver_check[0]) >= 2:
+    #mpl.style.use('classic')
+    #-------------------------------
+    ##########################################################
+    ## to undo changes in matplotlib 2.1.0
+    ##########################################################
+    #mpl.rcParams['legend.fancybox'] = False
+    #mpl.rcParams['legend.loc'] = 'upper right'
+    #mpl.rcParams['legend.numpoints'] = 2
+    #mpl.rcParams['legend.fontsize'] = 'large'
+    #mpl.rcParams['legend.framealpha'] = None
+    #mpl.rcParams['legend.scatterpoints'] = 3
+    #mpl.rcParams['legend.edgecolor'] = 'inherit'
+    mpl.rcParams['figure.figsize'] = [8.0, 6.0]
+    mpl.rcParams['figure.dpi'] = 80
+    mpl.rcParams['savefig.dpi'] = 100
+    mpl.rcParams['font.size'] = 12
+    mpl.rcParams['legend.fontsize'] = 'small'
+    mpl.rcParams['figure.titlesize'] = 'medium'
+    mpl.rcParams['image.cmap'] = 'jet'
+##################################################################
+user_dir = os.getcwd()
+mpl.rcParams["savefig.directory"] = os.chdir(user_dir)
+##################################################################
+## fixed constants
+##################################################################
+r2d=180.0/pi
+fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
+fwhm_r=1.5          # upper limit to plot fwhm distribution
+ftsize = 18         # figure title font size 
+##################################################################
+
+__version__='0.03'
+prog = os.path.basename(sys.argv[0])
+proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
+
+#######################################################################################
+# HISTORY
+#######################################################################################
+# 0. added gaussian fit for noisy data as an option "-g" v 0.2
+# 1. need deglitching algorithm - done v 0.4
+# 2. -b - custom background done v 0.4
+# 3. calculate RMS and PV - done in v0.3
+# 4. convenient output  done in v 0.3
+# 5. a bug fixed with image orientation v 0.4 - for some reason the arrays have to be 
+# transposed  v0.4
+# 6. introduced colormap range factor (-f _value_  option)
+# 7. statistics for selected rectangular region implemented   done v 0.6
+# 9. need to sort data for every pixel based on angle values! done v 0.5
+# 10. added upper limit on dyn_range (fixed value) 	      done v 0.51
+# 11. added search for peak index to improve gaussian fit     done v 0.52
+# 12. move dyn_range and other constants to the beginning
+#	introduce df as an input parameter to the parser      done v 0.61
+#	deglitch by default				      done v 0.63
+# 	improve threshold upper limit processing	      done v 0.63
+#       subtract bkg from peak data                           done v 0.63
+#       add bkg0 - dark current 			      done v 0.64
+# 13. improve glitch and background determination (4 points)  done v 0.65
+# v 066  fliplr applied to flip left to right so that the images show up as the 
+#        incident beam sees them
+#        added sample name to report plot as an option
+# v067   additional pixel rejection criteria based on the bkg level and on the 
+#        COM and FWHM values (worked with Si 220 transmission data)
+#        eventually best way to reject bad pixels - just treshold (e.g. -t 1.2)
+# v068   added support for hdf5 files 
+#        introduced instrument files ccd.py
+# v069   minor iteration to adapt to data from topolab (Tim Madden's CCD)
+# v070   added a capability to extract and plot slices
+#        rearrangement of output files - now separate files for statistics and map data
+# v071   fixed input for rotated matrixes 
+#        now absence of transpose card processes images which correspond to as collected
+#        data - the image is rotated in the data acquisition software so that the desired 
+#        is obtained and this orientation is preserved with absence of transpose (-s) 
+#        card in the processed rocking curve maps
+# v072   added command line to the bottom of the main figure
+# v073   switched rollzeropad to global import
+# v074   disable writing map data with -o option 
+#        -w option only makes sense when saving slices
+# v075   when importing modules point to user_dir through os.getcdw()
+#        append to path and when import is done exclude sys.path.pop()
+# v076   introduced calculation for total rocking curve over the selected region 
+#        output for prcurve(pixel) and trcurve(total/region) in the same file
+# v077   improve logic on handling integrated reflectivity (now possible to integrate 
+#        and normalize)
+# v078   began work on implementing transmissivity measurements
+# v079   further changes in handling TC data: 
+#        background rejection on overall baseline transmissivity (bkg0) and 
+#        the strength of the effect (tr ~ 0.01)
+# v080   now processing forward diffracted topographs (transmission) 
+#        with an option -c (--conduct)
+# v081   now can process sequence of tiff (or other image) files using an external angular
+#        scale from first column of a data file e.g. SPECfile.dat (-e SPECfile.dat)
+# v082   linear interpolation for the background
+# v083   found that simps failed on one of the samples NDT111-3_Bc2
+#        modified curvestat to avoid simps - just using plain sums now
+# v084   changed IOError, e: to IOError as e:
+# v085   now rcurve_tot calculated after pixel rejection which is more correct 
+#        the result is less dependent on the choice of region
+# v086   making cosmetic changes, adapting for python3
+# v087   transition from ancient optik parser to argparse
+# v088   write processed data to h5 file "-j" option
+# v089   remove integration for z = 1 (or z >1) option - to plot raw peak reflectivity counts
+# v090   remove list of input files from "param" and write it to h5 file
+# v091   began attempt to onclick local rocking curve
+# v092   onclick access to RC data at each point - now working
+# v093   some improvements to the double for loop, suppress some messages (introduce --diag option)
+# v100   attempt to vectorize operations
+# v0.01  success with zero crossing (for fwhdm) and vandermonde(gaussian), deglitching via median filtering
+# v0.02  various small fixes, made zero crossing compatible with python 3.5 
+#        vandermonde/gaussian is still incompatible, no take_along_axis function 
+# v0.03  cosmetic changes to output, changes to onpick curve analysis (now shows result with bkg removed)
+#############################################################################################################
+#  TODO LIST
+#############################################################################################################
+# 0. improve comput. speed? - in progress
+############################################################################################################ 
+
+def residuals(p,y,x):
+        return y-gauss(p,x)
+def residuals0(p,y,x):
+        return y-gauss0(p,x)
+
+def stacked_lstsq(L, b, rcond=1e-10):
+    """
+    Solve L x = b, via SVD least squares cutting of small singular values
+    L is an array of shape (..., M, N) and b of shape (..., M).
+    Returns x of shape (..., N)
+    """
+    u, s, v = np.linalg.svd(L, full_matrices=False)
+    s_max = s.max(axis=-1, keepdims=True)
+    s_min = rcond*s_max
+    inv_s = np.zeros_like(s)
+    inv_s[s >= s_min] = 1/s[s>=s_min]
+    x = np.einsum('...ji,...j->...i', v,
+                  inv_s * np.einsum('...ji,...j->...i', u, b.conj()))
+    return np.conj(x, x)
+
+
+def fatalError(msg):
+        sys.stderr.write('Error: ')
+        sys.stderr.write(str(msg)) 
+        sys.stderr.write('\n')
+        sys.exit(1)
+
+def fatalIOError(err):
+        if issubclass(err.__class__, IOError) and err.strerror and err.filename:
+                  err = '%s: %s' % (err.strerror, err.filename)
+        fatalError(err)
+                                                                
+def ParseArguments():
+        import argparse   # requires Python 2.7 or higher
+        msg = prog + '  version: ' + __version__ + '\n'*2 + __doc__.strip()+'\n'
+
+        #USAGE = prog + ' [OPTIONS...] filename1 filename2 ... \n' \
+        #+'the program computes and displays rocking curve maps using a series of CCD \n' \
+        #+'images taken at different angles on the rocking curve of a crystal\n' \
+        #+'for options type: rctopo -h \n' \
+        #+'Cheers!'
+        #VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' 
+        #parser = OptionParser(usage=USAGE, version=VERSION)                        
+        parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
+        parser.add_argument('-v', '--version', action='version', version=__version__)
+        #        
+        parser.add_argument('-o', '--output', action='store', dest='output', default=None, metavar='F',
+                help='write calculated parameters to file F (defaults to stdout); also, write output for 1pix_total.dat')
+        parser.add_argument('-w', '--write', action='store', dest='write', default=None, metavar='D',
+                help='write data to file D (default: do not write) - reserved for slice data')
+        parser.add_argument('--hdf5', action='store', dest='hdf5', default=None, metavar='D',
+                         help='write data to hdf5 file D (default: do not write)')                                 
+        parser.add_argument('-t', '--threshold', action='store', dest='tr', default=1.05, metavar='CONST',
+                help='processing threshold for reflectivity to define the boundaries of the crystal')
+        parser.add_argument('-b', '--background', action='store', dest='bkg', default=-1, metavar='CONST',
+                help='manual assignment of background to a constant, typically dark current of area detector')
+        parser.add_argument('-a', '--ashift', action='store', dest='ashift', default=0, metavar='CONST',
+                help='compensate beam shift in the imaging plane at a distance CONST [m] (untested option)')
+        parser.add_argument('-r', '--range', action='store', dest='rng', default='-1 -1 -1 -1', metavar='STRING',
+                help='range selected for analysis STRING=\'x1 x2 y1 y2\' ')
+        parser.add_argument('-x', '--xslice', action='store', dest='xsl', default=-1, metavar='CONST',
+                help='slice and plot distribution at a fixed coordinate X')
+        parser.add_argument('-y', '--yslice', action='store', dest='ysl', default=-1, metavar='CONST',
+                help='slice and plot distribution at a fixed coordinate Y')
+        parser.add_argument('-n', '--name', action='store', dest='nm', default='', metavar='STRING',
+                help='sample name')
+        parser.add_argument('-f', '--factor', action='store', dest='f', default=1.0, metavar='CONST',
+                help='factor*fwhm_aver defines range of colormap on peak/slope position images')
+        parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0,
+                help='expand/shrink colormap range for fwhm by this factor')
+        parser.add_argument('-d', '--deglitch', action='store', dest='degl', default=-1.0, metavar='CONST',
+                help='deglitch data using median filtering, -d S, where S is the size of the filter window')
+        parser.add_argument('-g', '--gaussian', action='store_const', const=1, dest='stat', default=0,
+                help='do gaussian curve fitting (can help with noisy data)')
+        parser.add_argument('-s', '--trasnpose', action='store_const', const=1, dest='transpose', default=0,
+                help='transpose images for plotting')
+        parser.add_argument('-u', '--units', action='store', dest='units', default='deg', metavar='STRING',
+                help='angular units: deg, arcsec, urad')
+        parser.add_argument('-p', '--publish', action='store_const', const=1, dest='publish', default=0,
+                help='generate figures for publication (execute instructions in file figures.py)')
+        parser.add_argument('-c', '--conduct', action='store_const', const=1, dest='conduct', default=0,
+                help='process diffraction images collected in transmission')
+        parser.add_argument('-i', '--instrument', action='store_const', const=1, dest='instrument', default=0,
+                help='read parameters from instrument file ccd.py')                                                                       
+        parser.add_argument('-z', '--integrate', action='store', dest='z', default=0, metavar='CONST',
+                help='presentation of reflectivity data: \n'
+                + 'z == 0  - plot peak reflectivity normalized by max. value (default) \n'
+                + 'z == -1 - plot integrated reflectivity normalized by max. value \n'
+                + 'z !=0 and z !=-1 - raw reflectivity data normalized by input parameter CONST')
+        parser.add_argument('-e', '--external', action='store', dest='external', default=None, metavar='FILENAME',
+                help='read angular steps from 1st column of an ASCII file (e.g., SPEC scan)')
+        parser.add_argument('--diag', action='store_const', const=1, dest='diag', default=0,
+                help='show diagnostics messages/figures')
+        #
+        parser.add_argument('input_files',nargs='+',
+                help='list of input filenames')
+        return parser.parse_args()
+###############################################################################                                                                
+def main():
+  opts = ParseArguments()
+  if opts.output is not None:
+     try:
+        outFile = open(opts.output, 'w')
+     except IOError as e:
+        fatalIOError(e)
+  else:
+     outFile = sys.stdout
+  
+  nall = len(sys.argv)-len(opts.input_files)
+  param = sys.argv[0:nall]  
+  param = ' '.join(param)
+  #outFile.write( 'command: %s ' % param + '\n')                    
+  outFile.write(prog + ' v '+__version__+'\n')
+  outFile.write('range for analysis (x1 x2 y1 y2): (%s)  ' % opts.rng + '\n')
+  
+#----------------------------------------------------- 
+# initialize & set constants      
+#-----------------------------------------------------
+  alldata=[]
+  data=[]
+  th_deg=[]
+  tr=float(opts.tr)   
+  #df=float(opts.degl), not used
+  sf=float(opts.f)    
+  mf=float(opts.m)    
+  nf=len(opts.input_files)  
+  zf=float(opts.z)   
+  if opts.diag == 1:
+      print("Threshold (tr) = ", tr)
+      #print("Deglitching factor (df) = ", df)
+      print("Limit scale factor for plotting (sf) = ", sf)
+      print("Shrink FWHM colormap range", mf)
+      print("Number of files to analyze = ", nf)
+      print("integrate reflectivity (==0 no, !=0 yes, ==-1 normalize)", zf)
+  #-------------------------------------------------------------------------------------------
+  if opts.instrument == 1:  # if instrument file ccd.py is used
+    user_dir = os.getcwd()
+    sys.path.append(user_dir)
+    from ccd import rbin,dx,dy,dyn_range,fwhm_0,bkg0,data_path,th_path,chi_path   # import parameters from ccd.py  
+    sys.path.pop()
+  else:
+    rbin=1
+    dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]    
+    tot_range=10000.0     # upper limit for threshold processing (to exclude "dead" pixels)
+    dyn_range=10000.0      # upper limit for threshold processing (gauss)
+    fwhm_0=30.0        # expected fwhm (for fitting) 
+    bkg0=2750.0        # "reasonable" background - dark current count       
+    # default paths in hdf or h5 file    
+    data_path='/entry/instrument/detector/data'
+    th_path='/entry/instrument/detector/NDAttributes/theta'
+    chi_path='/entry/instrument/detector/NDAttributes/chi'
+  dx=float(rbin)*dx
+  dy=float(rbin)*dy
+  ##
+  if opts.external is not None:
+    fn_ang = str(opts.external) # read scan ascii file (SPEC scan or other)
+    d1,d2=readFile(fn_ang)
+    checkext = fn_ang.split('.')
+    if checkext[1] == 'asc':
+        angle_v = 1.0*d2[:,1]
+    else:
+        angle_v = 1.0*d2[:,0]
+#---------------------------------------------------------------------------------------------  
+  fn_count = 0 
+  for fn in opts.input_files:   
+    fn_ext=fn.split(".")[-1]
+    if fn_ext == "hdf":
+      angle, size, im = read_hdf4(fn)
+      chi = -9999
+      dx=0.06; dy=0.06
+    elif fn_ext == "h5":
+      angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path) 
+    #  
+    elif fn_ext == "tiff" or fn_ext == "tif" or fn_ext == "png" or fn_ext == "jpg" or fn_ext == "jpeg":        
+        im = mpimg.imread(fn) # read image   
+        shape0 = im.shape
+        if len(shape0) == 2:             
+            (ny,nx) =  shape0
+            res = 1
+        elif len(shape0) == 3:
+            (ny,nx,res) = shape0
+            im = im[:,:,0] # added for Merlin        
+        chi = -9999
+        angle = angle_v[fn_count]
+        ######################
+        ## REBIN #############
+        #            
+        shape1 = (ny//rbin,nx//rbin)
+        im = rebin(im,shape1)        
+        (ny,nx) = shape1       
+        size = [ny,nx]        
+        im = transpose(im)
+    else:
+      fatalError('Supported files are: hdf4 (ext .hdf), hdf5 (ext h5), image file (ext tif,tiff,png,jpg or jpeg)')  
+#   
+    if opts.transpose == 0:
+        im=transpose(im)
+        im=fliplr(im)
+        nx=size[1]
+        ny=size[0]
+    else:             
+        nx=size[0]
+        ny=size[1]
+        im=flipud(im)
+# 
+    if opts.diag == 1: 
+        print("nx = ", nx)
+        print("ny = ", ny)
+        print("filename: ", fn)
+        print("fn_count: ", fn_count)
+        print("theta = ", angle)
+        print("chi = ", chi)
+### sorting data by angle #######################
+    data_fn=[angle,im]
+    alldata=alldata+[data_fn]
+    fn_count = fn_count + 1
+    #
+  alldata=sorted(alldata,key=operator.itemgetter(0))  
+#################################################    
+  
+  for x in alldata:
+    th_deg=th_deg+[x[0]]            
+
+  if opts.units=='deg':
+    th=1.0e6*array(th_deg)/r2d # th_deg in degrees
+  elif opts.units=='arcsec':
+    th=1.0e6*array(th_deg)/(60.0)**2.0/r2d     #th_deg in arcseconds
+  elif opts.units=='urad':
+    th=array(th_deg)                           # th_deg in urad
+  elif opts.units=='um':
+    th=5.86*array(th_deg)                      # th_deg in microns
+  elif opts.units=='volt':
+    th=22.1388*array(th_deg)                      # th_deg in microns
+  else: 
+    fatalIOError("Inappropriate angular units chosen")
+
+################################################################################
+## theta origin is defined here as the center of the angular range in the scan 
+################################################################################
+  th_beg=th[0]
+  th_end=th[-1]
+  th0=0.5*(th_beg+th_end)  
+  th0_deg=1.0e-6*r2d*th0
+  #----------------------------------------------------------------------------
+  ugol=th-th0  
+  print("th0 (center of angular range) [urad] = ", th0)
+
+  if opts.ashift == 0:
+     for x in alldata:
+         data=data+[x[1]]
+  else:
+     from ccd import th0
+     #from roll_zeropad import roll_zeropad
+     for (t,x) in map(None,th,alldata): 
+        imdist = float(opts.ashift) # [m]
+        imsh = 1.0e-6*(t-th0)*imdist*1.0e3 # image shift [mm]
+        print("applied shifts [mm] =  ", imsh)
+        print("th0 [urad] = ", th0)
+        rind = int(imsh/dy); print("rind = ", rind)
+        #sarray = roll(x[1],-rind,axis=0)
+        sarray = roll_zeropad(x[1],-rind,axis=0)        
+        data = data +[sarray]                                                 
+  data=array(data); #print data
+####################################################
+  print("size of rebinned data ", data.shape)  
+####################################################
+## Analyzed Area (Range)
+####################################################
+  step=1
+  #    
+  rangexy=opts.rng.split(' ')    
+  rngx1=float(rangexy[0]); rngy1=float(rangexy[2])
+  rngx2=float(rangexy[1]); rngy2=float(rangexy[3])
+  
+  if rngx1<0:
+    indx1=0
+  else:
+    indx1=int(round(rngx1/dx))
+  if rngy1<0:
+    indy1=0
+  else:
+    indy1=int(round(rngy1/dy))
+#---------------------------------------  
+  if rngx2<0 or rngx2>nx*dx:
+    indx2=nx
+  else:  
+    indx2=int(round(rngx2/dx))
+  if rngy2<0 or rngy2>ny*dy:
+    indy2=ny
+  else:
+    indy2=int(round(rngy2/dy))        
+  
+  xrange=arange(nx-indx2,nx-indx1,step) #;print "xrange = ", xrange
+  yrange=arange(ny-indy2,ny-indy1,step) #;print "yrange = ", yrange
+  #print("xrange = ", xrange)
+  #print("yrange = ", yrange)  
+  nx1 = indx2-indx1
+  ny1 = indy2-indy1
+  print("size of data to be analyzed :", (nx1,ny1))
+#-----------------------------------------------------
+#initialize arrays
+#-----------------------------------------------------
+#  peak=numpy.empty((nx1,ny1))  #1
+#  fwhm=numpy.empty((nx1,ny1)); print("shape fwhm", fwhm.shape)  #2
+#  thmid=numpy.empty((nx1,ny1)) #3
+#  com=numpy.empty((nx1,ny1))   #4
+#  thneg=numpy.empty((nx1,ny1)) #5
+#  thpos=numpy.empty((nx1,ny1)) #6
+#  stdev=numpy.empty((nx1,ny1)) #7
+#  fwhm1=[]; peak1=[]; thmid1=[]; com1=[]; thpos1=[]; thneg1=[]; stdev1=[] # arrays to calclulate rms and pv
+#  rcurve_tot = [] # initialize total rcurve list 
+#-------------------------------------------------------  
+  abs_max=data.max(); print ('abs_max = ', abs_max)
+#-------------------------------------------------------  
+# Main stuff
+#-------------------------------------------------------
+  timing_start = time.time()
+  # limit array size to that of ROI:
+  data1 = data[:,yrange[0]:yrange[-1]+1,xrange[0]:xrange[-1]+1]
+  data1 = data1.astype(float32)
+  const = ones(data1.shape[0],dtype=float32) # this is ones along 0 dimension of 3D data array
+  print("shape data1", data1.shape)
+  ### deglitching using median filter #######################################
+  if opts.degl !=-1:
+      from scipy.signal import medfilt
+      df = abs(int(opts.degl))
+      data1 = medfilt(data1,kernel_size=(df,1,1))
+  ###########################################################################      
+  th_ = ugol[...,newaxis,newaxis]*ones(data1.shape)   # extend to 3D
+  if opts.bkg==-1:  # now as array
+      print("bkg approximated by the endpoints")
+      bkg_2d = 0.25*(data1[0,:,:] + data1[1,:,:] + data1[-2,:,:] + data1[-1,:,:])
+      bkg_ = const[...,newaxis,newaxis]*bkg_2d[newaxis,...]  # this is 3D background unique for each pixel
+      #
+      b1_2d = 0.5*(data1[0,:,:] + data1[1,:,:])
+      b2_2d = 0.5*(data1[-2,:,:] + data1[-1,:,:])
+      A_2d = (b2_2d - b1_2d)/(th_end - th_beg)
+      B_2d = b2_2d - A_2d*ugol[-1]
+      #
+      A_ = const[...,newaxis,newaxis]*A_2d[newaxis,...]  # 3D unique for each pixel
+      B_ = const[...,newaxis,newaxis]*B_2d[newaxis,...]  # 3D unique for each pixel    
+      
+  else: 
+      print("bkg is assigned through option, bkg = ", float(opts.bkg))
+      bkg_=float(opts.bkg)*ones(data1.shape) 
+      bkg_2d = float(opts.bkg)*ones((data1.shape[1],data1.shape[2]))
+      A_ = zeros(data1.shape)
+      B_ = bkg_   
+  #################################################################################
+  #################################################################################
+  if opts.conduct == 1:
+      baseline_ =  A_*th_ + B_           # 3D baseline unique for each pixel, 2 point linear interpolation for each pixel
+      rcurve_ = -1.0*(data1 - baseline_)  # TC
+      bkgs_ = zeros(data1.shape)          # TC  
+      #
+      rcmax_ = amax(rcurve_, axis=0) # TC this is 2D array of actual max. for each pixel      
+      rmax_=rcmax_                   # TC general /maximum without background
+      #
+      if zf == 0: peak = rmax_/bkg_2d  # for more precise quantitative refl. measurement need to normalize by baseline_(max_position) #TC 
+      elif zf == -1: peak = sum((rcurve_ - bkgs_),axis=0)*(th[-1] - th[0])/float((len(th)-1))/bkg_2d    # same as comment above #TC
+      else: peak = rmax_/abs(zf)                                                                         #TC      
+      
+  elif opts.conduct == 0:
+      rcurve_ = data1
+      bkgs_ = bkg_                      #RC
+      rcmax_ = amax(rcurve_, axis=0)  # 2D
+      rmax_ = rcmax_ - bkg_2d # RC    # 2D
+      #
+      if zf == 0: peak = rmax_
+      elif zf == -1: peak = sum((rcurve_ - bkgs_),axis=0)*(th[-1] - th[0])/float((len(th)-1))
+      else: peak = rcmax_/abs(zf)       
+  # 
+  rcurve_0 = rcurve_ - bkgs_  # background subtracted
+  peak_ind = argmax(rcurve_0,axis=0) # 2D array of peak indicies
+  ##################################################################################################################  
+      #if opts.conduct == 0: #RC
+      #    crit1 = bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0            
+      #elif opts.conduct == 1: #TC
+      #    crit1 = bkg<dyn_range*bkg0 and rcmax>tr*bkg and rcmax<tot_range*bkg0 and bkg>bkg0
+      #if crit1 == True:
+      #    if opts.conduct == 1:
+      #        rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg_lin)]  # TC        
+      #    if opts.conduct == 0:
+      #        rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
+  if opts.stat==1:
+    # perform gaussian fitting
+    off_ = 0.1*bkg_
+    rc = rcurve_0 - off_
+    #rclog = log(abs(rc))
+    #rclog =  abs(nan_to_num(rclog)) # copy=False, nan=0.0  possible for python 3.7
+    rc_m = ma.masked_where(rc<=0,rc)    
+    thneg0,thpos0 = asarray(ma.notmasked_edges(rc_m,axis=0))
+    rclog = log(rc_m)
+    # initialize arrays:
+    iz2 = zeros((data1.shape[1],data1.shape[2]),dtype=int16)
+    iz1 = zeros((data1.shape[1],data1.shape[2]),dtype=int16)
+    #
+    z1,x1,y1 = thneg0[0],thneg0[1],thneg0[2]    
+    iz1[x1,y1]  = z1                          #2D array of indicies
+    z2,x2,y2 = thpos0[0],thpos0[1],thpos0[2]    
+    iz2[x2,y2] = z2                           #2D array of indicies
+    dz = z2 - z1 # width
+    # find midpoint
+    midpoint = 0.5*(iz2+iz1)
+    midpoint = midpoint.astype(int)
+    dz_mean = mean(dz)
+    dz2 = int(dz_mean/2.0) #average half-width for when rc crosses zero
+    print ('average half-width at zero crossing dz2 = ', dz2)
+    # moving axes
+    rclog = moveaxis(rclog,0,2)
+    th_ = moveaxis(th_,0,2)
+    #---------------------------
+    #rind = peak_ind[...,newaxis] + range(-dz2,dz2)
+    rind = midpoint[...,newaxis] + range(-dz2,dz2)
+    # now need to make sure rind is contained within th_ scale
+    rind[rind > th_.shape[2]-1] = th_.shape[2]-1
+    rind[rind < 0] = 0
+    #
+    rclog = take_along_axis(rclog,rind,axis=2) # only possible with numpy 1.17 (python3.7)
+    # build Vandermonde 
+    th_ = take_along_axis(th_,rind,axis=2)            
+    Vand_ = array([th_**2.0,th_,ones(th_.shape)])    
+    Vand_ = moveaxis(Vand_,0,3)
+    # mask values below zero:
+    #rclog_m = ma.masked_where(rclog<=0,rclog)
+    #rclog3 = rclog[...,newaxis]*ones((rclog.shape[0],rclog.shape[1],rclog.shape[2],3))    
+    #Vand_m = ma.masked_where(rclog3<=0,Vand_)    
+    #
+    print('shape Vand_ = ', Vand_.shape)                
+    print('shape rclog = ', rclog.shape)    
+    #
+    #Vand = array([ugol**2.0,ugol,ones(ugol.shape)])   # Vandermonde array
+    #Vand = swapaxes(Vand,0,1) # need array in this shape (101,3)
+    #
+    # solve equations    
+    #VV = array([lstsq(Vand,rclog[:,k,:],rcond=None)[0] for k in range(rclog.shape[1]) ])
+    #VV = stacked_lstsq(Vand_m,rclog_m)  # nice try BUT masked array operations are not supported by np.linalg.svd or np.linalg.lstsq!
+    #                                    # neither for scipy, it gives an error which states that
+    # alternative strategy TBD: need to define fixed window with masked edges (where rclog>0), then trim arrays accordingly 
+    # the window is moving depending on X,Y - implemented above       
+    VV = stacked_lstsq(Vand_,rclog)                                    
+    print('shape VV = ', VV.shape)            
+    #print('VV = ', VV)
+    #VV = swapaxes(VV,0,1)
+    #print('shape VV swapped = ', VV.shape)
+    #print('VV = ', VV)
+    ###
+    eps_vv = 0.0 #-1.0e-4
+    #peak =  ones((data1.shape[1],data1.shape[2]))    
+    stdev = sqrt(-0.5/(VV[:,:,0]+eps_vv))
+    com = VV[:,:,1]*stdev**2.0
+    peak = exp(VV[:,:,2])*exp(0.5*com**2.0/stdev**2.0)
+    peak = nan_to_num(peak,copy=False,nan=1.0e9)
+    fwhm = 2.0*sqrt(2.0*log(2.0))*stdev    
+    thmid = com
+    thneg = thmid - 0.5*fwhm
+    thpos = thmid + 0.5*fwhm
+    #              
+  else:     
+    rcurve_eff = where(rcurve_0<0.0, 0.0, rcurve_0)  # reject negative values!
+    th_eff = th_
+    norm = sum(abs(rcurve_eff),axis=0)  # 2D array
+    com = sum(th_eff*rcurve_eff,axis=0)/norm # need to exclude rcurve_ - bkg <0        
+    com_ = ones(rcurve_eff.shape)*com[newaxis,...]  # extend to 3D
+    var_ = abs(rcurve_eff)*(th_eff - com_)**2.0
+    stdev = sqrt(sum(var_, axis=0)/norm)
+    # 09/17/2019
+    # success!
+    # to do: regrid index to ugol scale in vector form
+    # interpolation possible?
+    # 09/23/2019 interpolation success
+    # why inflated rms and pv?
+    #------------------------------------------------------------------------------------------------
+    # subtract 0.5 of max to form a curve (3D) where zero crossings correspond to left/right slopes
+    dfwhm_ = rcurve_0 - 0.5*const[...,newaxis,newaxis]*rmax_[newaxis,...]    
+    #print('dfwhm_ = ', dfwhm_)
+    dfwhm_m = ma.masked_where(dfwhm_<0,dfwhm_) # mask negative values
+    #fwhm = ma.count(dfwhm_m,axis=0) # could be but not
+    #-----------------------
+    # derivative
+    dr_ = gradient(dfwhm_,axis=0)  # 3D derivative/differences for intensity
+    dth_ = gradient(th_,axis=0)    # 3D derivative/differences for the angular scale  
+    derr_ = dr_/dth_               # 3D the actual derivative
+    # arrays of indicies at left/right edges as notmasked_edges
+    thneg0,thpos0 = asarray(ma.notmasked_edges(dfwhm_m,axis=0))
+    # initialize arrays:
+    thneg2 = zeros((data1.shape[1],data1.shape[2])) 
+    thpos1 = zeros((data1.shape[1],data1.shape[2]))        
+    iz2 = zeros((data1.shape[1],data1.shape[2]),dtype=int16)
+    iz1 = zeros((data1.shape[1],data1.shape[2]),dtype=int16)
+    #
+    z1,x1,y1 = thneg0[0],thneg0[1],thneg0[2]    
+    thneg2[x1,y1] = take(ugol,z1)             # z1 here are indicies 
+    iz1[x1,y1]  = z1                          #2D array of indicies
+    z2,x2,y2 = thpos0[0],thpos0[1],thpos0[2]    
+    thpos1[x2,y2] = take(ugol,z2)             #z2 here are indicies
+    iz2[x2,y2] = z2                           #2D array of indicies
+    #
+    #print('iz1 = ', iz1)
+    #print('iz2 = ', iz2)
+    # -------------------------------------------------------------------
+    # extracting 2D arrays from 3D based on 2D index arrays iz1 and iz2
+    m,n = iz1.shape
+    I,J = ogrid[:m,:n]    
+    rneg2 = dfwhm_[iz1,I,J]    
+    rpos1 = dfwhm_[iz2,I,J]
+    derneg2 = derr_[iz1,I,J]
+    derpos1 = derr_[iz2,I,J]
+    #---------------------------------------------------------------------
+    #
+    eps0 = 0.01 # ct/urad    # this is to avoid division by zero
+    thneg = thneg2 - rneg2/(derneg2 + eps0)
+    thpos = thpos1 - rpos1/(derpos1 + eps0)
+    ### these are derived metrics          
+    fwhm = thpos-thneg
+    thmid = 0.5*(thpos + thneg)  
+##########################################################################################
+# Apply masks based on thresholds, common for all for now
+##########################################################################################
+  rcmax_=fliplr(rcmax_)
+  rmax_=fliplr(rmax_)
+  peak=fliplr(peak)
+  fwhm=fliplr(fwhm)
+  stdev=fliplr(stdev)  
+  thmid=fliplr(thmid) 
+  com=fliplr(com) 
+  thneg=fliplr(thneg)
+  thpos=fliplr(thpos)  
+  ##################################################################################################################
+  # COMMON for all options, intensity peak and masked peak array
+  ##################################################################################################################
+  peak_m0 = ma.masked_where(rcmax_<tr*bkg_2d, peak)  # masked array, correct syntax
+  peak_m1 = ma.masked_where(rcmax_>dyn_range*bkg_2d, peak_m0, copy=False)  # masked array, correct syntax
+  peak_m2 = ma.masked_where(abs(fwhm)>abs(th_end - th_beg), peak_m1, copy=False)
+  
+  #peak = where((rcmax_<tr*bkg_2d),1e9,peak)                                    # do I need this? likely not
+  #peak = where((rcmax_>dyn_range*bkg0),1e9,peak)                               # do I need this? likely not
+###################################################################################################################
+  com_m0 = ma.masked_where(rcmax_<tr*bkg_2d, com)
+  com_m1 = ma.masked_where(rcmax_>dyn_range*bkg0, com_m0, copy=False)
+  com_m2 = ma.masked_where(abs(fwhm)>abs(th_end - th_beg), com_m1, copy=False)
+  #
+  stdev_m0 = ma.masked_where(rcmax_<tr*bkg_2d, stdev) 
+  stdev_m1 = ma.masked_where(rcmax_>dyn_range*bkg0, stdev_m0, copy=False) 
+  stdev_m2 = ma.masked_where(abs(fwhm)>abs(th_end - th_beg), stdev_m1, copy=False)
+  #
+  fwhm_m0 = ma.masked_where(rcmax_<tr*bkg_2d, fwhm)
+  fwhm_m1 = ma.masked_where(rcmax_>dyn_range*bkg0, fwhm_m0, copy=False)
+  fwhm_m2 = ma.masked_where(abs(fwhm)>abs(th_end - th_beg), fwhm_m1, copy=False)
+  #
+  thmid_m0 = ma.masked_where(rcmax_<tr*bkg_2d, thmid)
+  thmid_m1 = ma.masked_where(rcmax_>dyn_range*bkg0, thmid_m0, copy=False)
+  thmid_m2 = ma.masked_where(abs(fwhm)>abs(th_end - th_beg), thmid_m1, copy=False)
+  #
+  thneg_m0 = ma.masked_where(rcmax_<tr*bkg_2d, thneg)
+  thneg_m1 = ma.masked_where(rcmax_>dyn_range*bkg0, thneg_m0, copy=False)
+  thneg_m2 = ma.masked_where(abs(fwhm)>abs(th_end - th_beg), thneg_m1, copy=False)
+  #
+  thpos_m0 = ma.masked_where(rcmax_<tr*bkg_2d, thpos)
+  thpos_m1 = ma.masked_where(rcmax_>dyn_range*bkg0, thpos_m0, copy=False)
+  thpos_m2 = ma.masked_where(abs(fwhm)>abs(th_end - th_beg), thpos_m1, copy=False)
+  
+  #############################################################################################
+  print("DIAGNOSTIC: RC topography computation complete in %f seconds" % (time.time() - timing_start))
+  #############################################################################################
+  # Flattened arrays for the region of interest to calculate statistics  
+  peak1 = peak_m2.flatten()
+  fwhm1 = fwhm_m2.flatten()
+  stdev1 = stdev_m2.flatten()
+  com1 = com_m2.flatten()
+  thmid1 = thmid_m2.flatten()
+  thneg1 = thneg_m2.flatten()
+  thpos1 = thpos_m2.flatten()
+  #---------------------------------------------------------------------  
+  # Normalization of intensity depending on the requested metrics
+  norm1=amax(peak_m1)  
+  norm2=amax(peak_m2)
+  print("Norm. factor (max. Intens.) = ", norm2)
+  #
+  if opts.conduct == 0:
+    if zf == 0 or zf == -1:
+      peak=peak/norm1 
+      peak1=peak1/norm1
+      peak_m1 = peak_m1/norm1
+      peak_m2 = peak_m2/norm2
+  elif opts.conduct == 1:
+    if zf == -1:
+      peak=peak/norm1 
+      peak1=peak1/norm1
+      peak_m1 = peak_m1/norm1
+      peak_m2 = peak_m2/norm2        
+  #########################################################################################    
+  # calculate statistics and fill output           
+  # Note: names like parametername0 are reserved for stats, don't use for other things
+  #
+  out='------------------------------------------------------------------------\n'
+  #----------------------------------------------------------------------------------
+  fwhm0=average(fwhm1);            out = out + "FWHM_average = %f " % fwhm0 +" urad\n"
+  fwhm_rms=std(fwhm1);             out = out + "FWHM_rms = %f "     % fwhm_rms +" urad\n"
+  fwhm_pv=amax(fwhm1)-amin(fwhm1); out = out + "FWHM_pv =  %f "     % fwhm_pv +" urad\n"
+  #----------------------------------------------------------------------------------
+  stdev0=average(stdev1);             out = out + "STDEV_average = %f " % stdev0 +"urad\n"
+  stdev_rms=std(stdev1);              out = out + "STDEV_rms = %f "     % stdev_rms +" urad\n"
+  stdev_pv=amax(stdev1)-amin(stdev1); out = out + "STDEV_pv = %f "      % stdev_pv +" urad\n"
+  #----------------------------------------------------------------------------------
+  peak0=mean(peak1);               out = out + "Intens_average = %f " % peak0 +"\n"
+  peak_rms=std(peak1);             out = out + "Intens_rms = %f "     % peak_rms +"\n"
+  peak_pv=amax(peak1)-amin(peak1); out = out + "Intens_pv = %f "      % peak_pv +"\n"
+  #----------------------------------------------------------------------------------
+  com0=average(com1);           out = out + "COM_average = %f " % com0 +" urad\n"
+  com_rms=std(com1);            out = out + "COM_rms = %f "     % com_rms +" urad\n"
+  com_pv=amax(com1)-amin(com1); out = out + "COM_pv = %f "      % com_pv +" urad\n"
+  #----------------------------------------------------------------------------------
+  thmid0=average(thmid1);             out = out + "thmid_average = %f " % thmid0 +" urad\n"
+  thmid_rms=std(thmid1);              out = out + "thmid_rms = %f "     % thmid_rms +" urad\n"
+  thmid_pv=amax(thmid1)-amin(thmid1); out = out + "thmid_pv = %f "      % thmid_pv +" urad\n"
+  #----------------------------------------------------------------------------------
+  thneg0=average(thneg1);             out = out +"thneg_average = %f " % thneg0 +" urad\n"
+  thneg_rms=std(thneg1);              out = out + "thneg_rms = %f "    % thneg_rms +" urad\n"
+  thneg_pv=amax(thneg1)-amin(thneg1); out = out + "thneg_pv = %f "     % thneg_pv +" urad\n"
+  #----------------------------------------------------------------------------------
+  thpos0=average(thpos1);             out = out + "thpos_average = %f " % thpos0 +" urad\n"
+  thpos_rms=std(thpos1);              out = out + "thpos_rms = %f "     % thpos_rms +" urad\n"
+  thpos_pv=amax(thpos1)-amin(thpos1); out = out + "thpos_pv = %f "      % thpos_pv +" urad\n"
+  out = out + '------------------------------------------------------------------------\n'
+  #----------------------------------------------------------------------------------
+##############################################################################################
+## Local (center pixel) and Total rocking curve
+##############################################################################################
+  # define central pixel                                     
+  indx_c = int(round(0.5*nx1)) # nx - int(round(0.5*(xrange[0]+xrange[-1])))
+  indy_c = int(round(0.5*ny1)) # ny - int(round(0.5*(yrange[0]+yrange[-1])))
+  rcurve_c = rcurve_0[:,indy_c,indx_c]
+  #
+  result = curvestat(ugol,rcurve_c,0.0)
+  th_max00=result[0]; r_max00=result[1]
+  th_neg00=result[2]; th_pos00=result[3]; th_mid00=result[4]
+  fwhm00=result[5]; com00=result[6]
+  stdev00=sqrt(abs(result[7]))
+  print('--------------------------------------------------------------------------------')
+  print('Representative local RC at center:')
+  print('X0 [mm] = ', float(indx1 + indx_c)*dx)
+  print('Y0 [mm] = ', float(indy1 + indy_c)*dy)
+  #
+  print('Generic FWHM/COM:')
+  print('r_max [ct] =  %f' % r_max00)
+  print('th_max [urad] = %f' % th_max00)
+  print('th_mid [urad] = %f' % th_mid00)
+  print('com [urad] = %f' % com00)
+  print('stdev [urad] =  %f' % stdev00)
+  print('fwhm [urad] = %f'   %fwhm00)  
+  # Gaussian fit
+  p00=[r_max00,com00,sqrt(2.0)*(fwhm00/2.355)] #bkg max center
+  p_c, unc, dte, stat, cov = fit1d(residuals0,p00,ugol,rcurve_c) 
+  #com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0])
+  stdev_g = abs(p_c[2])/sqrt(2.0)
+  fwhm_g = 2.0*abs(p_c[2])*sqrt(log(2.0))
+  #
+  print('Gaussian fit:')
+  print('r_max_g [ct] =  %f' % p_c[0])
+  print('th_max_g [urad] = %f' % p_c[1])
+  print('stdev_g [urad] =  %f' % stdev_g)
+  print('fwhm_g [urad] = %f'   %fwhm_g)    
+  #--------------------------------------------------------
+  prcurve = rcurve_c  
+  ##################################################################################              
+  # start plotting things ----------------------------------
+  mpl.rcParams.update({'font.size': 12})
+  f1=plt.figure(figsize=(8.0,7.0))
+  plt.plot(ugol,prcurve, 'bo',label="local RC") 
+  plt.plot(ugol,prcurve, 'b-')
+  plt.plot(ugol,ugol*0, color='k', label='baseline (subtracted bkg)')
+  ugol_g=arange(ugol[0],ugol[-1]+0.1,0.1)
+  #plt.plot(ugol_g,gauss(p,ugol_g)-p[0],'b--',label="Gauss. fit for local RC")            
+  plt.plot(ugol_g, gauss0(p_c,ugol_g),'b--',label="Gauss. fit for local RC")              
+  plt.title ('RC at center pixel [mm]: X ='+str(round((indx1+indx_c)*dx,3))+', Y = '+str(round((indy1+indy_c)*dy,3)),size=16) 
+  plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size=16)
+  plt.ylabel('Counts', size=16)                                        
+  ####################################################################################
+  # process and plot total rocking curve
+  ####################################################################################
+  #rcurve_tot = array(rcurve_tot)
+  rcurve_1 = sum(rcurve_,axis=1)
+  rcurve_tot = sum(rcurve_1,axis=1)
+  trcurve =  rcurve_tot/(rcurve_.shape[1]*rcurve_.shape[2])
+  #  
+  # Stats:
+  if float(opts.bkg) > 0:
+    bkg_tot = float(opts.bkg)
+  else:   
+    bkg_tot=mean((trcurve[0],trcurve[1],trcurve[-2],trcurve[-1])) 
+  print('average subtracted bkg:')  
+  print('bkg_tot = %f ' % bkg_tot)
+  stat=curvestat0(th-th0,trcurve,bkg_tot)
+  #
+  fwhm_tot=stat[5]
+  out = out + "fwhm_tot = %f " % fwhm_tot +" urad\n"
+  #
+  if opts.z == 0:
+      peak_tot=stat[1]-bkg_tot
+  else:
+      peak_tot=stat[8]/abs(zf)
+  out = out + "peak_tot = %f " % peak_tot +"\n"
+  #                                            
+  thmid_tot=stat[4];                out = out + "thmid_tot = %f " % thmid_tot +" urad\n"   
+  com_tot=stat[6];                  out = out + "com_tot = %f "   % com_tot +" urad\n"
+  stdev_tot=sqrt(abs(stat[7]));     out = out + "stdev_tot = %f " % stdev_tot +" urad\n"
+  thneg_tot=stat[2];                out = out + "thneg_tot = %f " % thneg_tot +" urad\n"  
+  thpos_tot=stat[3];                out = out + "thpos_tot = %f " % thpos_tot +" urad\n"       
+  # substract background from the total curve for plotting and output:
+  trcurve = trcurve - bkg_tot
+  plt.plot(ugol,trcurve, 'ro',label="total RC")
+  plt.plot(ugol,trcurve, 'r-')
+  plt.legend(loc='upper right',fontsize=10)
+##################################################################################
+## Write output									
+##################################################################################
+  outFile.write('------------------------------------------------------------------------\n')
+  #outFile.write('peak max = '+str(norm)+'\n')
+  #outFile.write('threshold = '+str(tr)+'\n')        
+  outFile.write('----------------- ROI STATS --------------------------------------------\n')
+  outFile.write(out)  
+  outFile.close
+    
+  if opts.output is not None:
+      header="# RC from the center pixel and total rocking curve over selected region \n# columns: angle intensity\n"
+      writeFile("prcurve.dat", header, ugol, prcurve)                                                   
+      header="# RC total rocking curve over the selected region \n# columns: angle trcurve\n"
+      writeFile("trcurve.dat", header, ugol, trcurve)                                                   
+##################################################################################  
+##  Plot results
+##################################################################################
+  # need to "mirror" y indexes because in an array numbering starts from top left corner
+  # affects only choice of range - does not affect plotting 
+  # same for x since it was found that the image has to be reversed in x direction
+  # note that for x fliplr is applied later while for y imshow origin='upper'
+  nnx1=nx-indx2; nnx2=nx-indx1
+  nny1=ny-indy2; nny2=ny-indy1
+  #              
+  #fwhm=fwhm[nnx1:nnx2,nny1:nny2]
+  #stdev=stdev[nnx1:nnx2,nny1:nny2]
+  #peak=peak[nnx1:nnx2,nny1:nny2]
+  #thmid=thmid[nnx1:nnx2,nny1:nny2]
+  #com=com[nnx1:nnx2,nny1:nny2]
+  #thneg=thneg[nnx1:nnx2,nny1:nny2]
+  #thpos=thpos[nnx1:nnx2,nny1:nny2]  
+
+#######################################################
+## Extract slices
+#######################################################  
+  xsl=float(opts.xsl)
+  ysl=float(opts.ysl)
+  if xsl >= 0:
+      indxsl = nx-int(xsl/dx) - nnx1
+      #      
+      peak_sl = peak[:,indxsl]
+      fwhm_sl = fwhm[:,indxsl]
+      stdev_sl = stdev[:,indxsl]
+      com_sl = com[:,indxsl]
+      thmid_sl = thmid[:,indxsl]
+      thneg_sl = thneg[:,indxsl]
+      thpos_sl = thpos[:,indxsl] 
+      range_sl = dy*arange(indy1,indy2)
+      sbtitle0 = 'Slices at X = '+str(xsl)+' '
+      str_axis='y [mm]'
+  #----------------------------------    
+  if ysl >= 0:
+      indysl = ny-int(ysl/dx) - nny1
+      #
+      peak_sl = peak[indysl,:]
+      fwhm_sl = fwhm[indysl,:]
+      stdev_sl = stdev[indysl,:]
+      com_sl = com[indysl,:]
+      thmid_sl = thmid[indysl,:]
+      thneg_sl = thneg[indysl,:]
+      thpos_sl = thpos[indysl,:]
+      range_sl = dx*arange(indx1,indx2)
+      sbtitle0 = 'Slices at Y = '+str(ysl)+' '      
+      str_axis='x [mm]'
+  #
+  #fwhm=transpose(fwhm)
+  #stdev=transpose(stdev)
+  #peak=transpose(peak)
+  #thmid=transpose(thmid)
+  #com=transpose(com)
+  #thneg=transpose(thneg)
+  #thpos=transpose(thpos)
+    
+  xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # 
+  #
+  #      
+  if xsl >=0: 
+      peak_sl=peak_sl[::-1]
+      fwhm_sl=fwhm_sl[::-1]
+      stdev_sl=stdev_sl[::-1]
+      thmid_sl=thmid_sl[::-1]
+      com_sl=com_sl[::-1]
+      thneg_sl=thneg_sl[::-1]
+      thpos_sl=thpos_sl[::-1] 
+###################################################################################
+## PLOT EVERYTHING
+###################################################################################
+  fig=plt.figure(figsize=(22.0,12.2))
+  if opts.stat==1:
+    sbtitle='Gaussian curve fitting.'
+  else:
+    sbtitle='No curve fitting.'
+    
+  sbtitle='Rocking curve topographs: '+sbtitle
+        
+  if opts.nm != '':
+    sbtitle=sbtitle+' Sample: '+opts.nm  #+'\n' + param  
+  plt.suptitle(sbtitle, size=ftsize)      
+  #plt.gca().set_position((.1, .1, .1, .1)) # used to be here - now producing weird empty subplot - actually not needed
+  plt.figtext(0.1,0.025,param)
+  #----------------------------------------------------------------------------------
+  ax1 = fig.add_subplot(331)
+  if zf == 0:
+      imgplot = ax1.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+      if opts.conduct == 0:   ax1.set_title('Peak Intens. [n.u.]',size=ftsize)
+      elif opts.conduct == 1: ax1.set_title('Peak Intens. [a.u.]',size=ftsize)   # this is absolute Refl. for low-absorbing sample
+      fig.colorbar(imgplot, ax=ax1)
+  elif zf == -1:
+     imgplot = ax1.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
+     if opts.conduct == 0:    ax1.set_title('Integrated Intens.[n.u.]',size=ftsize)
+     elif opts.conduct == 1:  ax1.set_title('Integrated Intens. [n.u.]',size=ftsize)
+     fig.colorbar(imgplot, ax=ax1)      
+  else: 
+      if opts.conduct == 0:   
+          ax1.set_title('Intensity [cnt x 10$^3$]',size=ftsize)
+          vmin0=amin(peak1)/1.0e3; vmax0=amax(peak1)/1.0e3
+          peak_tr = 65536.0/abs(zf) #; print ('peak tr = ', peak_tr)  this threshold based on assumption of 16bit detector
+          peak_m9 = ma.array(1.0e-3*peak_m2,mask=peak_m1>peak_tr)            
+          imgplot = ax1.imshow(peak_m9, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)      
+      elif opts.conduct == 1: 
+          plt.title('Intensity [cnt x 10$^3$]',size=ftsize)
+          vmin0=amin(peak1)/1.0e3; vmax0=amax(peak1)/1.0e3
+          imgplot = ax1.imshow(1.0e-3*peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
+      #
+      fig.colorbar(imgplot, ax=ax1)
+  #plt.xlabel('x [mm]')
+  ax1.set_ylabel('y [mm]')
+  #-----------------------------------------------------------------------------------
+  vmin0 = round(fwhm0*(1.0-mf*sf))
+  vmax0 = round(fwhm0*(1.0+mf*sf))
+  if vmin0 < 0: vmin0 = 0
+  
+  ax2 = fig.add_subplot(332)
+  #fwhm_m = ma.array(fwhm,mask=fwhm>1.0e8)
+  imgplot = ax2.imshow(fwhm_m2, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #, picker=1) #vmin=fwhm.min(),vmax=fwhm.max())
+  fig.colorbar(imgplot, ax=ax2)
+  ax2.set_title('FWHM [$\mu$rad]',size=ftsize)
+  #ax2.set_xlabel('x [mm]')
+  ax2.set_ylabel('y [mm]')
+  #-----------------------------------------------------------------------------------
+  vmin0 = round(stdev0*(1.0-mf*sf))
+  vmax0 = round(stdev0*(1.0+mf*sf))
+  if vmin0 < 0: vmin0 = 0
+    
+  ax3 = fig.add_subplot(333)
+  #stdev_m = ma.array(stdev,mask=stdev>1.0e8)
+  imgplot = plt.imshow(stdev_m2, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=fwhm.min(),vmax=fwhm.max())
+  plt.colorbar(imgplot, ax=ax3)
+  ax3.set_title('STDEV [$\mu$rad]',size=ftsize)
+  ax3.set_xlabel('x [mm]')
+  ax3.set_ylabel('y [mm]')
+  #grid(True)
+  #-----------------------------------------------------------------------------------
+  vmin0=round(com0-sf*fwhm0)
+  vmax0=round(com0+sf*fwhm0)
+  
+  ax4 = fig.add_subplot(334)
+  #com_m = ma.array(com,mask=com>1.0e8)
+  imgplot = plt.imshow(com_m2, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=com.min(),vmax=com.max())
+  plt.colorbar(imgplot, ax=ax4)
+  ax4.set_title('COM [$\mu$rad]',size=ftsize)
+  #plt.xlabel('x [mm]')
+  ax4.set_ylabel('y [mm]')
+  #-----------------------------------------------------------------------------------
+  vmin0=round(thmid0-sf*fwhm0)
+  vmax0=round(thmid0+sf*fwhm0)
+  
+  ax5 = fig.add_subplot(335)
+  #thmid_m = ma.array(thmid,mask=thmid>1.0e8)
+  imgplot = plt.imshow(thmid_m2, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thmid.min(),vmax=thmid.max())
+  plt.colorbar(imgplot, ax=ax5)
+  ax5.set_title('Midpoint [$\mu$rad]',size=ftsize)
+  #plt.xlabel('x [mm]')
+  ax5.set_ylabel('y [mm]')
+  
+  #ax6 = fig.add_subplot(336)
+  #ax6.axis('off')
+  #-----------------------------------------------------------------------------------
+  vmin0=round(thneg0-1.0*sf*fwhm0)
+  vmax0=round(thmid0)
+  
+  ax7 = fig.add_subplot(337)
+  #thneg_m = ma.array(thneg,mask=thneg>1.0e8)
+  imgplot = plt.imshow(thneg_m2, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thneg.min(),vmax=thneg.max())
+  plt.colorbar(imgplot, ax=ax7)
+  ax7.set_title('Left Slope [$\mu$rad]',size=ftsize)
+  ax7.set_xlabel('x [mm]')
+  ax7.set_ylabel('y [mm]')
+  #-----------------------------------------------------------------------------------  
+#  vmin0=round(com0-(sf-1.0)*fwhm0,-1)
+  vmin0=round(thmid0)
+  vmax0=round(thpos0+1.0*sf*fwhm0)
+  
+  ax8 = fig.add_subplot(338)
+  #thpos_m = ma.array(thpos,mask=thpos>1.0e8)
+  imgplot = plt.imshow(thpos_m2, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thpos.min(),vmax=thpos.max())
+  plt.colorbar(imgplot, ax=ax8)
+  ax8.set_title('Right Slope [$\mu$rad]',size=ftsize)
+  ax8.set_xlabel('x [mm]')
+  ax8.set_ylabel('y [mm]')
+  #-----------------------------------------------------------------------------------  
+  #plt.subplot(333) 
+  #axis('off')
+  #plt.title('Crystal orientation')
+  #plt.annotate('vertical', xy=(0.5,1.0), xytext=(0.5,0.0),
+  #            arrowprops=dict(facecolor='black', shrink=0.05),
+  #                        )
+  #plt.annotate('horizontal', xy=(1.0,0.5), xytext=(0.0,0.5),
+  #            arrowprops=dict(facecolor='black', shrink=0.05),
+  ##                        )
+  ax9 = fig.add_subplot(339)
+  ax9.axis('off')
+  ax9.text(0,-0.2,out,size=13)  
+  #---------------------------------------------
+  ############################################################
+  # picker attempt:    
+  ############################################################
+  def onpick(event):
+    if event.button == 3:
+      xdata = event.xdata
+      ydata = event.ydata
+      #ind = event.ind
+      xydata = (xdata, ydata) 
+      print('--------------------------------------------------------------------------') 
+      print('Local RC:')  
+      print('onpick coordinates (X,Y): (%.3f, %.3f)' % xydata)
+      idx = nx-int(ceil(xdata/dx))  # ceil works best, still needs further testing
+      idy = ny-int(ceil(ydata/dy))  # ceil works best, still needs further testing 
+      print('onpick indicies (Ix,Iy):', (idx,idy))
+      #----------------------------------------------
+      # plot local rocking curve
+      #----------------------------------------------
+      mpl.rcParams.update({'font.size': 12})
+      fig=plt.figure(figsize=(8.0,7.0))
+      rcurve00=data[:,idy,idx]
+      b00=0.25*(rcurve00[0]+rcurve00[1]+rcurve00[-2]+rcurve00[-1])
+      print('bkg (from tails) = %f' % b00)
+      if opts.conduct == 1:
+          rcurve00 = -1.0*(rcurve00 - b00)      
+      else: 
+          rcurve00 = rcurve00 - b00
+      # begin plotting:
+      plt.title ('pixel location [mm]: X ='+str(round(xdata,3))+', Y = '+str(round(ydata,3)),size=16) 
+      plt.plot(ugol,rcurve00,'b-')
+      plt.plot(ugol,rcurve00,'bo',label='local RC')
+      plt.plot(ugol,ugol*0, color='k', label='baseline (subtracted bkg)')
+      # Generic FWHM
+      try: 
+        result=curvestat(ugol,rcurve00,0.0)
+        th_max00=result[0]; r_max00=result[1]
+        th_neg00=result[2]; th_pos00=result[3]; th_mid00=result[4]
+        fwhm00=result[5]; com00=result[6]
+        stdev00=sqrt(abs(result[7]))
+        print('Generic FWHM/COM:')
+        print('r_max [ct] =  %f' % r_max00)
+        print('th_max [urad] = %f' % th_max00)
+        print('th_mid [urad] = %f' % th_mid00)
+        print('com [urad] = %f' % com00)
+        print('stdev [urad] =  %f' % stdev00)
+        print('fwhm [urad] = %f'   %fwhm00)
+        # Gaussian fit
+        p00=[r_max00,com00,sqrt(2.0)*(fwhm00/2.355)] #bkg max center
+        p, unc, dte, stat, cov = fit1d(residuals0,p00,ugol,rcurve00) 
+        #com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0])
+        stdev00 = abs(p[2])/sqrt(2.0)
+        fwhm00 = 2.0*abs(p[2])*sqrt(log(2.0))      
+        #
+        print('Gaussian fit:')
+        print('r_max_g [ct] =  %f' % p[0])
+        print('th_max_g [urad] = %f' % p[1])
+        print('stdev_g [urad] =  %f' % stdev00)
+        print('fwhm_g [urad] = %f'   %fwhm00)
+        print('--------------------------------------------------------------------------')    
+        ugol_g=arange(ugol[0],ugol[-1]+0.1,0.1)
+        plt.plot(ugol_g,gauss0(p,ugol_g),'b--',label="Gauss. fit") 
+        plt.plot(ugol,0.5*(r_max00)+ugol*0, linestyle='--', color='k', label='half max.')
+      except: 
+        print('Curve statistics unobtainable')
+      plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size=16)
+      plt.ylabel('Counts', size=16)
+      plt.legend(loc='upper left',fontsize=10)
+      plt.show()
+  #
+  fig.canvas.mpl_connect('button_press_event', onpick)
+#  plt.show()
+  #####################################################################################
+  # FIGURES FOR PUBLICATION/SAVE PROCESSED DATA
+  #####################################################################################
+  if opts.publish==1:
+    user_dir = os.getcwd()
+    sys.path.append(user_dir)
+    from figures import figplot        
+    com_exp = array(com)-com0
+    thmid_exp=array(thmid)-thmid0
+    thneg_exp=array(thneg)-thneg0
+    thpos_exp=array(thpos)-thpos0
+    #figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,thmid_exp,fwhm,peak)
+    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com_exp,thmid_exp,thneg_exp,thpos_exp)
+    sys.path.pop()
+
+  if opts.hdf5 is not None:
+    com_exp = array(com)-com0
+    thmid_exp=array(thmid)-thmid0
+    thneg_exp=array(thneg)-thneg0
+    thpos_exp=array(thpos)-thpos0
+    #
+    hf = h5py.File(opts.hdf5, 'w')
+    hf.attrs['cmd'] = param
+    hf.create_dataset('dx',data = dx)
+    hf.create_dataset('dy',data = dy)
+    hf.create_dataset('indx1',data = indx1)
+    hf.create_dataset('indx2',data = indx2)
+    hf.create_dataset('indy1',data = indy1)
+    hf.create_dataset('indy2',data = indy2)
+    hf.create_dataset('peak',data=array(peak))
+    hf.create_dataset('fwhm',data=array(fwhm))
+    hf.create_dataset('stdev',data=array(stdev))
+    hf.create_dataset('com',data=array(com_exp))
+    hf.create_dataset('thmid',data=array(thmid_exp))
+    hf.create_dataset('thneg',data=array(thneg_exp))
+    hf.create_dataset('thpos',data=array(thpos_exp))
+    hf.close()
+########################################################################################
+## PLOT SLICES AND WRITE FILE
+########################################################################################
+                 
+  if xsl >= 0 or ysl >= 0:    
+      
+      f3=plt.figure(3)         
+      plt.suptitle(sbtitle0+sbtitle, size=20)  
+      plt.subplot(331)
+      #peak_sl_m=np.ma.array(peak_sl,mask=peak_sl>10.0*max(peak1))
+      plt.plot(range_sl,peak_sl)
+      plt.title('Reflectivity',size=ftsize)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(332)
+      #fwhm_sl_m=np.ma.array(fwhm_sl,mask=fwhm_sl>100.0*fwhm0)
+      plt.plot(range_sl,fwhm_sl)
+      plt.title('FWHM [$\mu$rad]',size=ftsize)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(333)
+      #stdev_sl_m=np.ma.array(stdev_sl,mask=stdev_sl>100.0*stdev0)
+      plt.plot(range_sl,stdev_sl)
+      plt.title('STDEV [$\mu$rad]',size=ftsize)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(334)
+      #com_sl_m=np.ma.array(com_sl,mask=com_sl>1.0e6)
+      plt.plot(range_sl,com_sl)
+      plt.title('COM [$\mu$rad]',size=ftsize)
+      #plt.xlabel('x [mm]')
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(335)
+      #thmid_sl_m=np.ma.array(thmid_sl,mask=thmid_sl>1.0e6)
+      plt.plot(range_sl,thmid_sl)
+      plt.title('Midpoint [$\mu$rad]',size=ftsize)
+      plt.xlabel(str_axis)
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(337)
+      #thneg_sl_m=np.ma.array(thneg_sl,mask=thneg_sl>1.0e6)
+      plt.plot(range_sl,thneg_sl)
+      plt.title('Left Slope [$\mu$rad]',size=ftsize)
+      plt.xlabel(str_axis)
+      #plt.ylabel('y [mm]')
+
+      plt.subplot(338)
+      #thpos_sl_m=np.ma.array(thpos_sl,mask=thpos_sl>1.0e6)
+      plt.plot(range_sl,thpos_sl)
+      plt.title('Right Slope [$\mu$rad]',size=ftsize)
+      plt.xlabel(str_axis)
+      #plt.ylabel('y [mm]')
+      
+  plt.show() 
+  
+  if opts.write is not None:
+     header = '# '+ str(sys.argv) +'\n' \
+            +'# version '+__version__+' by Stanislav Stoupin\n' \
+            +'# Slices data\n' \
+            +'# columns: \n' \
+            '# '+str_axis+' peak(norm) FWHM[urad] COM[urad] mid-point[urad] left-slope[urad] right-slope[urad] STDEV[urad]\n'
+     try:                
+            writeFile(opts.write,header,range_sl,peak_sl,fwhm_sl,com_sl,thmid_sl,thneg_sl,thpos_sl,stdev_sl)
+     except IOError as e:
+            fatalIOError(e)                                        
+                   
+if __name__ == '__main__':
+        main()                      

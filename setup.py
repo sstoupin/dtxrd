@@ -13,15 +13,15 @@
 from setuptools import setup, find_packages
 
 install_requires = [
-   'numpy>=1.4.1', 
-   'scipy>=0.7.2', 
+   'numpy>=1.17.4', 
+   'scipy>=0.18.1', 
    'matplotlib>=0.99.1.1',
    'h5py>=2.0.1',
 ]
 
 setup(
     name = 'python-dtxrd',
-    version = '1.7',
+    version = '1.8',
     url = 'https://github.com/sstoupin/dtxrd',
     maintainer = 'Stanislav Stoupin',
     maintainer_email = 'sstoupin@gmail.com',
@@ -32,6 +32,6 @@ setup(
     #packages = ['dtxrd', 'dtxrd.myio'],
     packages = find_packages('lib'),
     package_data = {'dtxrd': ['asf/*.asf', 'data/*.dat']},
-    scripts = ['dtxrd', 'throughput', 'rctopo', 'seehdf', 'rcpeak', 'specscan', 'flux', 'crl'],
+    scripts = ['dtxrd', 'throughput', 'rctopo', 'rctopo-fast', 'seehdf', 'rcpeak', 'specscan', 'flux', 'crl'],
     zip_safe = False,
 )
