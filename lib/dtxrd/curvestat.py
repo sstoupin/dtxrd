@@ -12,6 +12,12 @@ from numpy import *
 #from scipy.optimize import *
 #from pylab import *
 from scipy.integrate import simps
+from scipy.interpolate import UnivariateSpline
+
+
+
+
+
 
 def curvestat(th,r,bkg):
       # th - argument
@@ -82,3 +88,79 @@ def lorentz(b,x):
     # fwhm = 2*b[3]
     b0=abs(b[0])
     return b0+(b[1]-b0)/(1+(x-b[2])**2.0/b[3]**2.0)
+
+# without background: 
+def gauss0(a,x):
+    # here the input a[3] = sqrt(2.0)*sigma 
+    # usually fwhm = 2.0*sqrt(2.0 * log(2.0))*sigma
+    # a[3] = sqrt(2.0) * fwhm/(2.0*sqrt(2.0 * log(2.0)) = 0.5*fwhm/(sqrt(log(2.0))
+    ###########################
+    a0=abs(a[0])
+    return a0*exp(-(x-a[1])**2.0/a[2]**2.0)
+
+# without background:
+def lorentz0(b,x):
+    # fwhm = 2*b[3]
+    b0=abs(b[0])
+    return b0/(1+(x-b[1])**2.0/b[2]**2.0)
+
+
+def curvestat0(th,r,bkg):  # fast procedure    
+    r_max=max(r)
+    th_max = th[(r == r_max)]
+    th_max = th_max[0]
+    half=0.5*(r_max-bkg)+bkg
+    #
+    # 121 sec.
+    #spline = UnivariateSpline(th,r-half,s=0)
+    #roots = spline.roots()
+    #th_neg = roots[0]
+    #th_pos = roots[1]
+    #
+    # 119.4 sec
+    inds = [x for x in range(len(r)) if r[x] > half]
+    th_neg = th[min(inds)]
+    th_pos = th[max(inds)]
+    #
+    # 129 sec.         
+    #x0=r[0]        
+    #for x in r:                
+    #       if x>half:
+    #            if x0<half:
+    #              i_1=r_l.index(x0); i_2=r_l.index(x)
+    #              r1=r[i_1]; r2=r[i_2]
+    #              th1=th[i_1]; th2=th[i_2]
+    #              der1=(r2-r1)/(th2-th1) # linear interpolation: r=der1*(th-th1)+r1                      
+    #              th_neg=th1+(half-r1)/der1
+    #                  
+    #       elif x<half:
+    #            if x0>half:
+    #              i_1=r_l.index(x0); i_2=r_l.index(x)
+    #              r1=r[i_1]; r2=r[i_2]
+    #              th1=th[i_1]; th2=th[i_2]
+    #              der2=(r2-r1)/(th2-th1) # linear interpolation: r=der2*(th-th1)+r1        
+    #              th_pos=th1+(half-r1)/der2
+    #       x0=x                                                       
+                        
+    th_mid=0.5*(th_neg+th_pos)
+    fwhm=abs(th_pos-th_neg)
+    #
+    r_eff0 = r - bkg
+    r_eff = r_eff0[r_eff0 > 0] 
+    th_eff = th[r_eff0 > 0]
+    #        
+    #norm = simps(r_eff,th_eff)
+    #!!!!!!!!!!!! SIMPS failed on 23OCT2017 - sample NDT111-3_Bc2!!!!!!!        
+    norm = sum(r_eff)
+    com=sum(th_eff*(r_eff))/norm             # center of mass (mean) or  first cumulant
+    #com = simps(th_eff*r_eff,th_eff)/norm
+    #var=sum((r_eff)*(th_eff-com)**2.0)/sum(r_eff)  # variance or second cumulant
+    var_num = r_eff*(th_eff-com)**2.0        
+    #var = simps(var_num,th_eff)/norm        
+    #var = simps(th_eff**2.0*r_eff,th_eff)/norm - com**2.0                
+    #var=abs(sum((r-bkg)*th**2.0)/sum(r-bkg)-com**2.0)  # equivalent!
+    var=sum(var_num)/norm                
+    int=norm*(th[len(th)-1] - th[0])/float((len(th)-1))
+    #int = norm
+    #
+    return [th_max,r_max,th_neg,th_pos,th_mid,fwhm,com,var,int]

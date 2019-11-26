@@ -50,6 +50,15 @@ def alpha2_reeber(T):
         result = result + [sum(x*eins(tt))]
     return array(result)
 
+def alpha2_reeber96(T):
+    result = []
+    th = array([12.5,200.0,643.75,2266.25])               # K 
+    x = array([0.030224,-9.46453,50.7469,4.93477])*1.0e-7 # K-1
+    for t in T:
+        tt = th/t
+        result = result + [sum(x*eins(tt))]
+    return array(result)
+
 def a_reeber(x):
     y=integrate.quad(lambda t: alpha_reeber(t),T0,x)
     a=a0*(1.0+y[0])
@@ -69,6 +78,17 @@ def a2_reeber(T):
     #  print " Lattice parameter = ", a, " Angstrom"
     return array(result)
 #                
+
+def alpha2_middlemann(T):
+    result = []
+    l_rt = 34836.1925e-6 # m
+    th = array([199.61, 612.00, 890.05])       # K 
+    x = array([-3.398e-8, 1.487e-7, 3.496e-8])/l_rt # K-1
+    for t in T:
+        tt = th/t
+        result = result + [sum(x*eins(tt))]
+    return array(result)
+
 ################################################################################################################
 # Thermal conductivity
 # Glassbrenner and Slack PR 1964

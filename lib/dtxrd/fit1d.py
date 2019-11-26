@@ -11,7 +11,7 @@ from scipy.optimize import *
 def fit1d(residuals, p_init, x, y):
       
       N=len(x)  
-      fit=leastsq(residuals, p_init, args=(y,x), full_output=1, ftol=1e-10, xtol=1e-10)
+      fit=leastsq(residuals, p_init, args=(y,x), full_output=1, col_deriv=1, ftol=1e-8, xtol=1e-8, maxfev=1000)
       # returns:
       # [0] The solution (or the result of the last iteration for an unsuccessful call).
       # [1] Uses the fjac and ipvt optional outputs to construct an estimate of the jacobian 

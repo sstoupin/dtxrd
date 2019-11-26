@@ -15,7 +15,7 @@ def derivs(a,b,n):
     dery=dy/dx
     xmin=x[0]; xmax=x[len(x)-1]
     xs=linspace(xmin,xmax,n)
-    s=UnivariateSpline(x,dery,s=1)
+    s=UnivariateSpline(x,dery)
     ys=s(xs)
     return [xs,ys]
     

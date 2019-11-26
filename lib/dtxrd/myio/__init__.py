@@ -81,18 +81,16 @@ def readFile(fileName):
         else:
             line1=line.split()
             if line1!=[] and len(line1)>1: data=data+[line1] 
-                        
+    
+    input.close()                    
     data2=array(data, dtype=float)                
     return header, data2
 
 def readFile1(fileName):
-    """Read experiment data and metadata from a file.
-
+    """Read experiment data and metadata from a file. This version skips lines which start with empty space.
     @param fileName: file to open
-
     @return: header and data
     @rtype:  C{2-tuple} of the form C{(header, data)}
-
     @raise IOError: could not guess the file format, or open, read, or parse
                     the file
     """    
@@ -109,10 +107,10 @@ def readFile1(fileName):
         else:
             line1=line.split()
             if line1!=[] and len(line1)>1: data=data+[line1] 
-                        
+    
+    input.close()                    
     data2=array(data, dtype=float)                
     return header, data2
-
 
 def readCrystal(fileName):
     header=''
@@ -146,5 +144,5 @@ def writeFile(fileName,header,*args):
       for y in x:
          line=line+' '+"%1.8e"%y
       dataFile.write(line[1:]+'\n')
-    dataFile.close
+    dataFile.close()
 

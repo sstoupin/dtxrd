@@ -12,6 +12,7 @@ a program for sequential topography/rocking curve imaging
 import os, sys
 import numpy
 import operator
+import time
 
 # LOCAL
 #import commands
@@ -74,7 +75,7 @@ fwhm_r=1.5          # upper limit to plot fwhm distribution
 ftsize = 18         # figure title font size 
 ##################################################################
 
-__version__='0.92'
+__version__='0.93'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -147,6 +148,7 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 # v090   remove list of input files from "param" and write it to h5 file
 # v091   began attempt to onclick local rocking curve
 # v092   finalize onclick - now working
+# v093   now deglitching with medfilt
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -157,6 +159,8 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
 def residuals(p,y,x):
         return y-gauss(p,x)
+def residuals0(p,y,x):
+        return y-gauss0(p,x)
 
 def fatalError(msg):
         sys.stderr.write('Error: ')
@@ -208,7 +212,7 @@ def ParseArguments():
         parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0,
                 help='expand/shrink colormap range for fwhm by this factor')
         parser.add_argument('-d', '--deglitch', action='store', dest='degl', default=-1.0, metavar='CONST',
-                help='deglitch data')
+                help='deglitch data using median filtering, -d S, where S is the size of the filter window')
         parser.add_argument('-g', '--gaussian', action='store_const', const=1, dest='stat', default=0,
                 help='do gaussian curve fitting (can help with noisy data)')
         parser.add_argument('-s', '--trasnpose', action='store_const', const=1, dest='transpose', default=0,
@@ -257,12 +261,12 @@ def main():
   alldata=[]
   data=[]
   th_deg=[]
-  tr=float(opts.tr);   print("Threshold (tr) = ", tr)
-  df=float(opts.degl); print("Deglitching factor (df) = ", df)
-  sf=float(opts.f);    print("Limit scale factor for plotting (sf) = ", sf)
-  mf=float(opts.m);    print("Shrink FWHM colormap range", mf)
-  nf=len(opts.input_files);  print("Number of files to analyze = ", nf)
-  zf=float(opts.z);    print("integrate reflectivity (==0 no, !=0 yes, ==-1 normalize)", zf)
+  tr=float(opts.tr)  #;   print("Threshold (tr) = ", tr)
+  #df=int(opts.degl) #; print("Size of median filter window for deglitching (df) = ", df)
+  sf=float(opts.f)   #;    print("Limit scale factor for plotting (sf) = ", sf)
+  mf=float(opts.m)   #;    print("Shrink FWHM colormap range", mf)
+  nf=len(opts.input_files) #;  print("Number of files to analyze = ", nf)
+  zf=float(opts.z)   #;    print("integrate reflectivity (==0 no, !=0 yes, ==-1 normalize)", zf)
   #-------------------------------------------------------------------------------------------
   if opts.instrument == 1:  # if instrument file ccd.py is used
     user_dir = os.getcwd()
@@ -434,8 +438,8 @@ def main():
   stdev=numpy.empty((nx,ny)) #7
   fwhm1=[]; peak1=[]; thmid1=[]; com1=[]; thpos1=[]; thneg1=[]; stdev1=[] # arrays to calclulate rms and pv
   rcurve_tot = [] # initialize total rcurve list
-#-------------------------------------------------------  
-  if opts.bkg > 0:
+#-------------------------------------------------------    
+  if float(opts.bkg) > 0:
     bkg=float(opts.bkg)
     print("bkg is assigned through option, bkg = ", bkg)
   else:
@@ -445,6 +449,7 @@ def main():
 #-------------------------------------------------------  
 # Main stuff
 #-------------------------------------------------------
+  timing_start = time.time()
   for j in yrange:
     for i in xrange:
       rcurve=data[:,j,i]
@@ -463,26 +468,19 @@ def main():
       #------------------------------------------------
       # Deglitching procedure
       #------------------------------------------------                  
-      if df>1.0:
-        index=range(len(rcurve))
-        index=index[2:len(rcurve)-2]
-        for k in index:
-          y=rcurve[k]
-          mean=0.25*(rcurve[k-2]+rcurve[k-1]+rcurve[k+1]+rcurve[k+2])
-          if y > df*mean or y < (2.0-df)*mean:
-            rcurve[k]=mean
-            print("X= ", dx*i, "Y= ",dy*j, " glitch found")   
+      if opts.degl !=-1:
+          from scipy.signal import medfilt
+          df = abs(int(opts.degl))
+          rcurve = medfilt(rcurve,kernel_size=df)
       #---------------------------------------------------------------------------------------
       # subtracting bkg since it can vary from pixel to pixel            
       if opts.conduct == 1:
-          #rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg_lin)]  # TC        
           rcurve = -1.0*(rcurve-bkg_lin)  # TC
           bkgs = 0.0    # TC      
           rcmax=max(rcurve)
           rmax=rcmax       # TC
           #rmax=bkg        # TC
       if opts.conduct == 0:
-          #rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
           bkgs = bkg  #RC
           rcmax=max(rcurve)
           rmax=rcmax-bkg # RC     
@@ -523,6 +521,7 @@ def main():
             plt.plot(ugol,prcurve, 'bo',label="local RC") 
             plt.plot(ugol,prcurve, 'b-')
             ugol_g=arange(ugol[0],ugol[len(ugol)-1]+0.1,0.1)
+            plt.plot(ugol_g,ugol_g*0, color='k', label='baseline (subtracted bkg)')
             plt.plot(ugol_g,gauss(p,ugol_g)-p[0],'b--',label="Gauss. fit for local RC")            
             plt.title ('pixel location [mm]: X ='+str(round((nx-i)*dx,3))+', Y = '+str(round((ny-j)*dy,3)),size=16) 
             plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size=16)
@@ -540,12 +539,7 @@ def main():
       if crit1 == True:
           # add rcurve to rcurve_tot - afer deglitching if it is activated
           # AND after pixel rejection criteria
-          # subtracting bkg since it can vary from pixel to pixel      
-          if opts.conduct == 1:
-              rcurve_tot = rcurve_tot + [-1.0*(rcurve-bkg_lin)]  # TC        
-          #rmax=bkg        # TC
-          if opts.conduct == 0:
-              rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
+          rcurve_tot = rcurve_tot + [rcurve]       
           ##################################################################################
           # extracting curve parameters if the pixel complies with the criterion
           ##################################################################################                        
@@ -656,7 +650,8 @@ def main():
         thneg[i,j]=1e9
         thpos[i,j]=1e9
         stdev[i,j]=1e9
-              
+
+  print("DIAGNOSTIC: double for loop complete in %f seconds" % (time.time() - timing_start))            
 #  norm=peak.max() 
 #  print "blah"
 #  print peak1
@@ -682,33 +677,33 @@ def main():
   
   out='------------------------------------------------------------------------\n'
   #----------------------------------------------------------------------------------
-  fwhm0=average(fwhm1);          out = out + "FWHM_average = "+str(fwhm0)+" urad\n"
-  fwhm_rms=std(fwhm1);           out = out + "FWHM_rms = "+str(fwhm_rms)+" urad\n"
-  fwhm_pv=max(fwhm1)-min(fwhm1); out = out + "FWHM_pv = "+str(fwhm_pv)+" urad\n"
+  fwhm0=average(fwhm1);            out = out + "FWHM_average = %f " % fwhm0 +" urad\n"
+  fwhm_rms=std(fwhm1);             out = out + "FWHM_rms = %f "     % fwhm_rms +" urad\n"
+  fwhm_pv=amax(fwhm1)-amin(fwhm1); out = out + "FWHM_pv =  %f "     % fwhm_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  stdev0=average(stdev1);           out = out + "STDEV_average = "+str(stdev0)+" urad\n"
-  stdev_rms=std(stdev1);            out = out + "STDEV_rms = "+str(stdev_rms)+" urad\n"
-  stdev_pv=max(stdev1)-min(stdev1); out = out + "STDEV_pv = "+str(stdev_pv)+" urad\n"
+  stdev0=average(stdev1);             out = out + "STDEV_average = %f " % stdev0 +"urad\n"
+  stdev_rms=std(stdev1);              out = out + "STDEV_rms = %f "     % stdev_rms +" urad\n"
+  stdev_pv=amax(stdev1)-amin(stdev1); out = out + "STDEV_pv = %f "      % stdev_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  peak0=average(peak1);          out = out + "Reflect_average = "+str(peak0)+"\n"
-  peak_rms=std(peak1);           out = out + "Reflect_rms = "+str(peak_rms)+"\n"
-  peak_pv=max(peak1)-min(peak1); out = out + "reflect_pv = "+str(peak_pv)+"\n"
+  peak0=mean(peak1);               out = out + "Intens_average = %f " % peak0 +"\n"
+  peak_rms=std(peak1);             out = out + "Intens_rms = %f "     % peak_rms +"\n"
+  peak_pv=amax(peak1)-amin(peak1); out = out + "Intens_pv = %f "      % peak_pv +"\n"
   #----------------------------------------------------------------------------------
-  com0=average(com1);         out = out + "COM_average = "+str(com0)+" urad\n"
-  com_rms=std(com1);          out = out + "COM_rms = "+str(com_rms)+" urad\n"
-  com_pv=max(com1)-min(com1); out = out + "COM_pv = "+str(com_pv)+" urad\n"
+  com0=average(com1);           out = out + "COM_average = %f " % com0 +" urad\n"
+  com_rms=std(com1);            out = out + "COM_rms = %f "     % com_rms +" urad\n"
+  com_pv=amax(com1)-amin(com1); out = out + "COM_pv = %f "      % com_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  thmid0=average(thmid1);           out = out + "thmid_average ="+str(thmid0)+" urad\n"
-  thmid_rms=std(thmid1);            out = out + "thmid_rms = "+str(thmid_rms)+" urad\n"
-  thmid_pv=max(thmid1)-min(thmid1); out = out + "thmid_pv = "+str(thmid_pv)+" urad\n"
+  thmid0=average(thmid1);             out = out + "thmid_average = %f " % thmid0 +" urad\n"
+  thmid_rms=std(thmid1);              out = out + "thmid_rms = %f "     % thmid_rms +" urad\n"
+  thmid_pv=amax(thmid1)-amin(thmid1); out = out + "thmid_pv = %f "      % thmid_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  thneg0=average(thneg1);           out = out +"thneg_average = "+str(thneg0)+" urad\n"
-  thneg_rms=std(thneg1);            out = out + "thneg_rms = "+str(thneg_rms)+" urad\n"
-  thneg_pv=max(thneg1)-min(thneg1); out = out + "thneg_pv = "+str(thneg_pv)+" urad\n"
+  thneg0=average(thneg1);             out = out +"thneg_average = %f " % thneg0 +" urad\n"
+  thneg_rms=std(thneg1);              out = out + "thneg_rms = %f "    % thneg_rms +" urad\n"
+  thneg_pv=amax(thneg1)-amin(thneg1); out = out + "thneg_pv = %f "     % thneg_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  thpos0=average(thpos1);           out = out + "thpos_average = "+str(thpos0)+" urad\n"
-  thpos_rms=std(thpos1);            out = out + "thpos_rms = "+str(thpos_rms)+" urad\n"
-  thpos_pv=max(thpos1)-min(thpos1); out = out + "thpos_pv = "+str(thpos_pv)+" urad\n"
+  thpos0=average(thpos1);             out = out + "thpos_average = %f " % thpos0 +" urad\n"
+  thpos_rms=std(thpos1);              out = out + "thpos_rms = %f "     % thpos_rms +" urad\n"
+  thpos_pv=amax(thpos1)-amin(thpos1); out = out + "thpos_pv = %f "      % thpos_pv +" urad\n"
   out = out + '------------------------------------------------------------------------\n'
   #----------------------------------------------------------------------------------
 
@@ -718,22 +713,30 @@ def main():
   rcurve_tot = array(rcurve_tot)
   trcurve =  sum(rcurve_tot,axis=0)/len(rcurve_tot)
   # Stats:
-  bkg_tot=0.25*(trcurve[0]+trcurve[1]+trcurve[len(trcurve)-2]+trcurve[len(trcurve)-1]) ; print('bkg_tot = ', bkg_tot)
+  if float(opts.bkg) > 0:
+    bkg_tot = float(opts.bkg)
+  else:   
+    bkg_tot=mean((trcurve[0],trcurve[1],trcurve[-2],trcurve[-1])) 
+  print('average subtracted bkg:')  
+  print('bkg_tot = %f ' % bkg_tot)
   stat=curvestat(th-th0,trcurve,bkg_tot)
   #
-  fwhm_tot=stat[5];                 out = out + "fwhm_tot = "+str(fwhm_tot)+" urad\n"
+  fwhm_tot=stat[5]
+  out = out + "fwhm_tot = %f " % fwhm_tot +" urad\n"
   #
   if opts.z == 0:
       peak_tot=stat[1]-bkg_tot
   else:
       peak_tot=stat[8]/abs(zf)
-  out = out + "peak_tot = "+str(peak_tot)+"\n"
+  out = out + "peak_tot = %f " % peak_tot +"\n"
   #                                            
-  thmid_tot=stat[4];                out = out + "thmid_tot = "+str(thmid_tot)+" urad\n"   
-  com_tot=stat[6];                  out = out + "com_tot = "+str(com_tot)+" urad\n"
-  stdev_tot=sqrt(abs(stat[7]));     out = out + "stdev_tot = "+str(stdev_tot)+" urad\n"
-  thneg_tot=stat[2];                out = out + "thneg_tot = "+str(thneg_tot)+" urad\n"  
-  thpos_tot=stat[3];                out = out + "thpos_tot = "+str(thpos_tot)+" urad\n"       
+  thmid_tot=stat[4];                out = out + "thmid_tot = %f " % thmid_tot +" urad\n"   
+  com_tot=stat[6];                  out = out + "com_tot = %f "   % com_tot +" urad\n"
+  stdev_tot=sqrt(abs(stat[7]));     out = out + "stdev_tot = %f " % stdev_tot +" urad\n"
+  thneg_tot=stat[2];                out = out + "thneg_tot = %f " % thneg_tot +" urad\n"
+  thpos_tot=stat[3];                out = out + "thpos_tot = %f " % thpos_tot +" urad\n"
+  # substract background from the total curve for plotting and output:
+  trcurve = trcurve - bkg_tot
   plt.plot(ugol,trcurve, 'ro',label="total RC")
   plt.plot(ugol,trcurve, 'r-')
   plt.legend(loc='upper right',fontsize=10)
@@ -1005,53 +1008,57 @@ def main():
       xydata = (xdata, ydata) 
       print('--------------------------------------------------------------------------') 
       print('Local RC:')  
-      print('onpick data:', xydata)
-      idx = nx-int(round(xdata/dx))
-      idy = ny-int(round(ydata/dy))
-      print('onpick indicies:', (idx,idy))
+      print('onpick coordinates (X,Y): (%.3f, %.3f)' % xydata)
+      idx = nx-int(ceil(xdata/dx))  # ceil works best, still needs further testing
+      idy = ny-int(ceil(ydata/dy))  # ceil works best, still needs further testing 
+      print('onpick indicies (Ix,Iy):', (idx,idy))
       #----------------------------------------------
       # plot local rocking curve
       #----------------------------------------------
       mpl.rcParams.update({'font.size': 12})
       fig=plt.figure(figsize=(8.0,7.0))
-      rcurve0=data[:,idy,idx]
-      bkg0=0.25*(rcurve0[0]+rcurve0[1]+rcurve0[-2]+rcurve0[-1])
-      print('bkg (from tails) = %f' % bkg0)
+      rcurve00=data[:,idy,idx]
+      b00=0.25*(rcurve00[0]+rcurve00[1]+rcurve00[-2]+rcurve00[-1])
+      print('bkg (from tails) = %f' % b00)
+      if opts.conduct == 1:
+          rcurve00 = -1.0*(rcurve00 - b00)
+      else: 
+          rcurve00 = rcurve00 - b00      
       # begin plotting:
       plt.title ('pixel location [mm]: X ='+str(round(xdata,3))+', Y = '+str(round(ydata,3)),size=16) 
-      plt.plot(ugol,rcurve0,'b-')
-      plt.plot(ugol,rcurve0,'bo',label='local RC')
-      plt.plot(ugol,bkg0+ugol*0, color='k', label='background')
+      plt.plot(ugol,rcurve00,'b-')
+      plt.plot(ugol,rcurve00,'bo',label='local RC')
+      plt.plot(ugol,ugol*0, color='k', label='baseline (subtracted bkg)')
       #Generic FWHM
       try: 
-        result=curvestat(ugol,rcurve0,bkg0)
-        th_max=result[0]; r_max=result[1]
-        th_neg=result[2]; th_pos=result[3]; th_mid=result[4]
-        fwhm=result[5]; com=result[6]
-        stdev=sqrt(abs(result[7]))
+        result=curvestat(ugol,rcurve00,0.0)
+        th_max00=result[0]; r_max00=result[1]
+        th_neg00=result[2]; th_pos00=result[3]; th_mid00=result[4]
+        fwhm00=result[5]; com00=result[6]
+        stdev00=sqrt(abs(result[7]))
         print('Generic FWHM/COM:')
-        print('r_max [ct] =  %f' % r_max)
-        print('th_max [urad] = %f' % th_max)
-        print('th_mid [urad] = %f' % th_mid)
-        print('com [urad] = %f' % com)
-        print('stdev [urad] =  %f' % stdev)
-        print('fwhm [urad] = %f'   %fwhm)
+        print('r_max [ct] =  %f' % r_max00)
+        print('th_max [urad] = %f' % th_max00)
+        print('th_mid [urad] = %f' % th_mid00)
+        print('com [urad] = %f' % com00)
+        print('stdev [urad] =  %f' % stdev00)
+        print('fwhm [urad] = %f'   %fwhm00)
         # Gaussian fit
-        p0=[bkg0,r_max,com,sqrt(2.0)*(fwhm/2.355)] #bkg max center
-        p, unc, dte, stat, cov = fit1d(residuals,p0,ugol,rcurve0) 
+        p00=[r_max00,com00,sqrt(2.0)*(fwhm00/2.355)] #bkg max center
+        p, unc, dte, stat, cov = fit1d(residuals0,p00,ugol,rcurve00) 
         #com0=sum((rcurve-p[0])*(ugol))/sum(rcurve-p[0])
-        stdev0 = abs(p[3])/sqrt(2.0)
-        fwhm0 = 2.0*abs(p[3])*sqrt(log(2.0))      
+        stdev00 = abs(p[2])/sqrt(2.0)
+        fwhm00 = 2.0*abs(p[2])*sqrt(log(2.0))
         #
         print('Gaussian fit:')
-        print('r_max_g [ct] =  %f' % p[1])
-        print('th_max_g [urad] = %f' % p[2])
-        print('stdev_g [urad] =  %f' % stdev0)
-        print('fwhm_g [urad] = %f'   %fwhm0)
-        print('--------------------------------------------------------------------------')    
+        print('r_max_g [ct] =  %f' % p[0])
+        print('th_max_g [urad] = %f' % p[1])
+        print('stdev_g [urad] =  %f' % stdev00)
+        print('fwhm_g [urad] = %f'   %fwhm00)
+        print('--------------------------------------------------------------------------')
         ugol_g=arange(ugol[0],ugol[-1]+0.1,0.1)
-        plt.plot(ugol_g,gauss(p,ugol_g),'b--',label="Gauss. fit") 
-        plt.plot(ugol,0.5*(r_max+bkg0)+ugol*0, linestyle='--', color='k', label='half max.')
+        plt.plot(ugol_g,gauss0(p,ugol_g),'b--',label="Gauss. fit") 
+        plt.plot(ugol,0.5*(r_max00)+ugol*0, linestyle='--', color='k', label='half max.')
       except: 
         print('Curve statistics unobtainable')
       plt.xlabel('$\\theta - \\theta_0$, [$\mu$rad]', size=16)

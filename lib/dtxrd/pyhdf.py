@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # a subroutine to read hdf4 and hdf5 files
 #
+# 11/12/2019 
+# replaced deprecated ".value" method to [()] for h5py 
 
 import os
 import h5py
@@ -74,7 +76,8 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         raise IOError(msg)
     #image_data = numpy.ma.masked_less_equal(ds.value, bkg)
     #image_data = image_data.filled(image_data.min())                                              
-    im = ds.value
+    #im = ds.value
+    im = ds[()]
     im = array(im, dtype=float)    
     shape0 = ds.shape
     if len(shape0) == 3:
@@ -89,8 +92,8 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         raise IOError(msg)
 
     # REBIN DATA                         
-    print("nx = ", nx)
-    print("ny = ", ny)
+    #print("nx = ", nx)
+    #print("ny = ", ny)
     # rebin 
     shape1 = (ny//rbin,nx//rbin)
     im = rebin(im,shape1)
@@ -105,7 +108,8 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         msg += '\n  file: ' + fileName
         msg += '\n  path: ' + th_path
         raise IOError(msg)
-    th = float(thentry.value)
+    #th = float(thentry.value)
+    th = float(thentry[()])
     #
     try:
         chientry = hdf5[chi_path]
@@ -114,7 +118,8 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
         msg += '\n  file: ' + fileName
         msg += '\n  path: ' + chi_path
         raise IOError(msg)
-    chi = float(chientry.value)
-                         
+    #chi = float(chientry.value)
+    chi = float(chientry[()])
+    hdf5.close()                     
     return [th,chi,[nx,ny],im]
     

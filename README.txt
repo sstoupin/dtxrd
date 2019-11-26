@@ -11,6 +11,8 @@ rctopo - recombines 2D images of crystal reflectivity at different
 angles on the crystal rocking curve to produce rocking curve images 
 (e.g., maps of the rocking curve's width, peak position, etc.)
 
+rctopo-fast - a version of rctopo optimized for fast processing of large datasets (array operations)
+
 seehdf - plots maps of 2D data contained in hdf4 and hdf5 files 
 
 rcpeak - a tool to plot and perform fitting and analysis of a rocking curve
@@ -29,8 +31,7 @@ REQUIREMENTS
 * python-scipy
 * python-matplotlib
 * h5py
-* Optik 1.3 or above OR Python 2.3's optparse module.
-    http://optik.sourceforge.net
+* rctopo-fast requires numpy >= 1.17.4
 
 INSTALLATION
 ------------
