@@ -108,7 +108,7 @@ For a brief summary run::
 	read angular steps from the first column of a text (ASCII) file (e.g., SPEC scan) 
 
 GRAPHICAL OUTPUT
-===========
+====================
 By default the program generates two figures. **Figure 1** shows several topographs of the following rocking curve parameters.
 
 **Reflectivity** (normalized peak intensity (default))
@@ -132,7 +132,7 @@ In addition, parameters of the total rocking curve (averaged across the region) 
 **Figure 2** shows the rocking curve of the central pixel in the analyzed region, a Gaussian fit to this curve and the total rocking curve for comparison.
 
 EXAMPLES/TUTORIALS
-===========
+======================
 
 I. Rocking curve topography using HDF4 images
 ****************************************************************************************
