@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-x-ray diffraction calculator (2-beam case, perfect crystals)
+x-ray dynamical diffraction calculator (2-beam approximation)
 
 :author:    Stanislav Stoupin
 :email:     sstoupin@gmail.com
@@ -14,12 +14,14 @@ import sys
 from numpy import *
 from scipy import *
 from pylab import *
+import matplotlib as mpl
 
 # TO RUN LOCALLY
 #import subprocess
 #cmdout=subprocess.getstatusoutput('echo $HOME')
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
+#print "library path: ", libpath
 #
 #from myio import coljoin, writeFile
 #from curvestat import *
@@ -40,7 +42,10 @@ from dtxrd.deriv import *
 
 
 prog = os.path.basename(sys.argv[0])
-__version__ = '0.50'
+__version__ = '0.51'
+#
+user_dir = os.getcwd()
+mpl.rcParams["savefig.directory"] = os.chdir(user_dir)
 #-------------------------------------------------------------------------------------------
 # SUMMARY OF CHANGES:
 #-------------------------------------------------------------------------------------------
@@ -99,6 +104,7 @@ __version__ = '0.50'
 # v 0.48 additional minor changes in the output - introduced total scattering factor SF
 # v 0.49 switch Gaussian to Lorentzian in res. function definition (natural tails are Lorentzian in DTXRD)
 # v 0.50 cosmetic changes, for consistency with python3
+# v 0.51 cosmetic changes to figures
 #-------------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. draw a figure of crystal and waves
@@ -395,8 +401,9 @@ def main():
              outh0='E[keV] '       # header_col0
              outh1='E-Ec[meV] '    # header_col1
              
-             f2 = plt.figure()                                      
+             #f2 = plt.figure()                                      
              if cmd_opts.syield != -1:
+                 f2 = plt.figure(figsize=(6,8))
                  plt.subplot(311)
                  plt.plot(Eplot,Rplot,'r-')
                  if cmd_opts.conv !=0: plt.plot(Eplot,rc0,'k-')
@@ -413,13 +420,15 @@ def main():
                  plt.ylabel('Secondary yield [n.u.]')
                  plt.xlabel('$E-E_{c}$ [meV]')
              else:
+                 f2 = plt.figure(figsize=(6,6))
                  SYplot=zeros(len(Rplot))
                  plt.subplot(211)
                  plt.plot(Eplot,Rplot,'r-',label='$R_{perfect}(E -E_{c})$')
                  if cmd_opts.conv != 0: plt.plot(Eplot,rc0,'k-')
                  if cmd_opts.z != '-1 -1': 
                      #plt.plot(Eplot,Rpmos,'c-',label='$R_{ideal \ mos.}(E-E_{c})$')
-                     plt.plot(Eplot,Rmos1,'m--',label='$R_{mos.1 \ (zero \ abs.) \ asym.}(E-E_{c})$')
+                     #plt.plot(Eplot,Rmos1,'m--',label='$R_{mos.1 \ (zero \ abs.) \ asym.}(E-E_{c})$')
+                     plt.plot(Eplot,Rmos1,'m--',label='$R_{mosaic}(E-E_{c})$')
                      #plt.plot(Eplot,Rmos2,'g--',label='$R_{mos.2 \ (non-zero \ abs.}(E-E_{c})$')
                      #plt.plot(Eplot,Rpmos,'g-',label='$R_{pmosaic}(E-E_{c})$')
                      plt.plot(Eplot,Wx_v*Norm,'k-',label='$W(E-E_{c})$')
@@ -436,9 +445,10 @@ def main():
                  plt.plot(Eplot,Tplot,'b-', label='$T_{perfect}(E-E_{c})$')
                  if cmd_opts.z != '-1 -1':
                      #plt.plot(Eplot,Tpmos, 'c-',  label='$T_{ideal mos.}(E-E_{c})$')
-                     plt.plot(Eplot,Tmos1,'m--', label='$T_{mos.1 (zero \ abs.) asym.}(E-E_{c})$')
+                     #plt.plot(Eplot,Tmos1,'m--', label='$T_{mos.1 (zero \ abs.) asym.}(E-E_{c})$')
+                     plt.plot(Eplot,Tmos1,'m--', label='$T_{mosaic}(E-E_{c})$')
                      #plt.plot(Eplot,Tmos2,'g--', label='$T_{mos.2 (non-zero \ abs.)}(E-E_{c})$')
-                     plt.legend(loc='lower right') 
+                     plt.legend(loc='upper right') 
                  #                                          
                  plt.ylabel('Transmissivity')
                  plt.xlabel('$E-E_{c}$ [meV]')
@@ -601,11 +611,12 @@ def main():
              outh0='th[deg] '         # header_col0
              outh1='th-thc[urad] '    # header_col1
              #
-             f1=plt.figure()
+             #f1=plt.figure(figsize=(6,6))
              #plt.xlabel('theta-theta0 [urad]')
              #plt.axis([1.0e6*th1,1.0e6*th2,0,auto])
              #
              if cmd_opts.syield != -1:
+                 f1=plt.figure(figsize=(6,8))
                  plt.subplot(311)
                  plt.plot(thplot,Rplot,'r-')
                  if cmd_opts.conv != 0: plt.plot(thplot,rc0,'k-')                        
@@ -619,13 +630,15 @@ def main():
                  plt.ylabel('Secondary yield [n.u.]')
                  plt.xlabel('$\\theta-\\theta_{c}$ [$\mu$rad]')
              else: 
+                 f1=plt.figure(figsize=(6,6))
                  SYplot=zeros(len(Rplot))
                  plt.subplot(211)
                  plt.plot(thplot,Rplot,'r-', label='$R_{perfect}(\\theta-\\theta_{c})$')
                  if cmd_opts.conv != 0: plt.plot(thplot,rc0,'k-')                        
                  if cmd_opts.z != '-1 -1': 
                      #plt.plot(thplot,Rpmos,'c-',     label='$R_{ideal \ mos.}(\\theta-\\theta_{c})$')
-                     plt.plot(thplot,Rmos1,'m--',   label='$R_{mos.1 \ zero \ abs.}(\\theta-\\theta_{c})$')
+                     #plt.plot(thplot,Rmos1,'m--',   label='$R_{mos.1 \ zero \ abs.}(\\theta-\\theta_{c})$')
+                     plt.plot(thplot,Rmos1,'m--',   label='$R_{mosaic}(\\theta-\\theta_{c})$')   
                      #plt.plot(thplot,Rmos2,'g--',   label='$R_{mos.2 \ non-zero \ abs.}(\\theta-\\theta_{c})$')
                      #plt.plot(thplot,Rpmos,'g-',    label='$R_{pmosaic}(\\theta-\\theta_{c})$')                     
                      #
@@ -642,7 +655,8 @@ def main():
                  plt.plot(thplot,Tplot,'b-', label='$T_{perfect}(\\theta-\\theta_{c})$')
                  if cmd_opts.z != '-1 -1':
                      #plt.plot(thplot,Tpmos, 'c-',  label='$T_{mos. \ sym.}(\\theta-\\theta_{c})$')
-                     plt.plot(thplot,Tmos1,'m--', label='$T_{mos.1 \ zero \ abs.}(\\theta-\\theta_{c})$')
+                     #plt.plot(thplot,Tmos1,'m--', label='$T_{mos.1 \ zero \ abs.}(\\theta-\\theta_{c})$')
+                     plt.plot(thplot,Tmos1,'m--', label='$T_{mosaic}(\\theta-\\theta_{c})$')
                      #plt.plot(thplot,Tmos2,'g--', label='$T_{mos.2 \ non-zero \ abs.}(\\theta-\\theta_{c})$')
                      plt.legend(loc='upper right')
                  plt.ylabel('Transmissivity')

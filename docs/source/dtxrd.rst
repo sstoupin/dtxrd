@@ -6,7 +6,7 @@ dtxrd
 ************
 
 x-ray diffraction calculator 
-(dynamical theory of x-ray diffraction for perfect crystals)
+(dynamical theory of x-ray diffraction)
 
 :author: Stanislav Stoupin
 :email:  <sstoupin@gmail.com>
@@ -22,7 +22,7 @@ SYNOPSIS
 DESCRIPTION
 ============
 
-A  program to calculate parameters of a Bragg or Laue reflection for 
+Calculates parameters of a given crystal reflection for 
 a monochromatic incident wave using dynamical theory of x-ray diffraction for perfect crystals in the 
 2-beam approximation
 
@@ -34,7 +34,7 @@ INPUT PARAMETERS
 =================
 
 :crystal:
-       crystal type: C (diamond), Si (silicon), Ge (germanium) or Al2O3 (sapphire)
+       available crystal models: C (diamond), Si (silicon), Ge (germanium), GaN (wurtzite), SiC-4H, SiC-6H, SiO2 (quartz), Al2O3 (sapphire)
 
 :h k l:  Miller indicies of a chosen reflection
 
@@ -61,24 +61,34 @@ INPUT PARAMETERS
 OPTIONS
 ============
 
-:-v, --version:
-       show version of program.
+:-v,      --version:
+       show program version
 
-:-h, --help:
+:-h,      --help:
        show summary of options.
 
-:-o F, --output=F:
-       write results to file F (default to stdout)
+:-o FILENAME, --output FILENAME:
+       write results to file (default to stdout)
 
-:-w D, --write=D:
-       write data to file D (default - no action)
+:-w FILENAME, --write FILENAME:
+       write data to file (default: no action)
 
 :-p, --pi:
-       :math:`\pi` polarization for incident wave (default - :math:`\sigma` polarization)
+       :math:`\pi` polarization for the incident wave (default: :math:`\sigma` polarization)
 
-:-c, --conv:
-       convolve data with a virtual instrumental resolution function having FWHM of 1/10 of  the  Darwin  width
-       and report the resulting FWHM of the reflectivity curve
+:-c CONST, --conv CONST:
+       convolve the reflectivity curve with a virtual instrument resolution function with FWHM = CONST [urad], plot the result and 
+       and report the resulting width of the convoluted curve
+
+:-s CONST, --syield CONST:
+       calculate shape of the secondary yield curve (e.g., photoelectrons) with escape depth CONST [Angstrom] 
+
+:-z STRING, --zblock STRING:
+       calculate reflectivity/transmissivity curves for a mosaic crystal (uncorrelated block model) with STRING = 't s', where 
+       t is the block thickness [um] and s is the standard deviation of misorientation [urad] (assuming Gaussian distribution)
+
+:-n CONST, --nsteps CONST:
+       CONST - number of points in the angular/energy interval (default: 1000)
 
 
 OUTPUT PARAMETERS
@@ -136,7 +146,7 @@ Angular intrinsic (Darwin) widths (thick non-absorbing crystal) at fixed photon 
 
 :dth[urad]:        :math:`\Delta \theta` [microradian] angular entrance width of the chosen h k l reflection  
 
-:dth_s[urad]:      :math:`\Delta \theta'` [microradian] angular exit width of the chosen h k l reflection 
+:dth_pr[urad]:      :math:`\Delta \theta'` [microradian] angular exit width of the chosen h k l reflection 
 
 Additional characteristics of the chosen h k l reflection:
 
@@ -156,22 +166,42 @@ Reflectivity and Transmissivity:
 EXAMPLES
 ===========
 
-to calculate a rocking curve of a 1-mm-thick Si (111) crystal at 8 keV (111 reflection, Bragg case) run::
+A rocking curve of the symmetric Si 111 reflection (Bragg case, 1-mm-thick crystal at 300 K) ::
 
        dtxrd Si 1 1 1 0 0 300 1 e 8
 
 .. image:: ../../examples/snapshots/Si111_8keV.png
-            :width: 90 %
+            :width: 70 %
 	    :alt: Si111 at 8keV
 
-to calculate a rocking curve of a 0.1-mm-thick C (001) crystal at 12 keV (220 reflection, Laue case) run::
+A rocking curve of the symmetric diamond 220 reflection (Laue case, 0.1-mm-thick crystal plate at 300 K) ::
 
-       dtxrd C 2 2 0 45 0 300 0.1 e 12 
+       dtxrd C 2 2 0 90 0 300 0.1 e 12 
 
 .. image:: ../../examples/snapshots/C220_Laue.png
-            :width: 90 %
+            :width: 70 %
 	    :alt: C220 Laue at 12keV
 
+Reflectivity curve of the diamond 008 reflection in exact backscattering (0.5-mm-thick crystal plate at 300 K).
+Accurate sampling of the thickness oscillations is achieved using 10000 points. ::
+
+       dtxrd -n 10000 C 0 0 8 0 0 300 0.5 a 90
+
+.. image:: ../../examples/snapshots/C008_90deg.png
+            :width: 70 %
+	    :alt: C008 in backscattering
+
+Rocking curve of the diamond 220 reflection (0.5-mm-thick crystal plate at 300 K at 20 keV).
+Reflectivity/transmissivity of a perfect crystal compared with those of the mosaic crystal with 10 um block size
+having misorientation of 20 microradian r.m.s. (uncorrelated block model) ::
+
+       dtxrd -n 10000 -z '10 20' C 2 2 0 90 0 300 0.5 e 20
+
+.. image:: ../../examples/snapshots/C220_mosaic.png
+            :width: 70 %
+	    :alt: C220 mosaic
+
+Note: reflectivity for a mosaic crystal in backscattering has not been implemented yet 
 
 SEE ALSO
 ============

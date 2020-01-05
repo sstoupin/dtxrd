@@ -29,9 +29,8 @@ import time
 #from fit1d import *
 #from myio import *
 #from roll_zeropad import roll_zeropad
-###################################################
-from scipy.linalg import lstsq
-##from scipy.signal import savgol_filter
+#from scipy.linalg import lstsq
+#from scipy.signal import savgol_filter
 
 # GLOBAL
 from dtxrd.pyhdf import *
@@ -82,7 +81,7 @@ fwhm_r=1.5          # upper limit to plot fwhm distribution
 ftsize = 18         # figure title font size 
 ##################################################################
 
-__version__='0.03'
+__version__='0.04'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -161,6 +160,7 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 # v0.02  various small fixes, made zero crossing compatible with python 3.5 
 #        vandermonde/gaussian is still incompatible, no take_along_axis function 
 # v0.03  cosmetic changes to output, changes to onpick curve analysis (now shows result with bkg removed)
+# v0.04  curve statistics method using zero crossings moved to separate subroutine curvestat_
 #############################################################################################################
 #  TODO LIST
 #############################################################################################################
@@ -293,7 +293,7 @@ def main():
   sf=float(opts.f)    
   mf=float(opts.m)    
   nf=len(opts.input_files)  
-  zf=float(opts.z)   
+  zf=int(opts.z)
   if opts.diag == 1:
       print("Threshold (tr) = ", tr)
       #print("Deglitching factor (df) = ", df)
@@ -486,7 +486,7 @@ def main():
   timing_start = time.time()
   # limit array size to that of ROI:
   data1 = data[:,yrange[0]:yrange[-1]+1,xrange[0]:xrange[-1]+1]
-  data1 = data1.astype(float32)
+  #data1 = data1.astype(float32) redundant after setting float32 in pyhdf.py
   const = ones(data1.shape[0],dtype=float32) # this is ones along 0 dimension of 3D data array
   print("shape data1", data1.shape)
   ### deglitching using median filter #######################################
@@ -523,21 +523,21 @@ def main():
       bkgs_ = zeros(data1.shape)          # TC  
       #
       rcmax_ = amax(rcurve_, axis=0) # TC this is 2D array of actual max. for each pixel      
-      rmax_=rcmax_                   # TC general /maximum without background
+      #rmax_=rcmax_                   # TC general /maximum without background, don't really need it, now calculated in curvestat_
       #
-      if zf == 0: peak = rmax_/bkg_2d  # for more precise quantitative refl. measurement need to normalize by baseline_(max_position) #TC 
+      if zf == 0: peak = rcmax_/bkg_2d  # for more precise quantitative refl. measurement need to normalize by baseline_(max_position) #TC 
       elif zf == -1: peak = sum((rcurve_ - bkgs_),axis=0)*(th[-1] - th[0])/float((len(th)-1))/bkg_2d    # same as comment above #TC
-      else: peak = rmax_/abs(zf)                                                                         #TC      
+      else: peak = rcmax_/abs(float(zf))                                                                         #TC      
       
   elif opts.conduct == 0:
       rcurve_ = data1
       bkgs_ = bkg_                      #RC
       rcmax_ = amax(rcurve_, axis=0)  # 2D
-      rmax_ = rcmax_ - bkg_2d # RC    # 2D
+      #rmax_ = rcmax_ - bkg_2d # RC    # 2D, don't need (calculated in curvestat_)
       #
-      if zf == 0: peak = rmax_
+      if zf == 0: peak = rcmax_
       elif zf == -1: peak = sum((rcurve_ - bkgs_),axis=0)*(th[-1] - th[0])/float((len(th)-1))
-      else: peak = rcmax_/abs(zf)       
+      else: peak = rcmax_/abs(float(zf))       
   # 
   rcurve_0 = rcurve_ - bkgs_  # background subtracted
   peak_ind = argmax(rcurve_0,axis=0) # 2D array of peak indicies
@@ -553,7 +553,7 @@ def main():
       #        rcurve_tot = rcurve_tot + [rcurve-bkg]        # RC                                
   if opts.stat==1:
     # perform gaussian fitting
-    off_ = 0.1*bkg_
+    off_ = 0.3*bkg_
     rc = rcurve_0 - off_
     #rclog = log(abs(rc))
     #rclog =  abs(nan_to_num(rclog)) # copy=False, nan=0.0  possible for python 3.7
@@ -571,7 +571,7 @@ def main():
     dz = z2 - z1 # width
     # find midpoint
     midpoint = 0.5*(iz2+iz1)
-    midpoint = midpoint.astype(int)
+    midpoint = midpoint.astype(int16)
     dz_mean = mean(dz)
     dz2 = int(dz_mean/2.0) #average half-width for when rc crosses zero
     print ('average half-width at zero crossing dz2 = ', dz2)
@@ -614,80 +614,25 @@ def main():
     #print('shape VV swapped = ', VV.shape)
     #print('VV = ', VV)
     ###
-    eps_vv = 0.0 #-1.0e-4
+    eps_vv = 1.0e-4
     #peak =  ones((data1.shape[1],data1.shape[2]))    
     stdev = sqrt(-0.5/(VV[:,:,0]+eps_vv))
     com = VV[:,:,1]*stdev**2.0
-    peak = exp(VV[:,:,2])*exp(0.5*com**2.0/stdev**2.0)
-    peak = nan_to_num(peak,copy=False,nan=1.0e9)
+    #peak = exp(VV[:,:,2])*exp(0.5*com**2.0/stdev**2.0)
+    #peak = nan_to_num(peak,copy=False,nan=1.0e9)
     fwhm = 2.0*sqrt(2.0*log(2.0))*stdev    
     thmid = com
     thneg = thmid - 0.5*fwhm
     thpos = thmid + 0.5*fwhm
-    #              
+    #
+  # for generic FWHM everything goes to subroutine:              
   else:     
-    rcurve_eff = where(rcurve_0<0.0, 0.0, rcurve_0)  # reject negative values!
-    th_eff = th_
-    norm = sum(abs(rcurve_eff),axis=0)  # 2D array
-    com = sum(th_eff*rcurve_eff,axis=0)/norm # need to exclude rcurve_ - bkg <0        
-    com_ = ones(rcurve_eff.shape)*com[newaxis,...]  # extend to 3D
-    var_ = abs(rcurve_eff)*(th_eff - com_)**2.0
-    stdev = sqrt(sum(var_, axis=0)/norm)
-    # 09/17/2019
-    # success!
-    # to do: regrid index to ugol scale in vector form
-    # interpolation possible?
-    # 09/23/2019 interpolation success
-    # why inflated rms and pv?
-    #------------------------------------------------------------------------------------------------
-    # subtract 0.5 of max to form a curve (3D) where zero crossings correspond to left/right slopes
-    dfwhm_ = rcurve_0 - 0.5*const[...,newaxis,newaxis]*rmax_[newaxis,...]    
-    #print('dfwhm_ = ', dfwhm_)
-    dfwhm_m = ma.masked_where(dfwhm_<0,dfwhm_) # mask negative values
-    #fwhm = ma.count(dfwhm_m,axis=0) # could be but not
-    #-----------------------
-    # derivative
-    dr_ = gradient(dfwhm_,axis=0)  # 3D derivative/differences for intensity
-    dth_ = gradient(th_,axis=0)    # 3D derivative/differences for the angular scale  
-    derr_ = dr_/dth_               # 3D the actual derivative
-    # arrays of indicies at left/right edges as notmasked_edges
-    thneg0,thpos0 = asarray(ma.notmasked_edges(dfwhm_m,axis=0))
-    # initialize arrays:
-    thneg2 = zeros((data1.shape[1],data1.shape[2])) 
-    thpos1 = zeros((data1.shape[1],data1.shape[2]))        
-    iz2 = zeros((data1.shape[1],data1.shape[2]),dtype=int16)
-    iz1 = zeros((data1.shape[1],data1.shape[2]),dtype=int16)
-    #
-    z1,x1,y1 = thneg0[0],thneg0[1],thneg0[2]    
-    thneg2[x1,y1] = take(ugol,z1)             # z1 here are indicies 
-    iz1[x1,y1]  = z1                          #2D array of indicies
-    z2,x2,y2 = thpos0[0],thpos0[1],thpos0[2]    
-    thpos1[x2,y2] = take(ugol,z2)             #z2 here are indicies
-    iz2[x2,y2] = z2                           #2D array of indicies
-    #
-    #print('iz1 = ', iz1)
-    #print('iz2 = ', iz2)
-    # -------------------------------------------------------------------
-    # extracting 2D arrays from 3D based on 2D index arrays iz1 and iz2
-    m,n = iz1.shape
-    I,J = ogrid[:m,:n]    
-    rneg2 = dfwhm_[iz1,I,J]    
-    rpos1 = dfwhm_[iz2,I,J]
-    derneg2 = derr_[iz1,I,J]
-    derpos1 = derr_[iz2,I,J]
-    #---------------------------------------------------------------------
-    #
-    eps0 = 0.01 # ct/urad    # this is to avoid division by zero
-    thneg = thneg2 - rneg2/(derneg2 + eps0)
-    thpos = thpos1 - rpos1/(derpos1 + eps0)
-    ### these are derived metrics          
-    fwhm = thpos-thneg
-    thmid = 0.5*(thpos + thneg)  
+    thneg,thpos,thmid,fwhm,com,stdev = curvestat_(ugol,rcurve_0)
 ##########################################################################################
 # Apply masks based on thresholds, common for all for now
 ##########################################################################################
   rcmax_=fliplr(rcmax_)
-  rmax_=fliplr(rmax_)
+  #rmax_=fliplr(rmax_) don't need that because rcmax_ is plotted everywhere
   peak=fliplr(peak)
   fwhm=fliplr(fwhm)
   stdev=fliplr(stdev)  

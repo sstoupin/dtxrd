@@ -66,6 +66,9 @@ if float(ver_check[0]) >= 2:
     mpl.rcParams['legend.fontsize'] = 'small'
     mpl.rcParams['figure.titlesize'] = 'medium'
     mpl.rcParams['image.cmap'] = 'jet'
+# Open current folder when saving figures
+user_dir = os.getcwd()
+mpl.rcParams["savefig.directory"] = os.chdir(user_dir)
 ##################################################################
 ## fixed constants
 ##################################################################

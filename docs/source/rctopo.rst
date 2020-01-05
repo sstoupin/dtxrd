@@ -8,7 +8,7 @@ rctopo
 :author: Stanislav Stoupin
 :email:  <sstoupin@gmail.com>
 
-x-ray rocking curve topography program 
+x-ray rocking curve topography calculator
 
 SYNOPSIS
 ============
@@ -20,8 +20,8 @@ SYNOPSIS
 DESCRIPTION
 ============
 
-A program to process a sequence of topographs collected at different angles on the 
-rocking curve of a crystal to generate maps of the rocking curve parameters.
+A program to process a sequence of images (topographs) collected at different angles on the 
+rocking curve of a crystal generating maps of the rocking curve parameters.
 Supported area detector file formats: HDF4 (.hdf), HDF5 (.h5), a variety of image formats (PNG, TIFF, JPG)
 
 OPTIONS
@@ -31,90 +31,97 @@ For a brief summary run::
 
     rctopo -h
 
-:-v,   --version:
+:-v,        --version:
        show program's version
 
-:-h,         --help:
+:-h,        --help:
        show summary of options
 
-:-o F, --output=F:
-       write calculated results to file F (default to stdout); also, generates output 1pix_total.dat
-       showing the rocking curve from the central pixel and the total rocking curve
+:-o FILENAME, --output FILENAME:
+       write calculated results to file (default to stdout); also, generates output prcurve.dat and trcurve.dat
+       containing the rocking curve from the central pixel and the total rocking curve respectively 
 
-:-w D, --output=D:
-       write slice data to file D (default: do not write)
+:-w FILENAME, --output FILENAME:
+       write slice data to file (default: no action)
 
-:-t T, --threshold=T:
-       threshold for data processing to reject "weak" rocking curves to define
-       crystal boundaries (default T=1.05)
+:--hdf5 FILENAME:
+       save calculalted maps to hdf5 file (default: no action)
 
-:-b bkg, --background=bkg:
-       user defined background (dark current) of the area detector (default value is estimated
+:-t CONST, --threshold CONST:
+       threshold CONST for data processing to define crystal boundaries (default T=1.05)
+
+:-b CONST, --background CONST:
+       user defined background CONST, e.g., dark current of the area detector (default: value is estimated
        from the rocking curve tails)
 
-:-r STRING, --range=STRING:
+:-r STRING, --range STRING:
        xy-range for display and analysis (STRING='x1 x2 y1 y2', where x1,x2,y1,y2 are in units of
        [mm])
 
-:-x CONST, --xslice=CONST:
-       slice and plot distributions at a fixed coordinate X = CONST
+:-x CONST, --xslice CONST:
+       plot distributions (slices) at a fixed coordinate X = CONST
 
-:-y CONST, --yslice=CONST:
-       slice and plot distributions at a fixed coordinate Y = CONST
+:-y CONST, --yslice CONST:
+       plot distributions (slices) at a fixed coordinate Y = CONST
 
-:-f CONST, --factor=CONST:
+:-f CONST, --factor CONST:
        scale colormap range on topographs by CONST*FWHM_av, where FWHM_av is the average FWHM
 
-:-m CONST, --magnify=CONST:
-       shrink range on the colormaps by factor CONST; applies only to the colormaps which 
-       represent characteristic width of the rocking curve width (FWHM and STDEV)
+:-m CONST, --magnify CONST:
+       shrink range on the colormaps by factor CONST; applies only to the colormaps that 
+       represent the characteristic width of the rocking curve width (FWHM and STDEV)
 
-:-n STRING, --name=STRING:
+:-n STRING, --name STRING:
        include sample name STRING in the figure title
 
-:-d CONST, --deglitch=CONST:
-       deglitch rocking curve data with CONST as a threshold parameter (e.g., CONST=1.1) (default - no deglitching)
+:-d CONST, --deglitch CONST:
+       deglitch data using median filtering, where CONST is the size of the filter window, e.g., CONST=3 (default - no deglitching)
 
 :-g,   --gaussian:
-       perform Gaussian curve fitting (smoothes noisy images)
+       perform Gaussian curve fitting (smoothing of noisy data)
 
 :-s,   --transpose:
        transpose image array for plotting
 
-:-u uname, --units=uname:
-       assign the original angular units (uname): deg, arcsec or urad (default - deg)
+:-u uname, --units uname:
+       assign the original angular units (uname): deg, arcsec or urad (default: deg)
 
-:-p,   --publish:
-       generate additional figures with publication quality (requires a separate figures.py script)
+:-p,      --publish:
+       generate additional figures (requires a user-defined figures.py script)
 
-:-c,   --conduct:
-       process forward diffraction data       
+:-c,      --conduct:
+       process sequence of diffraction images collected in transmission mode
 
-:-i,   --instrument:      
+:-i,      --instrument:      
        read the detector and the image analysis parameters from an instrument file ccd.py
 
-:-z CONST, --integrate=CONST:
-       integrate reflectivity and normalize by the theoretical angular acceptance for perfect crystal (CONST);
-       specific cases: z = 0 - no integration (default), z = -1 - integrate and normalize by the maximum value 
+:-z CONST, --integrate CONST:
+       presentation of the intensity (reflectivity) map:
 
-:-e SPECSCAN, --external=SPECSCAN:
-	read angular steps from the first column of a SPEC scan 
+       CONST = 0  plot peak intensity normalized by the found maximum value (default)
+
+       CONST = -1 plot integrated intensity normalized by the found maximum value 
+
+       otherwise (CONST !=0 and CONST !=-1) plot raw intensity counts normalized by input parameter CONST (e.g., CONST = 1)
+
+:-e FILENAME, --external=FILENAME:
+	read angular steps from the first column of a text (ASCII) file (e.g., SPEC scan) 
 
 GRAPHICAL OUTPUT
 ===========
 By default the program generates two figures. **Figure 1** shows several topographs of the following rocking curve parameters.
 
-**reflectivity** (normalized peak reflectivity by default)
+**Reflectivity** (normalized peak intensity (default))
 
 **FWHM** (curve width calculated as full width at half maximum)
 
 **COM** (rocking curve peak position calculated as center of mass or the first moment of the intensity-angular distribution)
 
-**left slope** (peak position of the left slope of the curve)
+**Left Slope** (peak position of the left slope of the curve)
 
-**right slope** (peak position of the right slope of the curve)
+**Right Slope** (peak position as the right slope of the curve)
 
-**mid-point** (peak position as average of the left and the right slope positions)
+**Midpoint** (peak position as average of the left and the right slope positions)
 
 **STDEV** (standard deviation of the intensity around the mean value or the second moment of the intensity-angular distribution)
 
@@ -127,7 +134,7 @@ In addition, parameters of the total rocking curve (averaged across the region) 
 EXAMPLES/TUTORIALS
 ===========
 
-I. Sequential topography using HDF4 images
+I. Rocking curve topography using HDF4 images
 ****************************************************************************************
 
 This archive below contains a set of hdf images of a diamond 111 crystal plate (one image per file) 
@@ -189,7 +196,7 @@ to select a region (the program assumes mm) and to perform statistical analysis 
 
             **Fig. 2** Rocking curves
 
-II. Sequential topography using HDF5 images and an instrument file
+II. Rocking curve topography using HDF5 images and an instrument file
 ****************************************************************************************
 The archive below contains a sequence of images embedded into h5 files (one file per image) 
 of a diamond 111 crystal plate. The source was a bending magnet synchrotron beamline 
@@ -211,7 +218,7 @@ Parameters **tot_range** and **dyn_range** define the upper limit of the dynamic
 
 To process the seqence of images using the instrument file (**-i** option)::
 
-    rctopo -p -r '1 12.5 4.8 8.8' -t 20 -f 0.1 -s -i -u urad
+    rctopo -p -r '1 12.5 4.8 8.8' -t 10 -f 0.1 -s -i -u urad *h5
 
 .. figure:: ../../examples/rctopo/C111-1_h5/C111-1_2x_rbin4.png
             :width: 50 %
@@ -241,23 +248,25 @@ where an additional figure is generated having customized axes, titles, subplots
 	    :alt: diamond C111-1	    	    
             :figclass: align-center 	  
 
-            **Fig. 3** Rocking curve topographs (selected and customized)
+            **Fig. 3** Rocking curve topographs (customized using figures.py)
 
-III. Sequential topography of forward diffraction data
+III. Analysis of transmission diffraction data
 ****************************************************************************************
-The archive of data below represents a set of forward diffraction topographs of 
+The archive of data below represents a sequence of transmission diffraction topographs of 
 of a diamond (13 13 3) reflection in backscattering using a narrow bandwidth (1 meV) monochromatic x-rays.
 Instead of the Bragg angle of the crystal the photon energy of the incident x-ray beam (here in units of microradian) is scanned with small incremental steps. 
 
 :download:`C_TC.zip <../../examples/rctopo/C_TC_h5/C_TC.zip>`
 
-The forward diffraction data are processed using an option **-c**. In this mode the normal transmission level is
-subtracted by the data, the resulting difference is then inverted and treated as a reflectivity curve.
-The data rejection threshold in this mode is specified in the ccd.py file with the parameter **bkg0**.
+The transmission diffraction data are processed using an option **-c**. In this mode the normal transmission level is
+subtracted from the data, the resulting difference is then inverted and treated as a reflectivity curve.
+In this mode the parameter **bkg0** (from ccd.py) defines global threshold: data points with normal transmission baseline below bkg0 will be rejected. 
 
 :download:`ccd.py <../../examples/rctopo/C_TC_h5/ccd.py>`
 
-To process these data the rejection threshold represents the fraction of the normal transmission level and should be always less than 1.0 (**-t 0.11** in this case)::
+:download:`figures.py <../../examples/rctopo/C_TC_h5/figures.py>`
+
+The rejection threshold assigned through the option (**-t 0.11** in this case) represents the least allowed fraction of the normal transmission level and should be always less than 1.0 ::
 
     rctopo -c -p -g -s -t 0.11 -r '0.2 1.3 0.25 0.45' -f 1.0 -i -u urad *h5
 
@@ -267,7 +276,7 @@ To process these data the rejection threshold represents the fraction of the nor
 	    :alt: diamond C111-1	    	    
             :figclass: align-center 	  
 
-            **Fig. 1** Forward diffraction topographs
+            **Fig. 1** Inverted transmission diffraction topographs
 
 .. figure:: ../../examples/rctopo/C_TC_h5/1pix.png
             :width: 50 %
@@ -275,7 +284,7 @@ To process these data the rejection threshold represents the fraction of the nor
 	    :alt: diamond C111-1	    	    
             :figclass: align-center 	  
 
-            **Fig. 2** Forward diffraction curves
+            **Fig. 2** Inverted transmission diffraction curves
 
 
 .. figure:: ../../examples/rctopo/C_TC_h5/figures_rbin4.png
@@ -284,7 +293,7 @@ To process these data the rejection threshold represents the fraction of the nor
 	    :alt: diamond C111-1	    	    
             :figclass: align-center 	  
 
-            **Fig. 3** Forward diffraction topographs (selected and customized)
+            **Fig. 3** Inverted transmission diffraction topographs (customized using figures.py)
 
 SEE ALSO
 ============
