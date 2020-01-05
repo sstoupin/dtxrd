@@ -84,6 +84,7 @@ OPTIONS
        1       Cu K-alpha source
        9       energy distribution from file source_e.dat
        ====    ===============================================
+
        A point source is assumed. Source size is not included to the calculation at the moment.
        For throughput calculation the source size can be modeled as additional divergence. 
 
