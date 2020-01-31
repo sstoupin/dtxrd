@@ -10,7 +10,7 @@
 """
 The main module for DTXRD.
 
-@version: 1.0.0
+@version: 1.8.0
 
 @author: Stanislav Stoupin
 
@@ -21,21 +21,21 @@ The main module for DTXRD.
 @license: UChicago Argonne, LLC OPEN SOURCE LICENSE
 """
 
-__version__ = '1.0.0'
+__version__ = '1.8.0'
 
 from numpy import *
 from scipy import *
 #from scipy.special import legendre
 from pylab import *
 
-from myio import *
-from curvestat import *
-from thfind import *
-from dtxrd0 import *
-from constants import *
-from chi import *
-from rotation import *
-from dtxrd2_k import *
-from pyhdf import *
-from fit1d import *
+from .myio import *
+from .curvestat import *
+from .thfind import *
+from .dtxrd0 import *
+from .constants import *
+from .chi import *
+from .rotation import *
+from .dtxrd2_k import *
+from .pyhdf import *
+from .fit1d import *
 from matplotlib.patches import Patch

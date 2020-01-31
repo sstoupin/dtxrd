@@ -10,8 +10,8 @@
 # v0.25 11/25/2013  - implement CHI which includes Al2O3
 ######################################################################################################################
 from numpy import *
-from fh import *
-from constants import *
+from .fh import *
+from .constants import *
 
 ##########################################################################################################################
 ## Calculates everything

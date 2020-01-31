@@ -261,7 +261,7 @@ def fa_cromer(atom,Ex):
     return f_p(Ex)+f_a-1.0j*f_pp(Ex)        
 # --------------------------------------------------------------------------------    
 def fa_asf(atom,Ex):
-    from myio import readFile
+    from .myio import readFile
     fileName=os.path.join(libpath, 'asf', atom+'.asf')
     d1,d2=readFile(fileName)
     Easf=d2[:,0]; Easf=1.0e3*Easf

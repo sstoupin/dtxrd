@@ -47,7 +47,7 @@ command:
   > python setup.py install --help
 
 For information about other Distutils commands, execute the following command:
-  > python setup.py install --help-commands
+  > python setup.py --help-commands
 
 
 AVAILABILITY

@@ -16,8 +16,8 @@ a subroutine to calculate susceptibility(Chi) for a Bragg reflection
 # 0.06 updated texpan of C to new Jacobson&Stoupin formula
 ###########################################################################################
 from numpy import *
-from fh import *
-from constants import *
+from .fh import *
+from .constants import *
 import sys
 ######################################################################################
 def fatalError(msg):
@@ -38,7 +38,7 @@ def chi(element,h,k,l,T,Ex):
   lamx = hpl*cl/Ex
   
   if element=='Si':  
-     from td_si import a_reeber
+     from .td_si import a_reeber
      a=a_reeber(T)
      lp = [a,a,a]
      ang = [90.0,90.0,90.0]
@@ -64,7 +64,7 @@ def chi(element,h,k,l,T,Ex):
   elif element=='C': 
      #from stoupin_c import a_stoupin
      #a=a_stoupin(T)
-     from td_c import a_JS1
+     from .td_c import a_JS1
      a=a_JS1(T) 
      lp = [a,a,a]
      ang = [90.0,90.0,90.0]
@@ -88,7 +88,7 @@ def chi(element,h,k,l,T,Ex):
      if abs(expF) < epsFh: flagFh = 0
   #-----------------------------------------------------------------------------    
   elif element=='Ge': 
-     from carr_ge import a_carr
+     from .carr_ge import a_carr
      a=a_carr(T)
      lp = [a,a,a]
      ang = [90.0,90.0,90.0]
@@ -112,7 +112,7 @@ def chi(element,h,k,l,T,Ex):
      if abs(expF) < epsFh: flagFh = 0
   #------------------------------------------------------------------------------                             
   elif element=='Al2O3':           
-     from lucht_sph import a_lucht, c_lucht
+     from .lucht_sph import a_lucht, c_lucht
      a=a_lucht(T); c=c_lucht(T)               
      lp = [a,a,c]
      ang = [90.0,90.0,120.0]
@@ -141,7 +141,7 @@ def chi(element,h,k,l,T,Ex):
      F0 = (f00_Al+fa_Al)*expF0_Al+(f00_O+fa_O)*expF0_O
   #------------------------------------------------------------------------------------------
   elif element=='FeS2':
-     from chrystall_pyr import a_chrystall
+     from .chrystall_pyr import a_chrystall
      a=a_chrystall(T)
      lp = [a,a,a]
      ang = [90.0,90.0,90.0]
@@ -171,7 +171,7 @@ def chi(element,h,k,l,T,Ex):
      #
   #-------------------------------------------------------------------------------------------   
   elif element=='SiC-4H':           
-     from td_sic import a_SiC4H_RS, c_SiC4H_RS
+     from .td_sic import a_SiC4H_RS, c_SiC4H_RS
      a=a_SiC4H_RS(T); c=c_SiC4H_RS(T)                    
      lp = [a,a,c]
      ang = [90.0,90.0,120.0]
@@ -200,7 +200,7 @@ def chi(element,h,k,l,T,Ex):
   #-------------------------------------------------------------------------------------------   
   elif element=='SiC-6H':           
      #from springer_sic import a_SiC6H, c_SiC6H
-     from td_sic import a_SiC6H_reeber, c_SiC6H_reeber
+     from .td_sic import a_SiC6H_reeber, c_SiC6H_reeber
      a=a_SiC6H_reeber(T); c=c_SiC6H_reeber(T)               
   
      dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
@@ -236,7 +236,7 @@ def chi(element,h,k,l,T,Ex):
      F0 = (f00_Si+fa_Si)*expF0_Si+(f00_C+fa_C)*expF0_C
   #-------------------------------------------------------------------------------------------     
   elif element=='SiO2':           
-     from barron_sio2 import a_sio2, c_sio2
+     from .barron_sio2 import a_sio2, c_sio2
      a=a_sio2(T); c=c_sio2(T)               
      #
      dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
@@ -283,7 +283,7 @@ def chi(element,h,k,l,T,Ex):
      F0 = (f00_Si+fa_Si)*expF0_Si+(f00_O+fa_O)*expF0_O
   #-------------------------------------------------------------------------------------------     
   elif element=='GaN':           
-     from td_GaN import a_GaN_reeber, c_GaN_reeber
+     from .td_GaN import a_GaN_reeber, c_GaN_reeber
      a=a_GaN_reeber(T); c=c_GaN_reeber(T)
      #
      dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)
@@ -331,7 +331,7 @@ def chi(element,h,k,l,T,Ex):
      F0 = (f00_Ga+fa_Ga)*expF0_Ga + (f00_N+fa_N)*expF0_N    
   #-------------------------------------------------------------------------------------------     
   elif element=='Be':           
-     from meyerhoff_be import a_meyer, c_meyer
+     from .meyerhoff_be import a_meyer, c_meyer
      a=a_meyer(T); c=c_meyer(T)               
      #
      dh=a*c/sqrt(4.0/3.0*c**2.0*(h**2.0+k**2.0+h*k)+a**2.0*l**2.0)

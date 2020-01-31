@@ -1,5 +1,6 @@
 from pylab import *
 from constants import r2d
+r2d = 180.0/pi
 import numpy as np
 def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpos):
 ##

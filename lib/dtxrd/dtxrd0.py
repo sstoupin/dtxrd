@@ -11,9 +11,9 @@ a subroutine to calculate a set of parameters for transmitted/reflected a monoch
 '''
 
 from numpy import *
-from fh import *
-from constants import *
-from deriv import *
+from .fh import *
+from .constants import *
+from .deriv import *
 from numpy.lib import scimath as SM
 #-----------------------------------------------------------------------------------------------
 # v 0.20

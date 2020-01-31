@@ -183,17 +183,17 @@ def main():
             abs_min = im.min()
             ax=fig1.add_subplot(111)
             if cmd_opts.logp == 1:
-                    if zmin<0: vmin0=1.0e0
-                    else:      vmin0=zmin
-                    if zmax<0: vmax0=1.0e6
-                    else:      vmax0=zmax
-                    imgplot = ax.imshow(im, aspect='equal', extent=xyrange, norm=LogNorm(), vmin=vmin0, vmax=vmax0)
+                if zmin<0: vmin0=1.0e0
+                else:      vmin0=zmin
+                if zmax<0: vmax0=1.0e6
+                else:      vmax0=zmax
+                imgplot = ax.imshow(im, aspect='equal', extent=xyrange, norm=LogNorm(), vmin=vmin0, vmax=vmax0)
             else:
-		    if zmin<0: vmin0=0.0
-	            else:      vmin0=zmin
-	            if zmax<0: vmax0=abs_max
-	            else:      vmax0=zmax
-                    imgplot = ax.imshow(im, aspect='equal', extent=xyrange, vmin=vmin0, vmax=vmax0)
+                if zmin<0: vmin0=0.0
+                else:      vmin0=zmin
+                if zmax<0: vmax0=abs_max
+                else:      vmax0=zmax
+                imgplot = ax.imshow(im, aspect='equal', extent=xyrange, vmin=vmin0, vmax=vmax0)
             imgplot.set_cmap('jet')
             plt.colorbar(imgplot)
             plt.title(fn)

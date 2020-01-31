@@ -19,12 +19,12 @@ from numpy import *
 #from stoupin_c import *
 #from carr_ge import *
 #from lucht_sph import *
-from fh import *
-from dtxrd0 import *
-from dtxrd2_k import *
-from constants import *
-from curvestat import *
-from chi import *
+from .fh import *
+from .dtxrd0 import *
+from .dtxrd2_k import *
+from .constants import *
+from .curvestat import *
+from .chi import *
 #----------------------------------------------------------------------
 # Constants
 #----------------------------------------------------------------------
