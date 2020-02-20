@@ -14,7 +14,7 @@ import numpy as np
 import scipy as sp
 import operator
 import time
-
+####################################################
 # LOCAL
 #import commands
 #cmdout=commands.getstatusoutput('echo $HOME')
@@ -22,16 +22,16 @@ import time
 #cmdout=subprocess.getstatusoutput('echo $HOME')
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
-
-from numpy import *
-from pyhdf import *
-from curvestat import *
-from fit1d import *
-from myio import *
-from roll_zeropad import roll_zeropad
-from scipy.linalg import lstsq
+##
+#from numpy import *
+#from pyhdf import *
+#from curvestat import *
+#from fit1d import *
+#from myio import *
+#from roll_zeropad import roll_zeropad
+#from scipy.linalg import lstsq
 #from scipy.signal import savgol_filter
-
+###################################################
 # GLOBAL
 from dtxrd.pyhdf import *
 from dtxrd.curvestat import *
