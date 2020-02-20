@@ -23,13 +23,13 @@ import time
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
 
-#from numpy import *
-#from pyhdf import *
-#from curvestat import *
-#from fit1d import *
-#from myio import *
-#from roll_zeropad import roll_zeropad
-#from scipy.linalg import lstsq
+from numpy import *
+from pyhdf import *
+from curvestat import *
+from fit1d import *
+from myio import *
+from roll_zeropad import roll_zeropad
+from scipy.linalg import lstsq
 #from scipy.signal import savgol_filter
 
 # GLOBAL
@@ -41,7 +41,8 @@ from dtxrd.roll_zeropad import roll_zeropad
 
 #from __future__ import division
 #from matplotlib.patches import Patch
-import matplotlib.image as mpimg
+#import matplotlib.image as mpimg # drop this for PIL
+from PIL import Image
 from pylab import *
 #
 #import matplotlib.style
@@ -81,7 +82,7 @@ fwhm_r=1.5          # upper limit to plot fwhm distribution
 ftsize = 18         # figure title font size 
 ##################################################################
 
-__version__='0.04'
+__version__='0.05'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -161,6 +162,9 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 #        vandermonde/gaussian is still incompatible, no take_along_axis function 
 # v0.03  cosmetic changes to output, changes to onpick curve analysis (now shows result with bkg removed)
 # v0.04  curve statistics method using zero crossings moved to separate subroutine curvestat_
+# v0.05  cosmetic fix in returning the original command line '-r' option
+#        now using PIL for reading/writing graphic files          
+#        now can import 1-column files with '-e' option
 #############################################################################################################
 #  TODO LIST
 #############################################################################################################
@@ -218,13 +222,15 @@ def ParseArguments():
         parser.add_argument('-w', '--write', action='store', dest='write', default=None, metavar='D',
                 help='write data to file D (default: do not write) - reserved for slice data')
         parser.add_argument('--hdf5', action='store', dest='hdf5', default=None, metavar='D',
-                         help='write data to hdf5 file D (default: do not write)')                                 
+                         help='save arrays and other parameters to hdf5 metafile D (default: do not write)')
+        parser.add_argument('--tif', action='store_const', dest='tif', const=1, default=0, 
+                         help='save RC topographs as tif datafiles (default: do not save)')                                 
         parser.add_argument('-t', '--threshold', action='store', dest='tr', default=1.05, metavar='CONST',
                 help='processing threshold for reflectivity to define the boundaries of the crystal')
         parser.add_argument('-b', '--background', action='store', dest='bkg', default=-1, metavar='CONST',
                 help='manual assignment of background to a constant, typically dark current of area detector')
         parser.add_argument('-a', '--ashift', action='store', dest='ashift', default=0, metavar='CONST',
-                help='compensate beam shift in the imaging plane at a distance CONST [m] (untested option)')
+                help='compensate beam shift in the imaging plane at a distance CONST [m] (experimental option)')
         parser.add_argument('-r', '--range', action='store', dest='rng', default='-1 -1 -1 -1', metavar='STRING',
                 help='range selected for analysis STRING=\'x1 x2 y1 y2\' ')
         parser.add_argument('-x', '--xslice', action='store', dest='xsl', default=-1, metavar='CONST',
@@ -234,9 +240,9 @@ def ParseArguments():
         parser.add_argument('-n', '--name', action='store', dest='nm', default='', metavar='STRING',
                 help='sample name')
         parser.add_argument('-f', '--factor', action='store', dest='f', default=1.0, metavar='CONST',
-                help='factor*fwhm_aver defines range of colormap on peak/slope position images')
-        parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0,
-                help='expand/shrink colormap range for fwhm by this factor')
+                help='scale factor for colormap range on FWHM and STDEV topographs')
+        parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0, metavar='CONST',
+                help='scale factor for colormap range on COM, Midpoint, Left Slope and Right Slope topographs')
         parser.add_argument('-d', '--deglitch', action='store', dest='degl', default=-1.0, metavar='CONST',
                 help='deglitch data using median filtering, -d S, where S is the size of the filter window')
         parser.add_argument('-g', '--gaussian', action='store_const', const=1, dest='stat', default=0,
@@ -274,10 +280,17 @@ def main():
         fatalIOError(e)
   else:
      outFile = sys.stdout
-  
+  #################################################### 0.05 fix
   nall = len(sys.argv)-len(opts.input_files)
-  param = sys.argv[0:nall]  
-  param = ' '.join(param)
+  param0 = sys.argv[0:nall]  
+  #
+  for p,i in zip(param0,arange(0,len(param0))):
+      if p == '-r':
+          ind_r = i        
+  param1 = ' '.join(param0[0:ind_r+1])
+  param2 = ' '.join(param0[ind_r+2:])
+  param = param1 + ' '+repr(param0[ind_r+1])+' '+param2
+  ###############################################################
   #outFile.write( 'command: %s ' % param + '\n')                    
   outFile.write(prog + ' v '+__version__+'\n')
   outFile.write('range for analysis (x1 x2 y1 y2): (%s)  ' % opts.rng + '\n')
@@ -327,8 +340,10 @@ def main():
     checkext = fn_ang.split('.')
     if checkext[1] == 'asc':
         angle_v = 1.0*d2[:,1]
-    else:
-        angle_v = 1.0*d2[:,0]
+    else:  ################ v 0.05
+        if len(d2.shape) > 1: 
+          angle_v = 1.0*d2[:,0]
+        else: angle_v = array(d2)
 #---------------------------------------------------------------------------------------------  
   fn_count = 0 
   for fn in opts.input_files:   
@@ -341,14 +356,12 @@ def main():
       angle, chi, size, im = read_hdf5(fn,rbin,data_path,th_path,chi_path) 
     #  
     elif fn_ext == "tiff" or fn_ext == "tif" or fn_ext == "png" or fn_ext == "jpg" or fn_ext == "jpeg":        
-        im = mpimg.imread(fn) # read image   
+        ########################### v 0.05 update
+        im_ = Image.open(fn)
+        im = asarray(im_)        
         shape0 = im.shape
-        if len(shape0) == 2:             
-            (ny,nx) =  shape0
-            res = 1
-        elif len(shape0) == 3:
-            (ny,nx,res) = shape0
-            im = im[:,:,0] # added for Merlin        
+        (ny,nx) =  shape0
+        ########################### v 0.05 update
         chi = -9999
         angle = angle_v[fn_count]
         ######################
@@ -399,7 +412,8 @@ def main():
   elif opts.units=='um':
     th=5.86*array(th_deg)                      # th_deg in microns
   elif opts.units=='volt':
-    th=22.1388*array(th_deg)                      # th_deg in microns
+    #th=22.1388*array(th_deg)                      # th_deg in microns
+    th=26.5*array(th_deg)
   else: 
     fatalIOError("Inappropriate angular units chosen")
 
@@ -955,8 +969,8 @@ def main():
   #plt.xlabel('x [mm]')
   ax1.set_ylabel('y [mm]')
   #-----------------------------------------------------------------------------------
-  vmin0 = round(fwhm0*(1.0-mf*sf))
-  vmax0 = round(fwhm0*(1.0+mf*sf))
+  vmin0 = round(fwhm0*(1.0-sf))
+  vmax0 = round(fwhm0*(1.0+sf))
   if vmin0 < 0: vmin0 = 0
   
   ax2 = fig.add_subplot(332)
@@ -967,8 +981,8 @@ def main():
   #ax2.set_xlabel('x [mm]')
   ax2.set_ylabel('y [mm]')
   #-----------------------------------------------------------------------------------
-  vmin0 = round(stdev0*(1.0-mf*sf))
-  vmax0 = round(stdev0*(1.0+mf*sf))
+  vmin0 = round(stdev0*(1.0-sf))
+  vmax0 = round(stdev0*(1.0+sf))
   if vmin0 < 0: vmin0 = 0
     
   ax3 = fig.add_subplot(333)
@@ -980,8 +994,8 @@ def main():
   ax3.set_ylabel('y [mm]')
   #grid(True)
   #-----------------------------------------------------------------------------------
-  vmin0=round(com0-sf*fwhm0)
-  vmax0=round(com0+sf*fwhm0)
+  vmin0=round(com0-mf*fwhm0)
+  vmax0=round(com0+mf*fwhm0)
   
   ax4 = fig.add_subplot(334)
   #com_m = ma.array(com,mask=com>1.0e8)
@@ -991,8 +1005,8 @@ def main():
   #plt.xlabel('x [mm]')
   ax4.set_ylabel('y [mm]')
   #-----------------------------------------------------------------------------------
-  vmin0=round(thmid0-sf*fwhm0)
-  vmax0=round(thmid0+sf*fwhm0)
+  vmin0=round(thmid0-mf*fwhm0)
+  vmax0=round(thmid0+mf*fwhm0)
   
   ax5 = fig.add_subplot(335)
   #thmid_m = ma.array(thmid,mask=thmid>1.0e8)
@@ -1005,7 +1019,7 @@ def main():
   #ax6 = fig.add_subplot(336)
   #ax6.axis('off')
   #-----------------------------------------------------------------------------------
-  vmin0=round(thneg0-1.0*sf*fwhm0)
+  vmin0=round(thneg0-1.0*mf*fwhm0)
   vmax0=round(thmid0)
   
   ax7 = fig.add_subplot(337)
@@ -1018,7 +1032,7 @@ def main():
   #-----------------------------------------------------------------------------------  
 #  vmin0=round(com0-(sf-1.0)*fwhm0,-1)
   vmin0=round(thmid0)
-  vmax0=round(thpos0+1.0*sf*fwhm0)
+  vmax0=round(thpos0+1.0*mf*fwhm0)
   
   ax8 = fig.add_subplot(338)
   #thpos_m = ma.array(thpos,mask=thpos>1.0e8)
@@ -1114,42 +1128,90 @@ def main():
 #  plt.show()
   #####################################################################################
   # FIGURES FOR PUBLICATION/SAVE PROCESSED DATA
-  #####################################################################################
+  ##################################################################################### v 0.05 update  
+  # one and unique offset subtraction for all, let it be thmid0
+  com_exp = array(com) - thmid0   #-com0 
+  thmid_exp = array(thmid) - thmid0 #-thmid0 
+  thneg_exp = array(thneg) - thmid0  #-thneg0
+  thpos_exp = array(thpos) - thmid0  #-thpos0
+  ############################################################################################################## 
   if opts.publish==1:
     user_dir = os.getcwd()
     sys.path.append(user_dir)
     from figures import figplot        
-    com_exp = array(com)-com0
-    thmid_exp=array(thmid)-thmid0
-    thneg_exp=array(thneg)-thneg0
-    thpos_exp=array(thpos)-thpos0
-    #figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,thmid_exp,fwhm,peak)
     figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com_exp,thmid_exp,thneg_exp,thpos_exp)
     sys.path.pop()
-
+  ############################################################################################################## 
   if opts.hdf5 is not None:
-    com_exp = array(com)-com0
-    thmid_exp=array(thmid)-thmid0
-    thneg_exp=array(thneg)-thneg0
-    thpos_exp=array(thpos)-thpos0
-    #
     hf = h5py.File(opts.hdf5, 'w')
     hf.attrs['cmd'] = param
-    hf.create_dataset('dx',data = dx)
-    hf.create_dataset('dy',data = dy)
-    hf.create_dataset('indx1',data = indx1)
-    hf.create_dataset('indx2',data = indx2)
-    hf.create_dataset('indy1',data = indy1)
-    hf.create_dataset('indy2',data = indy2)
-    hf.create_dataset('peak',data=array(peak))
-    hf.create_dataset('fwhm',data=array(fwhm))
-    hf.create_dataset('stdev',data=array(stdev))
-    hf.create_dataset('com',data=array(com_exp))
-    hf.create_dataset('thmid',data=array(thmid_exp))
-    hf.create_dataset('thneg',data=array(thneg_exp))
-    hf.create_dataset('thpos',data=array(thpos_exp))
+    g1 = hf.create_group("/parameters")    
+    g1.create_dataset('dx',data = dx)
+    g1.create_dataset('dy',data = dy)
+    g1.create_dataset('indx1',data = indx1)
+    g1.create_dataset('indx2',data = indx2)
+    g1.create_dataset('indy1',data = indy1)
+    g1.create_dataset('indy2',data = indy2)
+    #-------------------------------------------------------------------------------
+    g2 = hf.create_group("/topographs")
+    g2.create_dataset('peak',  data=array(peak),  shape=peak.shape,  dtype=float32)
+    g2.create_dataset('fwhm',  data=array(fwhm),  shape=fwhm.shape,  dtype=float32)
+    g2.create_dataset('stdev', data=array(stdev), shape=stdev.shape, dtype=float32)
+    g2.create_dataset('com',   data=array(com),   shape=com.shape,   dtype=float32)
+    g2.create_dataset('thmid', data=array(thmid), shape=thmid.shape, dtype=float32)
+    g2.create_dataset('thneg', data=array(thneg), shape=thneg.shape, dtype=float32)
+    g2.create_dataset('thpos', data=array(thpos), shape=thpos.shape, dtype=float32)
+    #--------------------------------------------------------------------------------
+    g3 = hf.create_group("/statistics")
+    g3.create_dataset('peak0',     data=peak0)
+    g3.create_dataset('peak_rms',  data=peak_rms)
+    g3.create_dataset('peak_pv',   data=peak_pv)
+    g3.create_dataset('fwhm0',     data=fwhm0)
+    g3.create_dataset('fwhm_rms',  data=fwhm_rms)
+    g3.create_dataset('fwhm_pv',   data=fwhm_pv)
+    g3.create_dataset('stdev0',    data=stdev0)
+    g3.create_dataset('stdev_rms', data=stdev_rms)
+    g3.create_dataset('stdev_pv',  data=stdev_pv)
+    g3.create_dataset('com0',      data=com0)
+    g3.create_dataset('com_rms',   data=com_rms)
+    g3.create_dataset('com_pv',    data=com_pv)
+    g3.create_dataset('thmid0',    data=thmid0)
+    g3.create_dataset('thmid_rms', data=thmid_rms)
+    g3.create_dataset('thmid_pv',  data=thmid_pv)
+    g3.create_dataset('thneg0',    data=thneg0)
+    g3.create_dataset('thneg_rms', data=thneg_rms)
+    g3.create_dataset('thneg_pv',  data=thneg_pv)
+    g3.create_dataset('thpos0',    data=thpos0)
+    g3.create_dataset('thpos_rms', data=thpos_rms)
+    g3.create_dataset('thpos_pv',  data=thpos_pv)
+    #---------------------------------------------------------------------------------
+    g4 = hf.create_group("/statistics_tot")
+    g4.create_dataset('peak_tot',  data=peak_tot)
+    g4.create_dataset('fwhm_tot',  data=fwhm_tot)
+    g4.create_dataset('stdev_tot', data=stdev_tot)
+    g4.create_dataset('com_tot',  data=com_tot)
+    g4.create_dataset('thmid_tot',  data=thmid_tot)
+    g4.create_dataset('thneg_tot',  data=thneg_tot)
+    g4.create_dataset('thpos_tot',  data=thpos_tot)
+    #----------------------------------------------------------------------------------    
     hf.close()
-########################################################################################
+  if opts.tif == 1:
+    im = Image.fromarray(peak)
+    im.save('peak.tif')
+    im = Image.fromarray(fwhm)
+    im.save('fwhm.tif')
+    im = Image.fromarray(stdev)
+    im.save('stdev.tif')
+    im = Image.fromarray(com)
+    im.save('com.tif')
+    im = Image.fromarray(thmid)
+    im.save('thmid.tif')
+    im = Image.fromarray(thneg)
+    im.save('thneg.tif')
+    im = Image.fromarray(thpos)
+    im.save('thpos.tif')    
+    ###### v 0.05 end update ###########################################################
+######################################################################################## 
 ## PLOT SLICES AND WRITE FILE
 ########################################################################################
                  
