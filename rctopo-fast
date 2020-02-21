@@ -14,15 +14,9 @@ import numpy as np
 import scipy as sp
 import operator
 import time
-####################################################
+
+#################################################
 # LOCAL
-#import commands
-#cmdout=commands.getstatusoutput('echo $HOME')
-#import subprocess
-#cmdout=subprocess.getstatusoutput('echo $HOME')
-#libpath=cmdout[1]+'/bin/DTXRD/'
-#sys.path.append(libpath)
-##
 #from numpy import *
 #from pyhdf import *
 #from curvestat import *
@@ -30,8 +24,7 @@ import time
 #from myio import *
 #from roll_zeropad import roll_zeropad
 #from scipy.linalg import lstsq
-#from scipy.signal import savgol_filter
-###################################################
+#################################################
 # GLOBAL
 from dtxrd.pyhdf import *
 from dtxrd.curvestat import *
@@ -82,7 +75,7 @@ fwhm_r=1.5          # upper limit to plot fwhm distribution
 ftsize = 18         # figure title font size 
 ##################################################################
 
-__version__='0.05'
+__version__='0.06'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -165,6 +158,8 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 # v0.05  cosmetic fix in returning the original command line '-r' option
 #        now using PIL for reading/writing graphic files          
 #        now can import 1-column files with '-e' option
+# v0.06  switch data - > data1 for onclick, del data (once range of interest is extracted)
+#        fix bug with param for when '-r' is not specified 
 #############################################################################################################
 #  TODO LIST
 #############################################################################################################
@@ -283,13 +278,15 @@ def main():
   #################################################### 0.05 fix
   nall = len(sys.argv)-len(opts.input_files)
   param0 = sys.argv[0:nall]  
-  #
-  for p,i in zip(param0,arange(0,len(param0))):
+  if opts.rng == '-1 -1 -1 -1':
+    param = ' '.join(param0)
+  else: 
+    for p,i in zip(param0,arange(0,len(param0))):
       if p == '-r':
-          ind_r = i        
-  param1 = ' '.join(param0[0:ind_r+1])
-  param2 = ' '.join(param0[ind_r+2:])
-  param = param1 + ' '+repr(param0[ind_r+1])+' '+param2
+        ind_r = i        
+    param1 = ' '.join(param0[0:ind_r+1])
+    param2 = ' '.join(param0[ind_r+2:])
+    param = param1 + ' '+repr(param0[ind_r+1])+' '+param2
   ###############################################################
   #outFile.write( 'command: %s ' % param + '\n')                    
   outFile.write(prog + ' v '+__version__+'\n')
@@ -340,10 +337,8 @@ def main():
     checkext = fn_ang.split('.')
     if checkext[1] == 'asc':
         angle_v = 1.0*d2[:,1]
-    else:  ################ v 0.05
-        if len(d2.shape) > 1: 
-          angle_v = 1.0*d2[:,0]
-        else: angle_v = array(d2)
+    else: 
+        angle_v = 1.0*d2[:,0] # works with 1-column data, tested
 #---------------------------------------------------------------------------------------------  
   fn_count = 0 
   for fn in opts.input_files:   
@@ -358,7 +353,7 @@ def main():
     elif fn_ext == "tiff" or fn_ext == "tif" or fn_ext == "png" or fn_ext == "jpg" or fn_ext == "jpeg":        
         ########################### v 0.05 update
         im_ = Image.open(fn)
-        im = asarray(im_)        
+        im = np.asarray(im_,dtype=float32)        
         shape0 = im.shape
         (ny,nx) =  shape0
         ########################### v 0.05 update
@@ -415,7 +410,7 @@ def main():
     #th=22.1388*array(th_deg)                      # th_deg in microns
     th=26.5*array(th_deg)
   else: 
-    fatalIOError("Inappropriate angular units chosen")
+    fatalIOError("Unknown angular units chosen")
 
 ################################################################################
 ## theta origin is defined here as the center of the angular range in the scan 
@@ -443,7 +438,8 @@ def main():
         #sarray = roll(x[1],-rind,axis=0)
         sarray = roll_zeropad(x[1],-rind,axis=0)        
         data = data +[sarray]                                                 
-  data=array(data); #print data
+  data=np.asarray(data,dtype=float32); #print data
+  del alldata
 ####################################################
   print("size of rebinned data ", data.shape)  
 ####################################################
@@ -500,7 +496,7 @@ def main():
   timing_start = time.time()
   # limit array size to that of ROI:
   data1 = data[:,yrange[0]:yrange[-1]+1,xrange[0]:xrange[-1]+1]
-  #data1 = data1.astype(float32) redundant after setting float32 in pyhdf.py
+  del data
   const = ones(data1.shape[0],dtype=float32) # this is ones along 0 dimension of 3D data array
   print("shape data1", data1.shape)
   ### deglitching using median filter #######################################
@@ -1067,15 +1063,15 @@ def main():
       print('--------------------------------------------------------------------------') 
       print('Local RC:')  
       print('onpick coordinates (X,Y): (%.3f, %.3f)' % xydata)
-      idx = nx-int(ceil(xdata/dx))  # ceil works best, still needs further testing
-      idy = ny-int(ceil(ydata/dy))  # ceil works best, still needs further testing 
+      idx = nx-int(ceil(xdata/dx)) - nnx1  # ceil works best, still needs further testing
+      idy = ny-int(ceil(ydata/dy)) - nny1  # ceil works best, still needs further testing 
       print('onpick indicies (Ix,Iy):', (idx,idy))
       #----------------------------------------------
       # plot local rocking curve
       #----------------------------------------------
       mpl.rcParams.update({'font.size': 12})
       fig=plt.figure(figsize=(8.0,7.0))
-      rcurve00=data[:,idy,idx]
+      rcurve00=data1[:,idy,idx]
       b00=0.25*(rcurve00[0]+rcurve00[1]+rcurve00[-2]+rcurve00[-1])
       print('bkg (from tails) = %f' % b00)
       if opts.conduct == 1:

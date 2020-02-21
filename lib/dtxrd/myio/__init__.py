@@ -80,7 +80,7 @@ def readFile(fileName):
             break
         else:
             line1=line.split()
-            if line1!=[] and len(line1)>1: data=data+[line1] 
+            if line1!=[] and len(line1)>0: data=data+[line1] 
     
     input.close()                    
     data2=array(data, dtype=float)                
@@ -106,7 +106,7 @@ def readFile1(fileName):
             break
         else:
             line1=line.split()
-            if line1!=[] and len(line1)>1: data=data+[line1] 
+            if line1!=[] and len(line1)>0: data=data+[line1] 
     
     input.close()                    
     data2=array(data, dtype=float)                
