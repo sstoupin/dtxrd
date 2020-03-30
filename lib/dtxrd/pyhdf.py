@@ -6,6 +6,7 @@
 
 import os
 import h5py
+from PIL import Image
 from numpy import *
 
 def read_hdf4(fileName):
@@ -51,8 +52,8 @@ def read_hdf4(fileName):
     #########################################################################
     # dx, dy = 0.06, 0.06  # pixel size [mm]
     #########################################################################
-    im=array(data2, dtype=float) 
-    #print im.dtype
+    im=array(data2, dtype=float)  # takes longer if float32 used!!!
+    #print(im.dtype)
     im = flipud(im)
  
     return [th,[nx,ny],im]
@@ -78,7 +79,7 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
     #image_data = image_data.filled(image_data.min())                                              
     #im = ds.value
     im = ds[()]
-    im = array(im, dtype=float)    
+    im = array(im, dtype=float32)  #float32 - about the same time as float64 with both rctopo and rctopo-fast
     shape0 = ds.shape
     if len(shape0) == 3:
         im=im[0]    
@@ -123,3 +124,16 @@ def read_hdf5(fileName,rbin,data_path,th_path,chi_path):
     hdf5.close()                     
     return [th,chi,[nx,ny],im]
     
+def read_img(fn,rbin):
+    im_ = Image.open(fn)   # PIL automatically closes images - found online
+    im = asarray(im_,dtype=float32)
+    shape0 = im.shape
+    (ny,nx) =  shape0
+    ## REBIN #############
+    shape1 = (ny//rbin,nx//rbin)
+    im = rebin(im,shape1)        
+    (ny,nx) = shape1
+    size = [ny,nx]        
+    im = transpose(im)
+    #
+    return [size,im]

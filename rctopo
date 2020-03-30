@@ -22,12 +22,12 @@ import time
 #libpath=cmdout[1]+'/bin/DTXRD/'
 #sys.path.append(libpath)
 
-#from numpy import *
-#from pyhdf import *
-#from curvestat import *
-#from fit1d import *
-#from myio import *
-#from roll_zeropad import roll_zeropad
+from numpy import *
+from pyhdf import *
+from curvestat import *
+from fit1d import *
+from myio import *
+from roll_zeropad import roll_zeropad
 
 # GLOBAL
 from dtxrd.pyhdf import *
@@ -40,6 +40,7 @@ from dtxrd.roll_zeropad import roll_zeropad
 #from matplotlib.patches import Patch
 import matplotlib.image as mpimg
 from pylab import *
+from PIL import Image
 #
 #import matplotlib.style
 #import matplotlib.pyplot as plt
@@ -73,12 +74,10 @@ mpl.rcParams["savefig.directory"] = os.chdir(user_dir)
 ## fixed constants
 ##################################################################
 r2d=180.0/pi
-fwhm_l=0.5          # lower fract. limit to plot fwhm distrib
-fwhm_r=1.5          # upper limit to plot fwhm distribution
 ftsize = 18         # figure title font size 
 ##################################################################
 
-__version__='0.93'
+__version__='0.94'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -152,12 +151,18 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 # v091   began attempt to onclick local rocking curve
 # v092   finalize onclick - now working
 # v093   now deglitching with medfilt
+# v094   changes to colorbar scaling to make compatible with rctopo-new/fast
+#        fix analysis of the total RC
+#        saving .h5 and .tif in the same format like rctopo-fast
 #######################################################################################
 #  TODO LIST
 #######################################################################################
-# 0. improve comput. speed?
+# 0. improve comput. speed? ADDRESSED by rctopo-fast
 # 1. need mouse click access to each point on the maps - done v 0.92
 # 2. figure out how to handle image rotations (reference)
+# 3. presentation of Gaussian fit STDEV, COM ???
+# 4. saving TIF
+# 5. improve saving HDF5
 ####################################################################################### 
 
 def residuals(p,y,x):
@@ -188,14 +193,15 @@ def ParseArguments():
         #VERSION = '%prog ' + __version__ + ', by Stanislav Stoupin <sstoupin@aps.anl.gov>\n' 
         #parser = OptionParser(usage=USAGE, version=VERSION)                        
         parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
-        parser.add_argument('-v', '--version', action='version', version=__version__)
-        
+        parser.add_argument('-v', '--version', action='version', version=__version__)        
         parser.add_argument('-o', '--output', action='store', dest='output', default=None, metavar='F',
                 help='write calculated parameters to file F (defaults to stdout); also, write output for 1pix_total.dat')
         parser.add_argument('-w', '--write', action='store', dest='write', default=None, metavar='D',
                 help='write data to file D (default: do not write) - reserved for slice data')
         parser.add_argument('--hdf5', action='store', dest='hdf5', default=None, metavar='D',
-                         help='write data to hdf5 file D (default: do not write)')                                 
+                         help='write data to hdf5 file D (default: do not write)')  
+        parser.add_argument('--tif', action='store_const', dest='tif', const=1, default=0, 
+                         help='save RC topographs as tif datafiles (default: do not save)')                                       
         parser.add_argument('-t', '--threshold', action='store', dest='tr', default=1.05, metavar='CONST',
                 help='processing threshold for reflectivity to define the boundaries of the crystal')
         parser.add_argument('-b', '--background', action='store', dest='bkg', default=-1, metavar='CONST',
@@ -209,11 +215,13 @@ def ParseArguments():
         parser.add_argument('-y', '--yslice', action='store', dest='ysl', default=-1, metavar='CONST',
                 help='slice and plot distribution at a fixed coordinate Y')
         parser.add_argument('-n', '--name', action='store', dest='nm', default='', metavar='STRING',
-                help='sample name')
+                help='sample name')        
+        #        help='factor*fwhm_aver defines range of colormap on peak/slope position images')
+        #        help='expand/shrink colormap range for fwhm by this factor')
         parser.add_argument('-f', '--factor', action='store', dest='f', default=1.0, metavar='CONST',
-                help='factor*fwhm_aver defines range of colormap on peak/slope position images')
-        parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0,
-                help='expand/shrink colormap range for fwhm by this factor')
+                help='scale factor for colormap range on FWHM and STDEV topographs')
+        parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0, metavar='CONST',
+                help='scale factor for colormap range on COM, Midpoint, Left Slope and Right Slope topographs')                        
         parser.add_argument('-d', '--deglitch', action='store', dest='degl', default=-1.0, metavar='CONST',
                 help='deglitch data using median filtering, -d S, where S is the size of the filter window')
         parser.add_argument('-g', '--gaussian', action='store_const', const=1, dest='stat', default=0,
@@ -367,7 +375,8 @@ def main():
   elif opts.units=='um':
     th=5.86*array(th_deg)                      # th_deg in microns
   elif opts.units=='volt':
-    th=22.1388*array(th_deg)                      # th_deg in microns
+    #th=22.1388*array(th_deg)                      # th_deg in microns
+    th=26.5*array(th_deg)
   else: 
     fatalIOError("Inappropriate angular units chosen")
 
@@ -588,18 +597,14 @@ def main():
           else:
               try: 
                 stat=curvestat(th-th0,rcurve,bkgs)
-                #print 'stat4 =' , stat[4]
-                #print 'stat5 = ', stat[5]
-                #print 'stat6 = ', stat[6]
-                #print 'stat7 = ', stat[7]
+                #
                 if opts.conduct == 0:
                   crit2 = abs(stat[1]-bkgs) < dyn_range*bkg0 and abs(stat[6]) < 0.5*abs(th_end-th_beg) and abs(stat[5]) < abs(th_end-th_beg)
                 if opts.conduct == 1:
                   crit2 = abs(stat[1]-bkgs) < dyn_range*bkg0 and abs(stat[1])>tr*bkg and abs(stat[6]) < 0.5*abs(th_end-th_beg) and abs(stat[5]) < abs(th_end-th_beg)
                 #
                 if crit2 == True:
-                  fwhm[i,j]=stat[5];         fwhm1=fwhm1+[fwhm[i,j]]
-                  
+                  fwhm[i,j]=stat[5];         fwhm1=fwhm1+[fwhm[i,j]]                  
                   if zf == 0:
                       if opts.conduct == 0:   peak[i,j]=stat[1]-bkgs   #RC
                       elif opts.conduct == 1: peak[i,j]=stat[1]/bkg    #TC
@@ -608,15 +613,13 @@ def main():
                       elif opts.conduct == 1: peak[i,j]=stat[8]/abs(zf)/bkg   
                   else: 
                       peak[i,j]=stat[1]/abs(zf)
-                      #if opts.conduct == 0:   peak[i,j]=stat[1]/abs(zf)   #RC
-                      #elif opts.conduct == 1: peak[i,j]=stat[1]/abs(zf)   #TC
                       #                                            
-                  peak1=peak1+[peak[i,j]]    # peak intensity                 
-                  thmid[i,j]=stat[4];        thmid1=thmid1+[thmid[i,j]]
-                  com[i,j]=stat[6];          com1=com1+[com[i,j]]
+                  peak1=peak1+[peak[i,j]]         # peak intensity                 
+                  thmid[i,j]=stat[4];             thmid1=thmid1+[thmid[i,j]]
+                  com[i,j]=stat[6];               com1=com1+[com[i,j]]
                   stdev[i,j]=sqrt(abs(stat[7]));  stdev1=stdev1+[stdev[i,j]]  # variance to standard deviation
-                  thneg[i,j]=stat[2];        thneg1=thneg1+[thneg[i,j]]
-                  thpos[i,j]=stat[3];        thpos1=thpos1+[thpos[i,j]]
+                  thneg[i,j]=stat[2];             thneg1=thneg1+[thneg[i,j]]
+                  thpos[i,j]=stat[3];             thpos1=thpos1+[thpos[i,j]]
                 else:
                   fwhm[i,j]=1e9
                   peak[i,j]=1e9
@@ -625,17 +628,6 @@ def main():
                   thneg[i,j]=1e9
                   thpos[i,j]=1e9
                   stdev[i,j]=1e9                                                            
-####################################################################
-## Testing
-####################################################################
-#                if com[i,j] > 0:
-#                  print "flag!", i, j
-                  #com[i,j]=-1e3                  
-#                if (i==xi) and (j==yi):
-#                    print "fwhm check", fwhm[i,j]
-#                    print "com check", com[i,j]
-####################################################################            
-
               except UnboundLocalError:
                 fwhm[i,j]=1e9
                 peak[i,j]=1e9
@@ -655,9 +647,6 @@ def main():
         stdev[i,j]=1e9
 
   print("DIAGNOSTIC: double for loop complete in %f seconds" % (time.time() - timing_start))            
-#  norm=peak.max() 
-#  print "blah"
-#  print peak1
   norm=max(peak1)  
   print("norm = ", norm)
 
@@ -724,18 +713,19 @@ def main():
   print('bkg_tot = %f ' % bkg_tot)
   stat=curvestat(th-th0,trcurve,bkg_tot)
   #
-  fwhm_tot=stat[5]
-  out = out + "fwhm_tot = %f " % fwhm_tot +" urad\n"
+  fwhm_tot=stat[5];                 out = out + "FWHM_tot = %f " % fwhm_tot +" urad\n"
+  stdev_tot=sqrt(abs(stat[7]));     out = out + "STDEV_tot = %f " % stdev_tot +" urad\n"
   #
-  if opts.z == 0:
-      peak_tot=stat[1]-bkg_tot
-  else:
-      peak_tot=stat[8]/abs(zf)
-  out = out + "peak_tot = %f " % peak_tot +"\n"
-  #                                            
+  if zf == 0:     
+      peak_tot = (stat[1] - bkg_tot)/norm
+  elif zf == -1:  
+      peak_tot = stat[8]/norm
+  else:               
+      peak_tot = (stat[1] - bkg_tot)/abs(zf)
+  out = out + "Intens_tot = %f " % peak_tot +"\n"
+  #
+  com_tot=stat[6];                  out = out + "COM_tot = %f "   % com_tot +" urad\n"                                            
   thmid_tot=stat[4];                out = out + "thmid_tot = %f " % thmid_tot +" urad\n"   
-  com_tot=stat[6];                  out = out + "com_tot = %f "   % com_tot +" urad\n"
-  stdev_tot=sqrt(abs(stat[7]));     out = out + "stdev_tot = %f " % stdev_tot +" urad\n"
   thneg_tot=stat[2];                out = out + "thneg_tot = %f " % thneg_tot +" urad\n"
   thpos_tot=stat[3];                out = out + "thpos_tot = %f " % thpos_tot +" urad\n"
   # substract background from the total curve for plotting and output:
@@ -751,15 +741,6 @@ def main():
   outFile.write('threshold = '+str(tr)+'\n')        
   outFile.write('-----------------Statistics---------------------------------------------\n')
   outFile.write(out)
-  
-  #if opts.output is not None:
-  #   outFile.write('-----------------Map of the selected range------------------------------------------\n')
-  #
-  #   for j in yrange:
-  #     for i in xrange:
-  #        outFile.write(str(i*dx)+' '+str(j*dy)+' '+str(peak[i,j])+' '+str(fwhm[i,j])+' ' \
-  #        +str(com[i,j])+' '+str(thmid[i,j])+' '+str(thneg[i,j])+' '+str(thpos[i,j])+'\n')
-  
   outFile.close
     
   if opts.output is not None:
@@ -775,23 +756,6 @@ def main():
   # same for x since it was found that the image has to be reversed in x direction
   # note that for x fliplr is applied later while for y imshow origin='upper'
 
-  # do stuff to display right
-#  fwhm=flipud(fwhm)
-#  peak=flipud(peak)
-#  thmid=flipud(thmid)
-#  com=flipud(com)
-#  thneg=flipud(thneg)
-#  thpos=flipud(thpos) 
-
-#  fwhm=fliplr(fwhm)
-#  peak=fliplr(peak)
-#  thmid=fliplr(thmid)
-#  com=fliplr(com)
-#  thneg=fliplr(thneg)
-#  thpos=fliplr(thpos) 
-
-#      nnx1=indx1; nnx2=indx2
-#      nny1=indy1; nny2=indy2
   nnx1=nx-indx2; nnx2=nx-indx1
   nny1=ny-indy2; nny2=ny-indy1
                 
@@ -853,7 +817,6 @@ def main():
   thpos=fliplr(thpos)
   xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # for some reason the arrays should be transposed   
   #
-  #      
   if ysl >=0 or xsl >=0: 
       peak_sl=peak_sl[::-1]
       fwhm_sl=fwhm_sl[::-1]
@@ -866,31 +829,27 @@ def main():
 ## NOW PLOT EVERYTHING
 ###################################################################################
   fig=plt.figure(figsize=(22.0,12.2))
-  if opts.stat==1:
-    sbtitle='Gaussian curve fitting.'
-  else:
-    sbtitle='No curve fitting.'
-    
+  if opts.stat==1: sbtitle='Gaussian curve fitting.'
+  else:            sbtitle='No curve fitting.'
+  #    
   sbtitle='Rocking curve topographs: '+sbtitle
-        
+  # Sample name      
   if opts.nm != '':
     sbtitle=sbtitle+' Sample: '+opts.nm  #+'\n' + param  
   plt.suptitle(sbtitle, size=ftsize)  
-  
-  #plt.gca().set_position((.1, .1, .1, .1)) # used to be here - now producing weird empty subplot - actually not needed
   plt.figtext(0.1,0.025,param)
-  
+  #------------------------------------------------------------------------------------------------------------------------------------
   ax1 = fig.add_subplot(331)
   peak_m = ma.array(peak,mask=peak>1.0e8/norm)
   if zf == 0:
       imgplot = ax1.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-      if opts.conduct == 0:   ax1.set_title('Peak Reflectivity [n.u.]',size=ftsize)
-      elif opts.conduct == 1: ax1.set_title('Peak Reflectivity [abs.u.]',size=ftsize)   # because this is absolute reflectivity!!!
+      if opts.conduct == 0:   ax1.set_title('Peak Intens. [n.u.]',size=ftsize)
+      elif opts.conduct == 1: ax1.set_title('Peak Intens. [abs.u.]',size=ftsize)   # because this is absolute reflectivity!!!
       fig.colorbar(imgplot, ax=ax1)
   elif zf == -1:
      imgplot = ax1.imshow(peak_m, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-     if opts.conduct == 0:    ax1.set_title('Integrated Refl. [n.u.]',size=ftsize)
-     elif opts.conduct == 1:  ax1.set_title('Integrated Refl. [n.u.]',size=ftsize)
+     if opts.conduct == 0:    ax1.set_title('Integrated Intens. [n.u.]',size=ftsize)
+     elif opts.conduct == 1:  ax1.set_title('Integrated Intens. [n.u.]',size=ftsize)
      fig.colorbar(imgplot, ax=ax1)      
   else: 
       if opts.conduct == 0:   
@@ -914,8 +873,10 @@ def main():
 
 #  vmin0=round(fwhm_l*fwhm0,-1)
 #  vmax0=round(fwhm_r*fwhm0,-1)
-  vmin0=round(fwhm0*(1.0-mf*sf))
-  vmax0=round(fwhm0*(1.0+mf*sf))
+#  vmin0=round(fwhm0*(1.0-mf*sf))
+#  vmax0=round(fwhm0*(1.0+mf*sf))
+  vmin0=round(fwhm0*(1.0-sf)) # get rid of mf here to make scaling compatible with rctopo-new/fast
+  vmax0=round(fwhm0*(1.0+sf))
   if vmin0 < 0: vmin0 = 0
   
   ax2 = fig.add_subplot(332)
@@ -926,8 +887,10 @@ def main():
   #ax2.set_xlabel('x [mm]')
   ax2.set_ylabel('y [mm]')
 
-  vmin0=round(stdev0*(1.0-mf*sf))
-  vmax0=round(stdev0*(1.0+mf*sf))
+  #vmin0=round(stdev0*(1.0-mf*sf))
+  #vmax0=round(stdev0*(1.0+mf*sf))
+  vmin0=round(stdev0*(1.0-sf)) # get rid of mf here to make scaling compatible with rctopo-new/fast
+  vmax0=round(stdev0*(1.0+sf))
   if vmin0 < 0: vmin0 = 0
     
   ax3 = fig.add_subplot(333)
@@ -939,8 +902,10 @@ def main():
   ax3.set_ylabel('y [mm]')
   #grid(True)
 
-  vmin0=round(com0-sf*fwhm0)
-  vmax0=round(com0+sf*fwhm0)
+  #vmin0=round(com0-sf*fwhm0)
+  #vmax0=round(com0+sf*fwhm0)
+  vmin0=round(com0-mf*fwhm0) # colorbars for angular characteristics are scaling with mf
+  vmax0=round(com0+mf*fwhm0)
   
   ax4 = fig.add_subplot(334)
   com_m = ma.array(com,mask=com>1.0e8)
@@ -950,9 +915,11 @@ def main():
   #plt.xlabel('x [mm]')
   ax4.set_ylabel('y [mm]')
 
-  vmin0=round(thmid0-sf*fwhm0)
-  vmax0=round(thmid0+sf*fwhm0)
-  
+  #vmin0=round(thmid0-sf*fwhm0)
+  #vmax0=round(thmid0+sf*fwhm0)
+  vmin0=round(thmid0-mf*fwhm0)  # colorbars for angular characteristics are scaling with mf
+  vmax0=round(thmid0+mf*fwhm0)
+
   ax5 = fig.add_subplot(335)
   thmid_m = ma.array(thmid,mask=thmid>1.0e8)
   imgplot = plt.imshow(thmid_m, aspect='auto', extent=xyrange, vmin=vmin0, vmax=vmax0) #vmin=thmid.min(),vmax=thmid.max())
@@ -964,7 +931,8 @@ def main():
   #ax6 = fig.add_subplot(336)
   #ax6.axis('off')
 
-  vmin0=round(thneg0-1.0*sf*fwhm0)
+  #vmin0=round(thneg0-1.0*sf*fwhm0)
+  vmin0=round(thneg0-1.0*mf*fwhm0)
   vmax0=round(thmid0)
   
   ax7 = fig.add_subplot(337)
@@ -977,7 +945,8 @@ def main():
   
 #  vmin0=round(com0-(sf-1.0)*fwhm0,-1)
   vmin0=round(thmid0)
-  vmax0=round(thpos0+1.0*sf*fwhm0)
+  #vmax0=round(thpos0+1.0*sf*fwhm0)
+  vmax0=round(thpos0+1.0*mf*fwhm0)
   
   ax8 = fig.add_subplot(338)
   thpos_m = ma.array(thpos,mask=thpos>1.0e8)
@@ -987,15 +956,7 @@ def main():
   ax8.set_xlabel('x [mm]')
   ax8.set_ylabel('y [mm]')
 
-  #plt.subplot(333) 
-  #axis('off')
-  #plt.title('Crystal orientation')
-  #plt.annotate('vertical', xy=(0.5,1.0), xytext=(0.5,0.0),
-  #            arrowprops=dict(facecolor='black', shrink=0.05),
-  #                        )
-  #plt.annotate('horizontal', xy=(1.0,0.5), xytext=(0.0,0.5),
-  #            arrowprops=dict(facecolor='black', shrink=0.05),
-  ##                        )
+  ##                       
   ax9 = fig.add_subplot(339)
   ax9.axis('off')
   ax9.text(0,-0.2,out,size=13)  
@@ -1076,61 +1037,120 @@ def main():
   ################################
 #  thc=59.84
 #  dx1=dx/sin(thc/r2d)
-  if opts.output is not None:
-    com_exp=array(com) #-com0    
-    #        
-    outfile1 = open('com.dat', 'w') 
-    outfile2 = open('fwhm.dat', 'w')
-    outfile3 = open('com1.dat', 'w')
-    scom=shape(com_exp) #print "scom =", scom
-#    sfwhm=shape(fwhm)    
-    for i in range(0,scom[0],1):
-      for j in range(0,scom[1],1):
-        outfile1.write(str(i*dx)+' '+str(j*dy)+' '+str(com_exp[i,scom[1]-1-j])+'\n')  
-        outfile2.write(str(i*dx)+' '+str(j*dy)+' '+str(fwhm[i,scom[1]-1-j])+'\n')        
-    
-    for x in com1:
-        outfile3.write(str(x)+'\n')    
-    outfile1.close
-    outfile2.close
-    outfile3.close
+#  if opts.output is not None:
+#    com_exp=array(com) #-com0    
+#    #        
+#    outfile1 = open('com.dat', 'w') 
+#    outfile2 = open('fwhm.dat', 'w')
+#    outfile3 = open('com1.dat', 'w')
+#    scom=shape(com_exp) #print "scom =", scom
+#    for i in range(0,scom[0],1):
+#      for j in range(0,scom[1],1):
+#        outfile1.write(str(i*dx)+' '+str(j*dy)+' '+str(com_exp[i,scom[1]-1-j])+'\n')  
+#        outfile2.write(str(i*dx)+' '+str(j*dy)+' '+str(fwhm[i,scom[1]-1-j])+'\n')        
+#    
+#    for x in com1:
+#        outfile3.write(str(x)+'\n')    
+#    outfile1.close
+#    outfile2.close
+#    outfile3.close
   #####################################################################################
-  # FIGURES FOR PUBLICATION
+  # FIGURES FOR PUBLICATION/SAVE PROCESSED DATA
   #####################################################################################
+  com_exp = array(com)-com0
+  thmid_exp=array(thmid)-thmid0
+  thneg_exp=array(thneg)-thneg0
+  thpos_exp=array(thpos)-thpos0
+  #--------------------------------------------------------------------------------------------------------------
   if opts.publish==1:
     user_dir = os.getcwd()
     sys.path.append(user_dir)
     from figures import figplot        
-    com_exp = array(com)-com0
-    thmid_exp=array(thmid)-thmid0
-    thneg_exp=array(thneg)-thneg0
-    thpos_exp=array(thpos)-thpos0
     #figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,thmid_exp,fwhm,peak)
     figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com_exp,thmid_exp,thneg_exp,thpos_exp)
     sys.path.pop()
-
+  ################################################################################################################
   if opts.hdf5 is not None:
-    com_exp = array(com)-com0
-    thmid_exp=array(thmid)-thmid0
-    thneg_exp=array(thneg)-thneg0
-    thpos_exp=array(thpos)-thpos0
-    #
     hf = h5py.File(opts.hdf5, 'w')
     hf.attrs['cmd'] = param
-    hf.create_dataset('dx',data = dx)
-    hf.create_dataset('dy',data = dy)
-    hf.create_dataset('indx1',data = indx1)
-    hf.create_dataset('indx2',data = indx2)
-    hf.create_dataset('indy1',data = indy1)
-    hf.create_dataset('indy2',data = indy2)
-    hf.create_dataset('peak',data=array(peak))
-    hf.create_dataset('fwhm',data=array(fwhm))
-    hf.create_dataset('stdev',data=array(stdev))
-    hf.create_dataset('com',data=array(com_exp))
-    hf.create_dataset('thmid',data=array(thmid_exp))
-    hf.create_dataset('thneg',data=array(thneg_exp))
-    hf.create_dataset('thpos',data=array(thpos_exp))
+    #hf.create_dataset('dx',data = dx)
+    #hf.create_dataset('dy',data = dy)
+    #hf.create_dataset('indx1',data = indx1)
+    #hf.create_dataset('indx2',data = indx2)
+    #hf.create_dataset('indy1',data = indy1)
+    #hf.create_dataset('indy2',data = indy2)
+    #hf.create_dataset('peak',data=array(peak))
+    #hf.create_dataset('fwhm',data=array(fwhm))
+    #hf.create_dataset('stdev',data=array(stdev))
+    #hf.create_dataset('com',data=array(com_exp))
+    #hf.create_dataset('thmid',data=array(thmid_exp))
+    #hf.create_dataset('thneg',data=array(thneg_exp))
+    #hf.create_dataset('thpos',data=array(thpos_exp))
+    g1 = hf.create_group("/parameters")    
+    g1.create_dataset('dx',data = dx)
+    g1.create_dataset('dy',data = dy)
+    g1.create_dataset('indx1',data = indx1)
+    g1.create_dataset('indx2',data = indx2)
+    g1.create_dataset('indy1',data = indy1)
+    g1.create_dataset('indy2',data = indy2)
+    #-------------------------------------------------------------------------------
+    g2 = hf.create_group("/topographs")
+    g2.create_dataset('peak',  data=array(peak),  shape=peak.shape,  dtype=float32)
+    g2.create_dataset('fwhm',  data=array(fwhm),  shape=fwhm.shape,  dtype=float32)
+    g2.create_dataset('stdev', data=array(stdev), shape=stdev.shape, dtype=float32)
+    g2.create_dataset('com',   data=array(com),   shape=com.shape,   dtype=float32)
+    g2.create_dataset('thmid', data=array(thmid), shape=thmid.shape, dtype=float32)
+    g2.create_dataset('thneg', data=array(thneg), shape=thneg.shape, dtype=float32)
+    g2.create_dataset('thpos', data=array(thpos), shape=thpos.shape, dtype=float32)
+    #--------------------------------------------------------------------------------
+    g3 = hf.create_group("/statistics")
+    g3.create_dataset('peak0',     data=peak0)
+    g3.create_dataset('peak_rms',  data=peak_rms)
+    g3.create_dataset('peak_pv',   data=peak_pv)
+    g3.create_dataset('fwhm0',     data=fwhm0)
+    g3.create_dataset('fwhm_rms',  data=fwhm_rms)
+    g3.create_dataset('fwhm_pv',   data=fwhm_pv)
+    g3.create_dataset('stdev0',    data=stdev0)
+    g3.create_dataset('stdev_rms', data=stdev_rms)
+    g3.create_dataset('stdev_pv',  data=stdev_pv)
+    g3.create_dataset('com0',      data=com0)
+    g3.create_dataset('com_rms',   data=com_rms)
+    g3.create_dataset('com_pv',    data=com_pv)
+    g3.create_dataset('thmid0',    data=thmid0)
+    g3.create_dataset('thmid_rms', data=thmid_rms)
+    g3.create_dataset('thmid_pv',  data=thmid_pv)
+    g3.create_dataset('thneg0',    data=thneg0)
+    g3.create_dataset('thneg_rms', data=thneg_rms)
+    g3.create_dataset('thneg_pv',  data=thneg_pv)
+    g3.create_dataset('thpos0',    data=thpos0)
+    g3.create_dataset('thpos_rms', data=thpos_rms)
+    g3.create_dataset('thpos_pv',  data=thpos_pv)
+    #---------------------------------------------------------------------------------
+    g4 = hf.create_group("/statistics_tot")
+    g4.create_dataset('peak_tot',  data=peak_tot)
+    g4.create_dataset('fwhm_tot',  data=fwhm_tot)
+    g4.create_dataset('stdev_tot', data=stdev_tot)
+    g4.create_dataset('com_tot',  data=com_tot)
+    g4.create_dataset('thmid_tot',  data=thmid_tot)
+    g4.create_dataset('thneg_tot',  data=thneg_tot)
+    g4.create_dataset('thpos_tot',  data=thpos_tot)
+    #----------------------------------------------------------------------------------    
     hf.close()
+  if opts.tif == 1:
+    im = Image.fromarray(peak)
+    im.save('peak.tif')
+    im = Image.fromarray(fwhm)
+    im.save('fwhm.tif')
+    im = Image.fromarray(stdev)
+    im.save('stdev.tif')
+    im = Image.fromarray(com)
+    im.save('com.tif')
+    im = Image.fromarray(thmid)
+    im.save('thmid.tif')
+    im = Image.fromarray(thneg)
+    im.save('thneg.tif')
+    im = Image.fromarray(thpos)
+    im.save('thpos.tif')    
 ########################################################################################
 ## PLOT SLICES AND WRITE FILE
 ########################################################################################

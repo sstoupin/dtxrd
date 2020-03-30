@@ -1,5 +1,5 @@
 '''
-a subroutine to calculate statistical parameters for a reflectivity curve (FWHM, COM, etc.)
+subroutines to calculate statistical parameters of a curve (FWHM, COM, STDEV, etc.)
 
 :author:    Stanislav Stoupin
 :email:     sstoupin@aps.anl.gov
@@ -29,7 +29,9 @@ def gauss(a,x):
 def lorentz(b,x):
     # fwhm = 2*b[3]
     b0=abs(b[0])
-    return b0+(b[1]-b0)/(1+(x-b[2])**2.0/b[3]**2.0)
+    return b0 + (b[1]-b0)/(1+(x-b[2])**2.0/b[3]**2.0)    
+    #return b[0] + (b[1]-b[0])*b[3]/((x-b[2])**2.0 + b[3]**2.0) # this is canonical lorentzian but it doesn't matter
+    # once we define the amplitude without renormalization
 
 # without background: 
 def gauss0(a,x):
@@ -37,15 +39,15 @@ def gauss0(a,x):
     # usually fwhm = 2.0*sqrt(2.0 * log(2.0))*sigma
     # a[3] = sqrt(2.0) * fwhm/(2.0*sqrt(2.0 * log(2.0)) = 0.5*fwhm/(sqrt(log(2.0))
     ###########################
-    a0=abs(a[0])
-    return a0*exp(-(x-a[1])**2.0/a[2]**2.0)
+    #a0=abs(a[0])
+    return a[0]*exp(-(x-a[1])**2.0/a[2]**2.0)
 
 # without background:
 def lorentz0(b,x):
-    # fwhm = 2*b[3]
-    b0=abs(b[0])
-    return b0/(1+(x-b[1])**2.0/b[2]**2.0)
-
+    # fwhm = 2*b[2] for canonical lorentzian
+    #b0=abs(b[0])
+    return b[0]/(1+(x-b[1])**2.0/b[2]**2.0)
+    #return b[0]*b[2]/((x-b[1])**2.0 + b[2]**2.0)    # this is canonical lorentzian
 #######################################################################################
 # Point-by-point methods
 #######################################################################################
@@ -108,7 +110,7 @@ def curvestat(th,r,bkg):
         return [th_max,r_max,th_neg,th_pos,th_mid,fwhm,com,var,int]
 
 
-def curvestat0(th,r,bkg):  # fast procedure    
+def curvestat0(th,r,bkg):  # expedited procedure, no interpolation - only approx. answer    
     r_max=max(r)
     th_max = th[(r == r_max)]
     th_max = th_max[0]
@@ -151,6 +153,10 @@ def curvestat_(th,rcurve):
     Find curve statistics using zero crossings 
     where data is 3D array sorted such that
     data[0] is the angular dependent value
+        
+    on 03/28/2010 replaced "gradient" method with diff (consecutive difference) for interpolation
+    also in finding thneg revised to start from the -1 point below the zero-crossing
+    this yields results similar to rctopo point-by-point algorithm
     '''
     rmax_ = amax(rcurve, axis=0)
     const = ones(rcurve.shape[0],dtype=float32)
@@ -172,24 +178,26 @@ def curvestat_(th,rcurve):
     # subtract 0.5 of max to form a curve (3D) where zero crossings correspond to left/right slopes
     dfwhm_ = rcurve - 0.5*const[...,newaxis,newaxis]*rmax_[newaxis,...]    
     #print('dfwhm_ = ', dfwhm_)
-    dfwhm_m = ma.masked_where(dfwhm_<0,dfwhm_) # mask negative values
+    dfwhm_m = ma.masked_where(dfwhm_ < 0.0,dfwhm_) # mask negative values
     #fwhm = ma.count(dfwhm_m,axis=0) # could be but not
     #-----------------------
     # derivative
-    dr_ = gradient(dfwhm_,axis=0)  # 3D derivative/differences for intensity
-    dth_ = gradient(th_,axis=0)    # 3D derivative/differences for the angular scale  
+    #dr_ = gradient(dfwhm_,axis=0)  # 3D derivative/differences for intensity
+    dr_ = diff(dfwhm_,axis=0,append=0.0) #dfwhm_[-1,:,:])
+    #dth_ = gradient(th_,axis=0)    # 3D derivative/differences for the angular scale  
+    dth_ = diff(th_,axis=0,append=1.0)   #th_[-1,:,:]) # th is in microradians at this point
     derr_ = dr_/dth_               # 3D the actual derivative
     # arrays of indicies at left/right edges as notmasked_edges
     thneg0,thpos0 = asarray(ma.notmasked_edges(dfwhm_m,axis=0))
     # initialize arrays:
     thneg2 = zeros((rcurve.shape[1],rcurve.shape[2])) 
     thpos1 = zeros((rcurve.shape[1],rcurve.shape[2]))        
-    iz2 = zeros((rcurve.shape[1],rcurve.shape[2]),dtype=int16)
-    iz1 = zeros((rcurve.shape[1],rcurve.shape[2]),dtype=int16)
+    iz2 = zeros((rcurve.shape[1],rcurve.shape[2]),dtype=int32)
+    iz1 = zeros((rcurve.shape[1],rcurve.shape[2]),dtype=int32)
     #
     z1,x1,y1 = thneg0[0],thneg0[1],thneg0[2]    
-    thneg2[x1,y1] = take(th,z1)             # z1 here are indicies 
-    iz1[x1,y1]  = z1                          #2D array of indicies
+    thneg2[x1,y1] = take(th,z1-1)             # z1 here are indicies 
+    iz1[x1,y1]  = z1-1                          #2D array of indicies
     z2,x2,y2 = thpos0[0],thpos0[1],thpos0[2]    
     thpos1[x2,y2] = take(th,z2)             #z2 here are indicies
     iz2[x2,y2] = z2                           #2D array of indicies
@@ -206,7 +214,7 @@ def curvestat_(th,rcurve):
     derpos1 = derr_[iz2,I,J]
     #---------------------------------------------------------------------
     #
-    eps0 = 0.001 # ct/urad    # this is to avoid division by zero
+    eps0 = 1.0e-3 # ct/urad    # this is to avoid division by zero
     thneg = thneg2 - rneg2/(derneg2 + eps0)
     thpos = thpos1 - rpos1/(derpos1 + eps0)
     ### these are derived metrics          

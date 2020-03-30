@@ -42,7 +42,7 @@ from dtxrd.deriv import *
 
 
 prog = os.path.basename(sys.argv[0])
-__version__ = '0.51'
+__version__ = '0.52'
 #
 user_dir = os.getcwd()
 mpl.rcParams["savefig.directory"] = os.chdir(user_dir)
@@ -105,6 +105,7 @@ mpl.rcParams["savefig.directory"] = os.chdir(user_dir)
 # v 0.49 switch Gaussian to Lorentzian in res. function definition (natural tails are Lorentzian in DTXRD)
 # v 0.50 cosmetic changes, for consistency with python3
 # v 0.51 cosmetic changes to figures
+# v 0.52 fixed bug in calculation of the asym. ratio bh (was thb under sin, now thc)
 #-------------------------------------------------------------------------------------------------------------
 #  things to do
 # 1. draw a figure of crystal and waves
@@ -265,9 +266,11 @@ def main():
              K0=2.0*pi/lamc   # ; print "K0 = ", K0
              H0=2.0*pi/dh     # ; print "H0 = ", H0
              #
-             G0=cos(thc)*sin(eta)*cos(phi)+sin(thb)*cos(eta)
+             G0=cos(thc)*sin(eta)*cos(phi)+sin(thc)*cos(eta) # was thb under sin (bug!)
              Gh=G0-H0/K0*cos(eta)
              bh=G0/Gh              
+             # for explanation see (2.32)
+             # Gh is direction cosine only approximately, strictly speaking - formal parameter of the problem!!!
              ##############################################################################
              if cmd_opts.syield ==-1:
                  [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)                                       
@@ -468,7 +471,7 @@ def main():
                 P=cos(2.0*thb)                               
              crystal,flagFh=chi(cmd_opts.crystal[0],h,k,l,T,Ec)
              result0=dtxrd1(thb,eta,phi,dc,Ec,P,crystal) # first iteration to find wh
-             wh=result0[1]                                                    
+             wh=result0[1]                                                     
              thc=arcsin((Eb/Ec)*(1.0+wh))        # determine central angle
 
              if cmd_opts.polarization==1:
@@ -476,7 +479,7 @@ def main():
              result0=dtxrd1(thc,eta,phi,dc,Ec,P,crystal) # second iteration to find wh
              wh=result0[1]                     
              thc=arcsin((Eb/Ec)*(1.0+wh))        # determine central angle
-             #
+             
              if cmd_opts.polarization==1:
                 P=cos(2.0*thc)
              # calculate constants at thc,Ec
@@ -487,12 +490,15 @@ def main():
              K0=2.0*pi/lamc   # ; print "K0 = ", K0
              H0=2.0*pi/dh     # ; print "H0 = ", H0
              #
-             G0=cos(thc)*sin(eta)*cos(phi)+sin(thb)*cos(eta)
+             G0=cos(thc)*sin(eta)*cos(phi)+sin(thc)*cos(eta)  # was thb under sin (bug!)
              Gh=G0-H0/K0*cos(eta)
              bh=G0/Gh 
+             # for explanation see (2.32)
+             # Gh is direction cosine only approximately, strictly speaking - formal parameter of the problem!!!
              ###############################################################                                       
              if cmd_opts.syield ==-1:
                  [wh_s,wh,ep,dt,de,Tc,Rc]=dtxrd1(thc,eta,phi,dc,Ec,P,crystal)
+
              else:
                  # display distribution of field intensity in the crystal along z
                  f2=plt.figure()
@@ -519,7 +525,7 @@ def main():
              [eps_s,eps,eps_pr]=ep
              [dth_s,dth,dth_pr]=dt
              # thc - final iteration
-             thc=arcsin((Eb/Ec)*(1.0+wh))                                                                 
+             thc=arcsin((Eb/Ec)*(1.0+wh))
              #################################################
              #################################################
              if cmd_opts.z != '-1 -1' and Del0 > dth/2.35:                

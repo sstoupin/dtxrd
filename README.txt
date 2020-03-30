@@ -1,37 +1,39 @@
 python-dtxrd - Tools for X-ray diffraction evaluation of single crystals
 ------------------------------------------------------------------------
 dtxrd - calculates reflectivity and transmissivity for a given Bragg
-reflection of various single crystals: C (diamond), Si, Ge and Al2O3
-(sapphire).
+reflection of various single crystals: C (diamond), Si, Ge, Al2O3
+(sapphire), etc.
 
 throughput - calculates throughput for a multi-crystal configuration
-described by an input file with a special format
+described by an input file with a special format.
 
-rctopo - recombines 2D images of crystal reflectivity at different 
-angles on the crystal rocking curve to produce rocking curve images 
-(e.g., maps of the rocking curve's width, peak position, etc.)
+rctopo - calculates rocking curve topographs (e.g., maps of the rocking curve's width, 
+peak position, etc.) using a sequence of diffraction images collected at different angles on the rocking 
+curve of a crystal.
 
-rctopo-fast - a version of rctopo optimized for fast processing of large datasets (array operations)
+rctopo-fast - a version of rctopo optimized for fast processing of large datasets (array
+operations).
 
-seehdf - plots maps of 2D data contained in hdf4 and hdf5 files 
+seehdf - plots maps of 2D data contained in hdf4 and hdf5 files.
 
 rcpeak - a tool to plot and perform fitting and analysis of a rocking curve
 peak data given by a multi-column ASCII file.
 
-specscan - extracts a particular scan from a SPEC file
+specscan - extracts a particular scan from a SPEC file.
 
-flux - x-ray flux calculator based on scaler count rate and a detector response
+flux - x-ray flux calculator based on scaler count rate and a detector
+response.
 
-crl - compound reflractive lens calculator
+crl - compound reflractive lens calculator.
 
 REQUIREMENTS
 ------------
+* python-setuptools
 * hdf (hdf4, includes *hdp* command-line tool)
 * python-numpy
 * python-scipy
 * python-matplotlib
-* h5py
-* rctopo-fast requires numpy >= 1.17.4
+* python-h5py
 
 INSTALLATION
 ------------
