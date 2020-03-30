@@ -183,9 +183,13 @@ def curvestat_(th,rcurve):
     #-----------------------
     # derivative
     #dr_ = gradient(dfwhm_,axis=0)  # 3D derivative/differences for intensity
-    dr_ = diff(dfwhm_,axis=0,append=0.0) #dfwhm_[-1,:,:])
+    #dr_ = diff(dfwhm_,axis=0,append=0.0) #dfwhm_[-1,:,:]) # needs numpy 1.17
+    dr_ = diff(dfwhm_,axis=0); dr_ = append(dr_,[0.0*ones(rmax_.shape)],axis=0) # alternative, which doesn't require numpy1.17
+    # 
     #dth_ = gradient(th_,axis=0)    # 3D derivative/differences for the angular scale  
-    dth_ = diff(th_,axis=0,append=1.0)   #th_[-1,:,:]) # th is in microradians at this point
+    #dth_ = diff(th_,axis=0,append=1.0)   #th_[-1,:,:]) # th is in microradians at this point
+    dth_ = diff(th_,axis=0); dth_ = append(dth_,[ones(rmax_.shape)],axis=0) # alternative, which doesn't require numpy1.17
+    #
     derr_ = dr_/dth_               # 3D the actual derivative
     # arrays of indicies at left/right edges as notmasked_edges
     thneg0,thpos0 = asarray(ma.notmasked_edges(dfwhm_m,axis=0))
