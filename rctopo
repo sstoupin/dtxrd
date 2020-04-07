@@ -15,19 +15,12 @@ import operator
 import time
 
 # LOCAL
-#import commands
-#cmdout=commands.getstatusoutput('echo $HOME')
-#import subprocess
-#cmdout=subprocess.getstatusoutput('echo $HOME')
-#libpath=cmdout[1]+'/bin/DTXRD/'
-#sys.path.append(libpath)
-
-from numpy import *
-from pyhdf import *
-from curvestat import *
-from fit1d import *
-from myio import *
-from roll_zeropad import roll_zeropad
+#from numpy import *
+#from pyhdf import *
+#from curvestat import *
+#from fit1d import *
+#from myio import *
+#from roll_zeropad import roll_zeropad
 
 # GLOBAL
 from dtxrd.pyhdf import *
@@ -200,7 +193,7 @@ def ParseArguments():
                 help='write data to file D (default: do not write) - reserved for slice data')
         parser.add_argument('--hdf5', action='store', dest='hdf5', default=None, metavar='D',
                          help='write data to hdf5 file D (default: do not write)')  
-        parser.add_argument('--tif', action='store_const', dest='tif', const=1, default=0, 
+        parser.add_argument('-j', '--tif', action='store_const', dest='tif', const=1, default=0, 
                          help='save RC topographs as tif datafiles (default: do not save)')                                       
         parser.add_argument('-t', '--threshold', action='store', dest='tr', default=1.05, metavar='CONST',
                 help='processing threshold for reflectivity to define the boundaries of the crystal')

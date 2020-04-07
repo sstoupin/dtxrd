@@ -77,7 +77,7 @@ ftsize = 18         # figure title font size
 sig2fwhm = 2.0*sqrt(2.0*log(2.0)) # =~2.355
 ##################################################################
 
-__version__='0.08'
+__version__='0.09'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -169,6 +169,7 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 #        revised calculation of the total RC, more elegant using masked arrays
 #        fixed things so tutorial with hdf4 can run
 #        changes in curvestat_ to improve accuracy of thneg, thpos, now closer to point-by-point algo (curvestat)
+# v0.09  Now most options can be assigned through file ccd.py
 #################################################################################################################
 #  TODO LIST
 #################################################################################################################
@@ -229,19 +230,21 @@ def ParseArguments():
         parser = argparse.ArgumentParser(prog=prog, description=msg, formatter_class = argparse.RawDescriptionHelpFormatter)
         #
         parser.add_argument('-v', '--version', action='version', version=__version__)
-        parser.add_argument('-o', '--output', action='store', dest='output', default=None, metavar='F',
-                help='write calculated parameters to file F (defaults to stdout); also, write output for 1pix_total.dat')
-        parser.add_argument('-w', '--write', action='store', dest='write', default=None, metavar='D',
-                help='write data to file D (default: do not write) - reserved for slice data')
-        parser.add_argument('--hdf5', action='store', dest='hdf5', default=None, metavar='D',
-                         help='save arrays and other parameters to hdf5 metafile D (default: do not write)')
-        parser.add_argument('--tif', action='store_const', dest='tif', const=1, default=0, 
-                         help='save RC topographs as tif datafiles (default: do not save)')                                 
-        parser.add_argument('-t', '--threshold', action='store', dest='tr', default=1.05, metavar='CONST',
-                help='processing threshold for reflectivity to define the boundaries of the crystal')
-        parser.add_argument('-b', '--background', action='store', dest='bkg', default=-1, metavar='CONST',
+        parser.add_argument('-o', '--output', action='store', dest='output', default=None, metavar='FILENAME',
+                help='write calculated parameters to a file (defaults to stdout); also, write output for 1pix_total.dat')
+        parser.add_argument('-w', '--write', action='store', dest='write', default=None, metavar='FILENAME',
+                help='write data to a file (default: do not write) - reserved for slice data')
+        parser.add_argument('--hdf5', action='store', dest='hdf5', default=None, metavar='FILENAME',
+                         help='save arrays and other parameters to HDF5 metafile (default: do not write)')
+        parser.add_argument('-j', '--tif', action='store_const', dest='tif', const=1, default=0, 
+                         help='save RC topographs as tif datafiles (default: do not save)') 
+        parser.add_argument('--rbin', action='store', dest='rbin', default=None, metavar='N',
+                         help='image binning NxN')                                                          
+        parser.add_argument('-t', '--threshold', action='store', dest='tr', default=None, metavar='CONST',
+                help='intensity threshold (signal relative to bkg) to define boundaries for plotting (default = 1.05)')
+        parser.add_argument('-b', '--background', action='store', dest='bkg', default=None, metavar='CONST',
                 help='manual assignment of background to a constant, typically dark current of area detector')
-        parser.add_argument('-a', '--ashift', action='store', dest='ashift', default=0, metavar='CONST',
+        parser.add_argument('-a', action='store', dest='ashift', default=0, metavar='CONST',
                 help='compensate beam shift in the imaging plane at a distance CONST [m] (experimental option)')
         parser.add_argument('-r', '--range', action='store', dest='rng', default='-1 -1 -1 -1', metavar='STRING',
                 help='range selected for analysis STRING=\'x1 x2 y1 y2\' ')
@@ -249,33 +252,29 @@ def ParseArguments():
                 help='slice and plot distribution at a fixed coordinate X')
         parser.add_argument('-y', '--yslice', action='store', dest='ysl', default=-1, metavar='CONST',
                 help='slice and plot distribution at a fixed coordinate Y')
-        parser.add_argument('-n', '--name', action='store', dest='nm', default='', metavar='STRING',
+        parser.add_argument('-n', '--name', action='store', dest='nm', default=None, metavar='STRING',
                 help='sample name')
-        parser.add_argument('-f', '--factor', action='store', dest='f', default=1.0, metavar='CONST',
+        parser.add_argument('-f', '--factor', action='store', dest='f', default=None, metavar='CONST',
                 help='scale factor for colormap range on FWHM and STDEV topographs')
-        parser.add_argument('-m', '--magnify', action='store', dest='m', default=1.0, metavar='CONST',
+        parser.add_argument('-m', '--magnify', action='store', dest='m', default=None, metavar='CONST',
                 help='scale factor for colormap range on COM, Midpoint, Left Slope and Right Slope topographs')
-        parser.add_argument('-d', '--deglitch', action='store', dest='degl', default=-1.0, metavar='CONST',
-                help='deglitch data using median filtering, -d S, where S is the size of the filter window')        
+        parser.add_argument('-d', '--deglitch', action='store', dest='degl', default=None, metavar='CONST',
+                help='deglitch data using median filtering, -d CONST, where CONST is the size of the filter window (e.g. 3, 5, ...)')        
         parser.add_argument('--stat', action='store', dest='stat', default=None, metavar='flag',
                          help='perform curve fitting using flag g for Gaussian, l for Lorentzian') 
-        parser.add_argument('--nproc', action='store', dest='nproc', default=4, metavar='CONST',
+        parser.add_argument('--nproc', action='store', dest='nproc', default=None, metavar='CONST',
                          help='number of processor cores for fitting (default: 4)')                        
-        #parser.add_argument('-g', '--gaussian', action='store_const', const=1, dest='gstat', default=0,
-        #        help='perform gaussian curve fitting')
-        #parser.add_argument('-l', '--lorentzian', action='store_const', const=1, dest='lstat', default=0,
-        #        help='perform lorentzian curve fitting')                        
         parser.add_argument('-s', '--trasnpose', action='store_const', const=1, dest='transpose', default=0,
                 help='transpose images for plotting')
-        parser.add_argument('-u', '--units', action='store', dest='units', default='deg', metavar='uname',
+        parser.add_argument('-u', '--units', action='store', dest='units', default=None, metavar='uname',
                 help='angular units: deg, arcsec, urad')
         parser.add_argument('-p', '--publish', action='store_const', const=1, dest='publish', default=0,
                 help='generate additional figures (execute instructions in file figures.py)')
         parser.add_argument('-c', '--conduct', action='store_const', const=1, dest='conduct', default=0,
-                help='process diffraction images collected in transmission')
-        parser.add_argument('-i', '--instrument', action='store_const', const=1, dest='instrument', default=0,
-                help='read parameters from instrument file ccd.py')                                                                       
-        parser.add_argument('-z', '--integrate', action='store', dest='z', default=0, metavar='CONST',
+                help='process diffraction images collected in transmission')        
+        parser.add_argument('-i', '--instrument', action='store_const', const=1, dest='config', default=None,
+                help='read parameters from configuration file ccd.py')        
+        parser.add_argument('-z', '--integrate', action='store', dest='z', default=None, metavar='CONST',
                 help='presentation of reflectivity data: \n'
                 + 'z == 0  - plot peak reflectivity normalized by max. value (default) \n'
                 + 'z == -1 - plot integrated reflectivity normalized by max. value \n'
@@ -298,6 +297,9 @@ def main():
         fatalIOError(e)
   else:
      outFile = sys.stdout
+  #----------------------------------------------------
+  # begin entries in outFile   
+  outFile.write(prog + ' v '+__version__+'\n')
   #################################################### 0.05 fix
   nall = len(sys.argv)-len(opts.input_files)
   param0 = sys.argv[0:nall]  
@@ -311,48 +313,126 @@ def main():
     param2 = ' '.join(param0[ind_r+2:])
     param = param1 + ' '+repr(param0[ind_r+1])+' '+param2
   ###############################################################
-  #outFile.write( 'command: %s ' % param + '\n')                    
-  outFile.write(prog + ' v '+__version__+'\n')
-  outFile.write('range for analysis (x1 x2 y1 y2): (%s)  ' % opts.rng + '\n')
-  
-#----------------------------------------------------- 
-# initialize & set constants      
-#-----------------------------------------------------
+  #----------------------------------------------------- 
+  # initialize & set constants      
+  #-----------------------------------------------------
   alldata=[]
   data=[]
   th_deg=[]
-  tr=float(opts.tr)         # threshold
-  sf=float(opts.f)          # colorbar scale factor for curve width 
-  mf=float(opts.m)          # colorbar scale factor for peak position 
   nf=len(opts.input_files)  # number of input files
-  zf=int(opts.z)            #flag specifies how to process intensity topograph
   fn_ = opts.input_files
+  rng = opts.rng
+  cstat = opts.stat 
+  
   if opts.diag == 1:
-      print("Threshold (tr) = ", tr)
       print("Number of files to analyze = ", nf)
-      print("integrate reflectivity (==0 no, !=0 yes, ==-1 normalize)", zf)
+      
+  #populate some parameters with default values    
+  rbin=1             # binning
+  zf = 0             # card for intensity representation
+  tr = 1.05          # lower threshold
+  dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]    
+  uf = 'deg'         # units
+  nproc = 4          # number of processor cores for fitting (pixel-by-pixel)
+  fn_ang = opts.nm   # sample name
+  df = opts.degl          # deglitching option
+  #
+  sample_name = opts.nm
+  bkg = opts.bkg
+  trans = opts.transpose # image array transpose card
+  conduct = opts.conduct # card to use if images are collected in transmission 
+  sf = 1.0               # colorbar scaling on FWHM STDEV
+  mf = 1.0               # colorbar scaling on COM, thmid, thneg and thpos
+  dyn_range = 1.0e6      # upper threshold on the intensity colorbar (for plotting) 
+  fwhm_0 = 30.0          # initial fwhm guess (for fitting) 
+  bkg0 = 2750.0          # a "reasonable guess" background - dark current count       
+  # default paths in hdf or h5 file    
+  data_path='/entry/instrument/detector/data'
+  th_path='/entry/instrument/detector/NDAttributes/theta'
+  chi_path='/entry/instrument/detector/NDAttributes/chi'
   #-------------------------------------------------------------------------------------------
-  if opts.instrument == 1:  # if instrument file ccd.py is used
+  if opts.config is not None:  # if config file is used (e.g., ccd.py)
     user_dir = os.getcwd()
     sys.path.append(user_dir)
-    from ccd import rbin,dx,dy,dyn_range,fwhm_0,bkg0,data_path,th_path,chi_path   # import parameters from ccd.py  
-    sys.path.pop()
+    # try extracting parameters from ccd.py file:
+    # import data 
+    try:    from ccd import data_path
+    except: print('data_path is not found int the config file')    
+    try:    from ccd import th_path
+    except: print('th_path is not found int the config file')
+    try:    from ccd import chi_path
+    except: print('chi_path is not found int the config file')
+    try:    from ccd import fn_ang
+    except: print('fn_ang is not found in the config file')
+    # calculation parameters
+    try:    from ccd import rbin
+    except: print('rbin is not found in the config file')    
+    try:    from ccd import dx,dy 
+    except: print('either dx or dy are not found in the config file')
+    try:    from ccd import zf
+    except: print('zf is not found in the config file')    
+    try:    from ccd import rng
+    except: print('rng is not found in the config file')      
+    try:    from ccd import cstat
+    except: print('cstat is not found in the config file')                    
+    try:    from ccd import uf
+    except: print('uf is not found in the config file')
+    try:    from ccd import trans
+    except: print('trans is not found in the config file')
+    try:    from ccd import conduct
+    except: print('conduct is not found in the config file')
+    try:    from ccd import df
+    except: print('df is not found in the config file')
+    try:    from ccd import nproc
+    except: print('nproc is not found in the config file')
+    try:    from ccd import bkg
+    except: print('bkg is not found in the config file')
+    # parameters for plotting
+    try:    from ccd import tr
+    except: print('tr is not found in the config file')     
+    try:    from ccd import dyn_range
+    except: print('dyn_range is not found in the config file')
+    try:    from ccd import fwhm_0 
+    except: print('fwhm_0 is not found in the config file')            
+    try:    from ccd import bkg0     
+    except: print('bkg0 is not found in the config file')
+    try:    from ccd import sf
+    except: print('sf is not found in the config file')
+    try:    from ccd import mf
+    except: print('mf is not found in the config file')            
+    try:    from ccd import sample_name
+    except: print('sample_name is not found in the config file')
+    sys.path.pop()      
   else:
-    rbin=1
-    dx, dy = 1.0, 1.0  # CCD camera pixel size [mm]    
-    dyn_range = 1.0e6  # upper threshold on the intensity colorbar (for plotting) 
-    fwhm_0 = 30.0        # initial fwhm guess (for fitting) 
-    bkg0 = 2750.0        # a "reasonable" background - dark current count       
-    # default paths in hdf or h5 file    
-    data_path='/entry/instrument/detector/data'
-    th_path='/entry/instrument/detector/NDAttributes/theta'
-    chi_path='/entry/instrument/detector/NDAttributes/chi'
+    outFile.write('Configuration file is not used. Demonstration mode: default values are used for certain parameters \n')
+  #----------------------------------------------------------------------------------------------  
+  # overwrite parameters (even if extracted from ccd.py) if non-default values assigned by command line    
+  if opts.rbin is not None: rbin = int(opts.rbin)
+  if opts.rng != '-1 -1 -1 -1': rng = opts.rng
+  if opts.stat is not None: cstat = opts.stat
+  if opts.tr is not None: tr = float(opts.tr)
+  if opts.z is not None: zf = int(opts.z)
+  if opts.degl is not None: df = abs(int(opts.degl))
+  if opts.external is not None: fn_ang = opts.external
+  if opts.f is not None: sf = float(opts.f)
+  if opts.m is not None: mf = float(opts.m)
+  if opts.units is not None: uf = opts.units
+  if opts.transpose != 0:   trans = opts.transpose
+  if opts.conduct !=0: conduct = opts.conduct
+  if opts.nproc is not None: nproc = int(opts.nproc)   #number of processors 
+  if opts.nm is not None: sample_name = opts.nm
+  if opts.bkg is not None: bkg = float(opts.bkg)
+  #----------------------------------------------------------------------------------------------
+  outFile.write('range for analysis (x1 x2 y1 y2): (%s)  ' % rng + '\n')
+  ###############################################################################################
   #assign pixel size:  
   dx=float(rbin)*dx
   dy=float(rbin)*dy
   ## extract angular scale from an external data file
-  if opts.external is not None:
-    fn_ang = str(opts.external) # read scan ascii file (SPEC scan or other)
+  #if opts.external is not None:
+  if fn_ang is not None:
+    #fn_ang = str(opts.external) # read scan ascii file (SPEC scan or other)
+    fn_ang = str(fn_ang)
     d1,d2=readFile(fn_ang)
     checkext = fn_ang.split('.')
     if checkext[1] == 'asc':
@@ -372,7 +452,7 @@ def main():
       angle0, chi0, size0, im0 = read_hdf5(fn0,rbin,data_path,th_path,chi_path)
   elif fn0_ext == "tiff" or fn0_ext == "tif" or fn0_ext == "png" or fn0_ext == "jpg" or fn0_ext == "jpeg":
         size0, im0 = read_img(fn0,rbin)
-  if opts.transpose == 0:
+  if trans == 0:
         nx=size0[1]
         ny=size0[0]
   else:         
@@ -382,7 +462,7 @@ def main():
   ## SELECT REGION OF INTEREST
   ####################################################
   step=1
-  rangexy=opts.rng.split(' ')    
+  rangexy=rng.split(' ')    
   rngx1=float(rangexy[0]); rngy1=float(rangexy[2])
   rngx2=float(rangexy[1]); rngy2=float(rangexy[3])
   #  
@@ -409,7 +489,8 @@ def main():
   #print("xrange = ", xrange)
   #print("yrange = ", yrange)  
   nx1 = indx2-indx1
-  ny1 = indy2-indy1
+  ny1 = indy2-indy1    
+  #######################################################################################################
   outFile.write("image size to be analyzed : "+str(nx1)+'x'+str(ny1) + '\n')
   #-----------------------------------------------------------------------------------------------------
   # now for every file:  
@@ -433,7 +514,7 @@ def main():
     if size != size0:
         fatalIOError('The sequence contains images of different size. Processing aborted.')
     # transform images                 
-    if opts.transpose == 0:
+    if trans == 0:
         im=transpose(im)
         im=fliplr(im)
         nx=size[1]
@@ -462,15 +543,15 @@ def main():
   for x in alldata:
     th_deg=th_deg+[x[0]]            
   #-----------------------------------------------------------
-  if opts.units=='deg':
+  if uf == 'deg':
     th=1.0e6*array(th_deg)/r2d                # th_deg in degrees
-  elif opts.units=='arcsec':
+  elif uf =='arcsec':
     th=1.0e6*array(th_deg)/(60.0)**2.0/r2d    # th_deg in arcseconds
-  elif opts.units=='urad':
+  elif uf =='urad':
     th=array(th_deg)                          # th_deg in urad
-  elif opts.units=='um':
+  elif uf =='um':
     th=5.86*array(th_deg)                     # th_deg in microns
-  elif opts.units=='volt':
+  elif uf =='volt':
     #th=22.1388*array(th_deg)                 # th_deg in microns
     th=26.5*array(th_deg)
   else: 
@@ -517,13 +598,13 @@ def main():
   timing_start = time.time()
   const = ones(data1.shape[0],dtype=float32) # this is ones along 0 dimension of 3D data array
   ### deglitching using median filter #######################################
-  if opts.degl !=-1:
+  if df is not None:
       from scipy.signal import medfilt
-      df = abs(int(opts.degl))
+      #df = abs(int(opts.degl))
       data1 = medfilt(data1,kernel_size=(df,1,1))
   ###########################################################################      
   th_ = ugol[...,newaxis,newaxis]*ones(data1.shape)   # extend to 3D
-  if opts.bkg==-1:  # now as array
+  if bkg is None:  # now as array
       print("bkg approximated by the endpoints")
       bkg_2d = 0.25*(data1[0,:,:] + data1[1,:,:] + data1[-2,:,:] + data1[-1,:,:])
       bkg_ = const[...,newaxis,newaxis]*bkg_2d[newaxis,...]  # this is 3D background unique for each pixel
@@ -537,14 +618,14 @@ def main():
       B_ = const[...,newaxis,newaxis]*B_2d[newaxis,...]  # 3D unique for each pixel    
       
   else: 
-      print("bkg is assigned through option, bkg = ", float(opts.bkg))
-      bkg_=float(opts.bkg)*ones(data1.shape) 
-      bkg_2d = float(opts.bkg)*ones((data1.shape[1],data1.shape[2]))
+      print("bkg is assigned through option, bkg = ", bkg)
+      bkg_=bkg*ones(data1.shape) 
+      bkg_2d = bkg*ones((data1.shape[1],data1.shape[2]))
       A_ = zeros(data1.shape)
       B_ = bkg_   
   #################################################################################
   #################################################################################
-  if opts.conduct == 1:
+  if conduct == 1:
       baseline_ =  A_*th_ + B_           # 3D baseline unique for each pixel, 2 point linear interpolation for each pixel
       rcurve_ = -1.0*(data1 - baseline_)  # TC
       bkgs_ = zeros(data1.shape)          # TC  
@@ -556,7 +637,7 @@ def main():
       elif zf == -1: peak = sum((rcurve_ - bkgs_),axis=0)*(th[-1] - th[0])/float((len(th)-1))/bkg_2d    # same as comment above #TC
       else: peak = rcmax_/abs(float(zf))                                                                         #TC      
       
-  elif opts.conduct == 0:
+  elif conduct == 0:
       rcurve_ = data1
       bkgs_ = bkg_                      #RC
       rcmax_ = amax(rcurve_, axis=0)  # 2D
@@ -565,7 +646,7 @@ def main():
       if zf == 0: peak = rcmax_
       elif zf == -1: peak = sum((rcurve_ - bkgs_),axis=0)*(th[-1] - th[0])/float((len(th)-1))
       else: peak = rcmax_/abs(float(zf))       
-  
+  else: fatalIOError('conduct card (must be either 1 or 0)')  
   del data1   # no longer required
   rcurve_0 = rcurve_ - bkgs_  # background subtracted
   peak_ind = argmax(rcurve_0,axis=0) # 2D array of peak indicies
@@ -574,18 +655,18 @@ def main():
   # for all types of processing run zero-crossing algorithm
   thneg,thpos,thmid,fwhm,com,stdev = curvestat_(ugol,rcurve_0)
   #    
-  if opts.stat is not None:   
+  if cstat is not None:   
     rcmax_0 = amax(rcurve_0, axis=0)  # 2D
     shape0 = rcmax_0.shape
     xr = range(len(xrange))
     yr = range(len(yrange))
     index_list = list(itertools.product(yr,xr))
-    n_processors = int(opts.nproc)  # number of processor cores
+    #n_processors = nproc  # number of processor cores
     #
     if opts.diag == 1: print("Input length: {}".format(len(index_list)))        
     args = [(k,thmid,fwhm,ugol,rcmax_0,rcurve_0) for k in index_list]
-    if opts.stat == 'g':
-        p = run_multiprocessing(gfit,args,n_processors)                        
+    if cstat == 'g':
+        p = run_multiprocessing(gfit,args,nproc)                        
         if opts.diag == 1: print("Output length: {}".format(len(p)))
         p = array(p)
         p0 = reshape(p[:,0],shape0)
@@ -597,8 +678,9 @@ def main():
         fwhm = 2.0*abs(p2)*sqrt(log(2.0)) # FWHM is derived 
         thneg = p1 - fwhm/2.0             # by definition 
         thpos = p1 + fwhm/2.0             # by definition
-    elif opts.stat == 'l':
-        p = run_multiprocessing(lfit,args,n_processors)        
+        del p
+    elif cstat == 'l':
+        p = run_multiprocessing(lfit,args,nproc)        
         if opts.diag == 1: print("Output length: {}".format(len(p)))
         p = array(p)
         p0 = reshape(p[:,0],shape0)
@@ -610,7 +692,7 @@ def main():
         fwhm =  2.0*abs(p2)               # by definition
         thneg = p1 - fwhm/2.0             # lets define it like that
         thpos = p1 + fwhm/2.0             # lets define it like that
-    del p    
+        del p    
     #if __name__ == "__main__":        
     #  freeze_support()
     #  main()
@@ -680,13 +762,13 @@ def main():
   bkg_aver = sum(bkg_2d)/float(bkg_2d.shape[0]*bkg_2d.shape[1])
   outFile.write("Average baseline subtracted, bkg_aver = " + str(bkg_aver) + '\n')
   #
-  if opts.conduct == 0:
+  if conduct == 0:
     if zf == 0 or zf == -1:
       peak=peak/norm1 
       peak1=peak1/norm1
       peak_m1 = peak_m1/norm1
       peak_m2 = peak_m2/norm2
-  elif opts.conduct == 1:
+  elif conduct == 1:
     if zf == -1:
       peak=peak/norm1 
       peak1=peak1/norm1
@@ -863,7 +945,7 @@ def main():
       thneg_sl = thneg[:,indxsl]
       thpos_sl = thpos[:,indxsl] 
       range_sl = dy*arange(indy1,indy2)
-      sbtitle0 = 'Slices at X = '+str(xsl)+' '
+      sbtitle0 = 'Slices at X = '+str(xsl)+'. '
       str_axis='y [mm]'
   #----------------------------------    
   if ysl >= 0:
@@ -877,7 +959,7 @@ def main():
       thneg_sl = thneg[indysl,:]
       thpos_sl = thpos[indysl,:]
       range_sl = dx*arange(indx1,indx2)
-      sbtitle0 = 'Slices at Y = '+str(ysl)+' '      
+      sbtitle0 = 'Slices at Y = '+str(ysl)+'. '      
       str_axis='x [mm]'
   #
   xyrange=(dx*indx1,dx*indx2,dy*indy1,dy*indy2)  # 
@@ -894,13 +976,13 @@ def main():
 ## PLOT EVERYTHING
 ###################################################################################
   fig=plt.figure(figsize=(22.0,12.2))
-  if opts.stat== 'g':     sbtitle='Gaussian curve fitting.'
-  elif opts.stat == 'l':  sbtitle='Lorentzian curve fitting.'  
-  else:                   sbtitle='No curve fitting.'
+  if   cstat == 'g':    sbtitle='Gaussian curve fitting.'
+  elif cstat == 'l':    sbtitle='Lorentzian curve fitting.'  
+  else:                sbtitle='No curve fitting.'
   #      
   sbtitle='Rocking curve topographs: '+sbtitle
   # Sample name     
-  if opts.nm != '':       sbtitle=sbtitle+' Sample: '+opts.nm  #+'\n' + param  
+  if sample_name is not None:       sbtitle=sbtitle+' Sample: '+sample_name  #+'\n' + param  
   plt.suptitle(sbtitle, size=ftsize)      
   #plt.gca().set_position((.1, .1, .1, .1)) # used to be here - now producing weird empty subplot - actually not needed
   plt.figtext(0.1,0.025,param)
@@ -908,22 +990,22 @@ def main():
   ax1 = fig.add_subplot(331)
   if zf == 0:
       imgplot = ax1.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-      if opts.conduct == 0:   ax1.set_title('Peak Intens. [n.u.]',size=ftsize)
-      elif opts.conduct == 1: ax1.set_title('Peak Intens. [abs.u.]',size=ftsize)   # this is absolute Refl. for low-absorbing sample
+      if conduct == 0:   ax1.set_title('Peak Intens. [n.u.]',size=ftsize)
+      elif conduct == 1: ax1.set_title('Peak Intens. [abs.u.]',size=ftsize)   # this is absolute Refl. for low-absorbing sample
       fig.colorbar(imgplot, ax=ax1)
   elif zf == -1:
      imgplot = ax1.imshow(peak_m2, aspect='auto', extent=xyrange,vmin=0,vmax=1.0)
-     if opts.conduct == 0:    ax1.set_title('Integrated Intens.[n.u.]',size=ftsize)
-     elif opts.conduct == 1:  ax1.set_title('Integrated Intens. [n.u.]',size=ftsize)
+     if conduct == 0:    ax1.set_title('Integrated Intens.[n.u.]',size=ftsize)
+     elif conduct == 1:  ax1.set_title('Integrated Intens. [n.u.]',size=ftsize)
      fig.colorbar(imgplot, ax=ax1)      
   else: 
-      if opts.conduct == 0:   
+      if conduct == 0:   
           ax1.set_title('Intensity [cnt x 10$^3$]',size=ftsize)
           vmin0=amin(peak1)/1.0e3; vmax0=amax(peak1)/1.0e3
           #peak_tr = 65536.0/abs(zf) #; print ('peak tr = ', peak_tr)  this threshold based on assumption of 16bit detector
           #peak_m9 = ma.array(1.0e-3*peak_m2,mask=peak_m1>peak_tr)            
           imgplot = ax1.imshow(1.0e-3*peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)      
-      elif opts.conduct == 1: 
+      elif conduct == 1: 
           plt.title('Intensity [cnt x 10$^3$]',size=ftsize)
           vmin0=amin(peak1)/1.0e3; vmax0=amax(peak1)/1.0e3
           imgplot = ax1.imshow(1.0e-3*peak_m2, aspect='auto', extent=xyrange,vmin=vmin0,vmax=vmax0)
@@ -1042,7 +1124,7 @@ def main():
       rcurve00=rcurve_0[:,idy,idx]
       #b00=0.25*(rcurve00[0]+rcurve00[1]+rcurve00[-2]+rcurve00[-1])
       #print('bkg (from tails) = %f' % b00)
-      #if opts.conduct == 1:
+      #if conduct == 1:
       #    rcurve00 = -1.0*(rcurve00 - b00)      
       #else: 
       #    rcurve00 = rcurve00 - b00
@@ -1113,7 +1195,7 @@ def main():
     user_dir = os.getcwd()
     sys.path.append(user_dir)
     from figures import figplot        
-    figplot(opts.transpose,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com_exp,thmid_exp,thneg_exp,thpos_exp)
+    figplot(trans,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com_exp,thmid_exp,thneg_exp,thpos_exp)
     sys.path.pop()
   ############################################################################################################## 
   if opts.hdf5 is not None:
@@ -1190,7 +1272,7 @@ def main():
                  
   if xsl >= 0 or ysl >= 0:    
       
-      f3=plt.figure(3)         
+      f3=plt.figure(3,figsize=(22.0,12.2))         
       plt.suptitle(sbtitle0+sbtitle, size=20)  
       plt.subplot(331)
       #peak_sl_m=np.ma.array(peak_sl,mask=peak_sl>10.0*max(peak1))
@@ -1210,7 +1292,7 @@ def main():
       #stdev_sl_m=np.ma.array(stdev_sl,mask=stdev_sl>100.0*stdev0)
       plt.plot(range_sl,stdev_sl)
       plt.title('STDEV [$\mu$rad]',size=ftsize)
-      #plt.xlabel('x [mm]')
+      plt.xlabel(str_axis)
       #plt.ylabel('y [mm]')
 
       plt.subplot(334)
@@ -1224,7 +1306,7 @@ def main():
       #thmid_sl_m=np.ma.array(thmid_sl,mask=thmid_sl>1.0e6)
       plt.plot(range_sl,thmid_sl)
       plt.title('Midpoint [$\mu$rad]',size=ftsize)
-      plt.xlabel(str_axis)
+      #plt.xlabel(str_axis)
       #plt.ylabel('y [mm]')
 
       plt.subplot(337)
