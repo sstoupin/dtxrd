@@ -1,13 +1,13 @@
 from pylab import *
-from constants import r2d
-r2d = 180.0/pi
 import numpy as np
+r2d = 180.0/np.pi
 def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpos):
 ##
   thc=21.96
   thsi=23.6449
   dth = 2.0*(thsi-thc)
-  dy=dy/(sin(thc/r2d+dth/r2d) - cos(thc/r2d+dth/r2d)*tan(dth/r2d))
+  #dy=dy/(sin(thc/r2d+dth/r2d) - cos(thc/r2d+dth/r2d)*tan(dth/r2d))
+  dy = dy*cos(dth/r2d)/sin(thc/r2d)
   #dx1=dx
   #if s==1:
   xyrange=(0.0,dx*(indx2-indx1),0.0,dy*(indy2-indy1))
@@ -18,7 +18,7 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   matplotlib.rcParams['xtick.major.pad']='8'
   matplotlib.rcParams['ytick.major.pad']='8'
   
-  f31=plt.figure(9)
+  f31=plt.figure(figsize=(16,12))
   shr1=0.8
   pad1=0.02
   asp1=20.0
@@ -37,9 +37,9 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
 #  imgplot.set_cmap('jet')  
   #divider = make_axes_locatable(ax)
   #cax = divider.append_axes("right", size="5%", pad=0.05)  
-  ysize=xyrange[3]; print ysize
-  xsize=xyrange[1]; print xsize
-  print "y/x = ", ysize/xsize
+  ysize=xyrange[3] #; print(ysize)
+  xsize=xyrange[1] #; print(xsize)
+  #print("y/x = ", ysize/xsize)
   #plt.colorbar(imgplot,ticks=[0,0.2,0.4,0.6,0.8,1.0],shrink=shr1,pad=pad1,aspect=asp1)
 #  plt.colorbar(imgplot,ticks=[-20,-10,0,10,20],orientation='horizontal')
   #plt.xlabel('x [mm]',labelpad=lbp1)
@@ -48,7 +48,7 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   #plt.xticks(xti)
   #plt.yticks(yti)
   #--------------------------------------------------------------------------------------
-  plt.subplot(141)
+  plt.subplot(221)
   vmin0=26.5
   vmax0=29.5
   trmax=10.0*vmax0
@@ -56,13 +56,13 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   imgplot = plt.imshow(fwhm_m, aspect='equal', extent=xyrange, vmin=vmin0, vmax=vmax0)
 # imgplot.set_cmap('jet')  
   plt.colorbar(imgplot,ticks=[26.5,27.0,27.5,28.0,28.5,29.0,29.5],shrink=shr1,pad=pad1,aspect=asp1)
-  plt.xlabel('x [mm]',labelpad=lbp1)
+  #plt.xlabel('x [mm]',labelpad=lbp1)
   plt.ylabel('y [mm]',labelpad=lbp1)
   plt.title('FWHM')
   plt.xticks(xti)
   plt.yticks(yti)
   #--------------------------------------------------------------------------------------- 
-  plt.subplot(142)
+  plt.subplot(222)
   vmin0=-2.0
   vmax0=2.0
   trmax=10.0*vmax0
@@ -70,13 +70,13 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   imgplot = plt.imshow(thmid_m, aspect='equal', extent=xyrange, vmin=vmin0, vmax=vmax0)
 #  imgplot.set_cmap('jet')  
   plt.colorbar(imgplot,ticks=[-2,-1,0,1,2],shrink=shr1,pad=pad1,aspect=asp1)
-  plt.xlabel('x [mm]',labelpad=lbp1)
+  #plt.xlabel('x [mm]',labelpad=lbp1)
   plt.ylabel('y [mm]',labelpad=lbp1)
   plt.title('mid-point')
   plt.xticks(xti)
   plt.yticks(yti)
   #--------------------------------------------------------------------------------------- 
-  plt.subplot(143)
+  plt.subplot(223)
   vmin0=-2.0
   vmax0=2.0
   trmax=10.0*vmax0
@@ -90,7 +90,7 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   plt.xticks(xti)
   plt.yticks(yti)
   #--------------------------------------------------------------------------------------- 
-  plt.subplot(144)
+  plt.subplot(224)
   vmin0=-2.0
   vmax0=2.0
   trmax=10.0*vmax0

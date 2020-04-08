@@ -1,6 +1,6 @@
 from pylab import *
-r2d = 180.0/pi
 import numpy as np
+r2d = 180.0/np.pi
 def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpos):
 ##
   #thc=21.96
@@ -18,7 +18,7 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   matplotlib.rcParams['xtick.major.pad']='8'
   matplotlib.rcParams['ytick.major.pad']='8'
   
-  f31=plt.figure(9)
+  f31=plt.figure(3,figsize=(10,10))
   shr1=0.8
   pad1=0.02
   asp1=20.0
@@ -26,7 +26,7 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   #xti = [0,1,2,3,4,5,6,7,8,9,10,11]
   xti = [0.0,0.2,0.4,0.6,0.8,1.0]
   #yti = [0,1,2,3,4,5,6,7,8,9,10,11]
-  yti = [0.00,0.05,0.10,0.15,0.20,0.25]
+  yti = [0.0,0.1,0.2]
   #-------------------------------------------------------------------------------------
   #plt.subplot(131)    
   #vmin0=0
@@ -37,9 +37,9 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
 #  imgplot.set_cmap('jet')  
   #divider = make_axes_locatable(ax)
   #cax = divider.append_axes("right", size="5%", pad=0.05)  
-  ysize=xyrange[3]; print ysize
-  xsize=xyrange[1]; print xsize
-  print "y/x = ", ysize/xsize
+  ysize=xyrange[3]; print(ysize)
+  xsize=xyrange[1]; print(xsize)
+  print("y/x = ", ysize/xsize)
   #plt.colorbar(imgplot,ticks=[0,0.2,0.4,0.6,0.8,1.0],shrink=shr1,pad=pad1,aspect=asp1)
 #  plt.colorbar(imgplot,ticks=[-20,-10,0,10,20],orientation='horizontal')
   #plt.xlabel('x [mm]',labelpad=lbp1)
@@ -48,7 +48,7 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   #plt.xticks(xti)
   #plt.yticks(yti)
   #----------------------------------------------------------------------------------------------------
-  plt.subplot(131)
+  plt.subplot(311)
   vmin0=0
   vmax0=0.3
   trmax=10.0*vmax0
@@ -56,13 +56,13 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   imgplot = plt.imshow(peak_m, aspect='equal', extent=xyrange, vmin=vmin0, vmax=vmax0)
 # imgplot.set_cmap('jet')  
   plt.colorbar(imgplot,ticks=[0.0,0.1,0.2,0.3],shrink=shr1,pad=pad1,aspect=asp1)
-  plt.xlabel('x [mm]',labelpad=lbp1)
+  #plt.xlabel('x [mm]',labelpad=lbp1)
   plt.ylabel('y [mm]',labelpad=lbp1)
   plt.title('peak intensity [n.u.]')
   plt.xticks(xti)
   plt.yticks(yti)
   #----------------------------------------------------------------------------------------------------
-  plt.subplot(132)
+  plt.subplot(312)
   vmin0=1.5
   vmax0=3.0
   trmax=10.0*vmax0
@@ -70,13 +70,13 @@ def figplot(s,dx,dy,indx1,indx2,indy1,indy2,peak,fwhm,stdev,com,thmid,thneg,thpo
   imgplot = plt.imshow(fwhm_m, aspect='equal', extent=xyrange, vmin=vmin0, vmax=vmax0)
 # imgplot.set_cmap('jet')  
   plt.colorbar(imgplot,ticks=[1.5,2.0,2.5,3.0],shrink=shr1,pad=pad1,aspect=asp1)
-  plt.xlabel('x [mm]',labelpad=lbp1)
+  #plt.xlabel('x [mm]',labelpad=lbp1)
   plt.ylabel('y [mm]',labelpad=lbp1)
   plt.title('peak width [$\mu$rad]')
   plt.xticks(xti)
   plt.yticks(yti)
   #---------------------------------------------------------------------------------------------------- 
-  plt.subplot(133)
+  plt.subplot(313)
   vmin0=-1.0
   vmax0=1.0
   trmax=10.0*vmax0

@@ -14,6 +14,7 @@ Provides
 * :ref:`dtxrd`	      : calculations of reflectivity/transmissivity using the dynamical theory of x-ray diffraction 
 * :ref:`rcpeak`       : plotting and statistics of a reflectivity (rocking) curve
 * :ref:`rctopo`       : x-ray rocking curve topography
+* :ref:`rctopo-fast`  : accelerated x-ray rocking curve topography
 * :ref:`seehdf`       : HDF4 and HDF5 image data viewer
 * :ref:`specscan`     : extraction of individual scans from a SPEC data file
 * :ref:`throughput`   : calculations of a throughput and rocking curves of a multicrystal configuration 
@@ -37,6 +38,7 @@ Requires
    dtxrd
    rcpeak
    rctopo
+   rctopo-fast
    seehdf
    specscan
    throughput
