@@ -780,11 +780,11 @@ def main():
   #
   out='------------------------------------------------------------------------\n'
   #----------------------------------------------------------------------------------
-  fwhm0=average(fwhm1);            out = out + "FWHM_average = %f " % fwhm0 +" urad\n"
+  fwhm0=mean(fwhm1);            out = out + "FWHM_average = %f " % fwhm0 +" urad\n"
   fwhm_rms=std(fwhm1);             out = out + "FWHM_rms = %f "     % fwhm_rms +" urad\n"
   fwhm_pv=amax(fwhm1)-amin(fwhm1); out = out + "FWHM_pv =  %f "     % fwhm_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  stdev0=average(stdev1);             out = out + "STDEV_average = %f " % stdev0 +"urad\n"
+  stdev0=mean(stdev1);             out = out + "STDEV_average = %f " % stdev0 +"urad\n"
   stdev_rms=std(stdev1);              out = out + "STDEV_rms = %f "     % stdev_rms +" urad\n"
   stdev_pv=amax(stdev1)-amin(stdev1); out = out + "STDEV_pv = %f "      % stdev_pv +" urad\n"
   #----------------------------------------------------------------------------------
@@ -792,19 +792,19 @@ def main():
   peak_rms=std(peak1);             out = out + "Intens_rms = %f "     % peak_rms +"\n"
   peak_pv=amax(peak1)-amin(peak1); out = out + "Intens_pv = %f "      % peak_pv +"\n"
   #----------------------------------------------------------------------------------
-  com0=average(com1);           out = out + "COM_average = %f " % com0 +" urad\n"
+  com0=mean(com1);           out = out + "COM_average = %f " % com0 +" urad\n"
   com_rms=std(com1);            out = out + "COM_rms = %f "     % com_rms +" urad\n"
   com_pv=amax(com1)-amin(com1); out = out + "COM_pv = %f "      % com_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  thmid0=average(thmid1);             out = out + "thmid_average = %f " % thmid0 +" urad\n"
+  thmid0=mean(thmid1);             out = out + "thmid_average = %f " % thmid0 +" urad\n"
   thmid_rms=std(thmid1);              out = out + "thmid_rms = %f "     % thmid_rms +" urad\n"
   thmid_pv=amax(thmid1)-amin(thmid1); out = out + "thmid_pv = %f "      % thmid_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  thneg0=average(thneg1);             out = out +"thneg_average = %f " % thneg0 +" urad\n"
+  thneg0=mean(thneg1);             out = out +"thneg_average = %f " % thneg0 +" urad\n"
   thneg_rms=std(thneg1);              out = out + "thneg_rms = %f "    % thneg_rms +" urad\n"
   thneg_pv=amax(thneg1)-amin(thneg1); out = out + "thneg_pv = %f "     % thneg_pv +" urad\n"
   #----------------------------------------------------------------------------------
-  thpos0=average(thpos1);             out = out + "thpos_average = %f " % thpos0 +" urad\n"
+  thpos0=mean(thpos1);             out = out + "thpos_average = %f " % thpos0 +" urad\n"
   thpos_rms=std(thpos1);              out = out + "thpos_rms = %f "     % thpos_rms +" urad\n"
   thpos_pv=amax(thpos1)-amin(thpos1); out = out + "thpos_pv = %f "      % thpos_pv +" urad\n"
   out = out + '------------------------------------------------------------------------\n'
