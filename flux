@@ -13,7 +13,7 @@ a calibration file of a PIN detector
 
 import sys
 from numpy import *
-from myio import readFile
+from dtxrd.myio import readFile
 import scipy
 from scipy.interpolate import interp1d
 

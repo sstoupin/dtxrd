@@ -84,7 +84,7 @@ def main():
         # import parameters from ccd.py
         user_dir = os.getcwd()
         sys.path.append(user_dir)          
-        from ccd import rbin,dx,dy,tot_range,dyn_range,fwhm_0,bkg0
+        from ccd import rbin,dx,dy  #,tot_range,dyn_range,fwhm_0,bkg0
         from ccd import data_path,th_path,chi_path
         sys.path.pop() 
     else:

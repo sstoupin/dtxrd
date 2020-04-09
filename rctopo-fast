@@ -264,7 +264,7 @@ def ParseArguments():
                          help='perform curve fitting using flag g for Gaussian, l for Lorentzian') 
         parser.add_argument('--nproc', action='store', dest='nproc', default=None, metavar='CONST',
                          help='number of processor cores for fitting (default: 4)')                        
-        parser.add_argument('-s', '--trasnpose', action='store_const', const=1, dest='transpose', default=0,
+        parser.add_argument('-s', '--transpose', action='store_const', const=1, dest='transpose', default=0,
                 help='transpose images for plotting')
         parser.add_argument('-u', '--units', action='store', dest='units', default=None, metavar='uname',
                 help='angular units: deg, arcsec, urad')

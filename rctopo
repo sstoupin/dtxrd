@@ -219,7 +219,7 @@ def ParseArguments():
                 help='deglitch data using median filtering, -d S, where S is the size of the filter window')
         parser.add_argument('-g', '--gaussian', action='store_const', const=1, dest='stat', default=0,
                 help='do gaussian curve fitting (can help with noisy data)')
-        parser.add_argument('-s', '--trasnpose', action='store_const', const=1, dest='transpose', default=0,
+        parser.add_argument('-s', '--transpose', action='store_const', const=1, dest='transpose', default=0,
                 help='transpose images for plotting')
         parser.add_argument('-u', '--units', action='store', dest='units', default='deg', metavar='STRING',
                 help='angular units: deg, arcsec, urad')
