@@ -265,6 +265,26 @@ An additional figure is generated having customized axes, titles, subplots, etc.
 
             **Figure 3** Rocking curve topographs (customized using figures.py)
 
+The calculated topographs can be saved as data for post-processing/making custom figures.
+The results of calculations can be conveniently saved in one HDF5 metafile using 
+**--hdf** option followed by a chosen filename::
+
+    rctopo --hdf5 topographs.hdf5 -r '1 12.5 4.8 8.8' -t 10 -f 0.1 -m 0.1 -s -i -u urad C111*.h5
+
+The resulting metafile contains parameters of the calculation, topographs and curve statistics.
+
+:download:`topographs.hdf5 <../../examples/rctopo/C111-1_h5/topographs.hdf5>`
+
+Below is an example of a script which reads the metafile, extracts the topographs and generates 
+a figure in a format similar to the Figure 3 above.  
+
+:download:`plot_h5.py <../../examples/rctopo/C111-1_h5/plot_h5.py>`
+
+
+Alternatively, the program can save individual topographs as images in .tif format 
+(**--tif** option).
+
+
 III. Analysis of transmission diffraction data
 ****************************************************************************************
 The archive of data below represents a sequence of transmission diffraction topographs of 
