@@ -212,7 +212,7 @@ For example, the last run of the program with **--stat l** option yields artific
 II. Analysis of a large dataset using an angular scale provided by an external file
 ****************************************************************************************
 In this example a large dataset from the 0008 reflection of 
-a section of SiC-4H wafer is processed. The sequence of images was collected using 
+a section of SiC-4H crystal wafer is processed. A sequence of .tiff images was collected using 
 ANDOR-NEO detector with a pixel size of 6.5x6.5 um^2, 
 (1x objective lens, indirect detection of x-rays using visible light from a scintillator). 
 Due to the size of the dataset (860 MB) it is not distributed with the program. 
