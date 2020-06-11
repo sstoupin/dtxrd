@@ -14,9 +14,10 @@ from setuptools import setup, find_packages
 
 install_requires = [
    'numpy>=1.12.1', 
-   'scipy>=0.18.1', 
+   'scipy>=0.18.1',
    'matplotlib>=0.99.1.1',
    'h5py>=2.0.1',
+   'pil>=4.0.0',
 ]
 
 setup(

@@ -29,20 +29,22 @@ crl - compound reflractive lens calculator.
 REQUIREMENTS
 ------------
 * python-setuptools
-* hdf (hdf4, includes *hdp* command-line tool)
 * python-numpy
 * python-scipy
 * python-matplotlib
 * python-h5py
+* python-pil
+* hdf (hdf4, includes *hdp* command-line tool), optional (not required)
 
 INSTALLATION
 ------------
+It is recommended to install the dependencies prior to installation of python-dtxrd
 
 The Python Distutils system provides packaging, compilation, and installation
 for python-dtxrd
 
 To install, execute the following command as superuser:
-  # python setup.py install [OPTIONS]
+  > python setup.py install [OPTIONS]
 
 For more information about installation options, execute the following
 command:

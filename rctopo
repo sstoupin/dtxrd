@@ -70,7 +70,7 @@ r2d=180.0/pi
 ftsize = 18         # figure title font size 
 ##################################################################
 
-__version__='0.94'
+__version__='0.96'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -147,6 +147,8 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 # v094   changes to colorbar scaling to make compatible with rctopo-new/fast
 #        fix analysis of the total RC
 #        saving .h5 and .tif in the same format like rctopo-fast
+# v095   changed colormap range on thneg and thpos so that it is centered around mean
+# v096   added glob.glob to read '*' mask properly in WIN, behavior in linux is not compromised
 #######################################################################################
 #  TODO LIST
 #######################################################################################
@@ -240,6 +242,11 @@ def ParseArguments():
         parser.add_argument('input_files',nargs='+',
                 help='list of input filenames')
         return parser.parse_args()
+#        
+# Cross-platform (converts * mask  into a list for WIN)
+import glob
+if '*' in sys.argv[-1]:
+     sys.argv[-1:] = glob.glob(sys.argv[-1])
 ###############################################################################                                                                
 def main():
   opts = ParseArguments()
@@ -926,7 +933,8 @@ def main():
 
   #vmin0=round(thneg0-1.0*sf*fwhm0)
   vmin0=round(thneg0-1.0*mf*fwhm0)
-  vmax0=round(thmid0)
+  vmax0=round(thneg0+1.0*mf*fwhm0)
+  #vmax0=round(thmid0)
   
   ax7 = fig.add_subplot(337)
   thneg_m = ma.array(thneg,mask=thneg>1.0e8)
@@ -937,8 +945,9 @@ def main():
   ax7.set_ylabel('y [mm]')
   
 #  vmin0=round(com0-(sf-1.0)*fwhm0,-1)
-  vmin0=round(thmid0)
+  #vmin0=round(thmid0)
   #vmax0=round(thpos0+1.0*sf*fwhm0)
+  vmin0=round(thpos0-1.0*mf*fwhm0)
   vmax0=round(thpos0+1.0*mf*fwhm0)
   
   ax8 = fig.add_subplot(338)

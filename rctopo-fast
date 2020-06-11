@@ -77,7 +77,7 @@ ftsize = 18         # figure title font size
 sig2fwhm = 2.0*sqrt(2.0*log(2.0)) # =~2.355
 ##################################################################
 
-__version__='0.09'
+__version__='0.11'
 prog = os.path.basename(sys.argv[0])
 proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 
@@ -170,11 +170,14 @@ proginfo = prog + __version__ + ', by Stanislav Stoupin <sstoupin@gmail.com>'
 #        fixed things so tutorial with hdf4 can run
 #        changes in curvestat_ to improve accuracy of thneg, thpos, now closer to point-by-point algo (curvestat)
 # v0.09  Now most options can be assigned through file ccd.py
+# v0.10  changed colormap range on thneg and thpos so that it is centered around mean
+# v0.11  added glob.glob to read '*' mask properly in WIN, behavior in linux is not compromised
 #################################################################################################################
 #  TODO LIST
 #################################################################################################################
 # 0. improve comput. speed? - DONE
-# 1. unified input config file for a program run
+# 1. unified input config file for a program run - DONE
+# 2. improve colorbar range on thneg and thpos
 #################################################################################################################
 #------------------------------------------------------------------------------------
 # fitting subroutines
@@ -287,6 +290,11 @@ def ParseArguments():
         parser.add_argument('input_files',nargs='+',
                 help='list of input filenames')
         return parser.parse_args()
+#        
+# Cross-platform (converts * mask  into a list for WIN)
+import glob
+if '*' in sys.argv[-1]:
+     sys.argv[-1:] = glob.glob(sys.argv[-1])
 ###############################################################################                                                                
 def main():
   opts = ParseArguments()
@@ -1065,7 +1073,8 @@ def main():
   #ax6.axis('off')
   #-----------------------------------------------------------------------------------
   vmin0=round(thneg0-1.0*mf*fwhm0)
-  vmax0=round(thmid0)
+  vmax0=round(thneg0+1.0*mf*fwhm0)
+  #vmax0=round(thmid0)
   
   ax7 = fig.add_subplot(337)
   #thneg_m = ma.array(thneg,mask=thneg>1.0e8)
@@ -1075,8 +1084,9 @@ def main():
   ax7.set_xlabel('x [mm]')
   ax7.set_ylabel('y [mm]')
   #-----------------------------------------------------------------------------------  
-#  vmin0=round(com0-(sf-1.0)*fwhm0,-1)
-  vmin0=round(thmid0)
+  #vmin0=round(com0-(sf-1.0)*fwhm0,-1)
+  #vmin0=round(thmid0)
+  vmin0=round(thpos0-1.0*mf*fwhm0)
   vmax0=round(thpos0+1.0*mf*fwhm0)
   
   ax8 = fig.add_subplot(338)
