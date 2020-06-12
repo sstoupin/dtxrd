@@ -1,27 +1,26 @@
 python-dtxrd - Tools for X-ray diffraction evaluation of single crystals
 ------------------------------------------------------------------------
 dtxrd - calculates reflectivity and transmissivity for a given Bragg
-reflection of various single crystals: C (diamond), Si, Ge, Al2O3
-(sapphire), etc.
+reflection of various single crystals (temperature-dependent models): 
+C(diamond), Si, Ge, Al2O3(sapphire), etc.
 
-throughput - calculates throughput for a multi-crystal configuration
+throughput - calculates throughput and rocking curves for a multi-crystal configuration
 described by an input file with a special format.
 
 rctopo - calculates rocking curve topographs (e.g., maps of the rocking curve's width, 
 peak position, etc.) using a sequence of diffraction images collected at different angles on the rocking 
 curve of a crystal.
 
-rctopo-fast - a version of rctopo optimized for fast processing of large datasets (array
-operations).
+rctopo-fast - a version of rctopo optimized for processing of large datasets.
 
 seehdf - plots maps of 2D data contained in hdf4 and hdf5 files.
 
-rcpeak - a tool to plot and perform fitting and analysis of a rocking curve
-peak data given by a multi-column ASCII file.
+rcpeak - a tool to plot and perform fitting and analysis of a rocking curve data
+given by a multi-column ASCII file.
 
 specscan - extracts a particular scan from a SPEC file.
 
-flux - x-ray flux calculator based on scaler count rate and a detector
+flux - calculates x-ray flux from a scaler count rate and a detector
 response.
 
 crl - compound reflractive lens calculator.
@@ -53,6 +52,11 @@ command:
 For information about other Distutils commands, execute the following command:
   > python setup.py --help-commands
 
+Example (does not require super user priveleges):
+  > python setup.py install --user
+  .local/bin can be included to PATH for convenience
+  e.g., inlcude  the following line in .bashrc 
+  export PATH=$PATH:$HOME/.local/bin
 
 AVAILABILITY
 ------------
